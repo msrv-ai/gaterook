@@ -310,7 +310,8 @@ describe('connection form: database discovery', () => {
     expect(host.form().databaseSelectionValid()).toBe(false);
   });
 
-  it.each(['mysql', 'postgres', 'sqlserver'])('keeps %s database choices when only the environment changes', async (type) => {
+  // PostgreSQL's Auto becomes verify-full on prod, which loads the list again (the Add connection page's tests).
+  it.each(['mysql', 'sqlserver'])('keeps %s database choices when only the environment changes', async (type) => {
     const { el, host, settle, load, choose } = await databaseForm(type);
     const request = await load();
     host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
@@ -719,7 +720,7 @@ describe('connection form: MySQL transport defaults', () => {
 
     const ssl = el.querySelector<HTMLSelectElement>('#cf-connection-sslMode')!;
     expect(ssl.value).toBe('auto');
-    expect(ssl.selectedOptions[0].textContent).toBe('Auto (SSL if available)');
+    expect(ssl.selectedOptions[0].textContent).toBe('Auto (TLS when the server offers it, not verified)');
     expect([...ssl.options].map((option) => option.value)).toEqual(['auto', 'disable', 'require', 'verify-ca', 'verify-full']);
 
     const advanced = el.querySelector<HTMLElement>('#cf-advanced-body')!;

@@ -62,19 +62,24 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "type": "string",
             "title": "SSL mode",
             "enum": [
+              "auto",
               "disable",
               "require",
               "verify-ca",
               "verify-full"
             ],
-            "default": "verify-full",
+            "default": "auto",
+            "x-env-default": {
+              "prod": "verify-full"
+            },
             "x-enumTitles": [
+              "Auto (TLS when the server offers it, verified)",
               "Off (disable)",
               "Encrypt, don't verify (require)",
               "Verify the CA (verify-ca)",
               "Verify the CA and host name (verify-full)"
             ],
-            "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.",
+            "description": "Auto asks the server before signing in: when it offers TLS, the certificate and host name are verified as with verify-full; only a server without TLS gets an unencrypted connection. A certificate that fails verification is an error: add its CA below.",
             "x-section": "/advanced"
           },
           "caCertificate": {
@@ -82,7 +87,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "title": "CA certificate (PEM)",
             "maxLength": 20000,
             "x-widget": "textarea",
-            "description": "Only for a private CA. Empty: the system trust store.",
+            "description": "Only for a private CA, with Auto, verify-ca or verify-full. Empty: the system trust store.",
             "x-section": "/advanced"
           }
         }
@@ -144,7 +149,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "items": {
               "type": "string",
               "maxLength": 200
-            }
+            },
+            "description": "Only these schemas are available to agents. Empty: every schema the user may use."
           },
           "allowedFunctions": {
             "type": "array",
@@ -156,13 +162,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "maxLength": 200,
               "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
             },
-            "description": "Your own functions that only read, as name or schema.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+            "description": "Your own functions that only read: a name for calls without a schema, schema.name for calls with one. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
           },
           "defaultSchema": {
             "type": "string",
             "title": "Default schema",
             "default": "public",
-            "maxLength": 63
+            "maxLength": 63,
+            "description": "Where table names without a schema resolve. Empty: public."
           },
           "connectTimeoutMs": {
             "type": "integer",
@@ -179,7 +186,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minLength": 1,
             "maxLength": 63,
             "pattern": "^[^\\u0000]+$",
-            "description": "Connect here to load the database list. Change this if your account cannot connect to postgres."
+            "description": "Connect here to load the database list. Change it when your account may not connect to postgres: template1 works on most servers."
           }
         }
       }
@@ -257,13 +264,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             ],
             "default": "auto",
             "x-enumTitles": [
-              "Auto (SSL if available)",
+              "Auto (TLS when the server offers it, not verified)",
               "Off (disable)",
               "Encrypt, don't verify (require)",
               "Verify the CA (verify-ca)",
               "Verify the CA and host name (verify-full)"
             ],
-            "description": "Auto uses SSL when the server supports it, otherwise connects without encryption. Use verify-full to verify the certificate and host name.",
+            "description": "Auto encrypts when the server offers TLS, without checking its certificate, and connects unencrypted when it doesn't. verify-full checks the certificate and host name.",
             "x-section": "/advanced"
           },
           "caCertificate": {
@@ -333,7 +340,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "items": {
               "type": "string",
               "maxLength": 200
-            }
+            },
+            "description": "Only these databases are available to agents, within the selected ones. Empty: every database the user may use."
           },
           "allowedFunctions": {
             "type": "array",
@@ -345,7 +353,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "maxLength": 200,
               "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
             },
-            "description": "Your own functions that only read, as name or database.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+            "description": "Your own functions that only read: a name for calls without a database, database.name for calls with one. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
           },
           "connectTimeoutMs": {
             "type": "integer",
@@ -367,6 +375,554 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     "x-database-selection": {
       "path": "/connection/databases",
       "legacyPath": "/connection/database"
+    }
+  },
+  "oracle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "Oracle Database 19c and later. Read queries and schema."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "port",
+          "database"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253,
+            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 1521
+          },
+          "database": {
+            "type": "string",
+            "title": "Service name",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_$#.-]{0,254}$",
+            "description": "The Oracle service name, such as FREEPDB1. A SID or TNS alias is not supported."
+          },
+          "sslMode": {
+            "type": "string",
+            "title": "SSL mode",
+            "enum": [
+              "disable",
+              "verify-ca",
+              "verify-full"
+            ],
+            "default": "verify-full",
+            "x-enumTitles": [
+              "Off (TCP)",
+              "Verify the CA (TCPS)",
+              "Verify the CA and host name (TCPS)"
+            ],
+            "description": "TCPS requires a TLS listener on the selected port. Verify-full checks the certificate and host name.",
+            "x-section": "/advanced"
+          },
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "x-section": "/advanced",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "For a private CA with verify-ca or verify-full. Empty: the system trust store."
+          }
+        }
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "x-gateway-secret": "login",
+        "additionalProperties": false,
+        "required": [
+          "user",
+          "password"
+        ],
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "maxLength": 128,
+            "description": "Use a user that can only read wherever you can. The test below shows what it may do.",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "The Oracle database password. Oracle refuses a sign-in without one.",
+            "writeOnly": true,
+            "format": "password",
+            "minLength": 1
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "The driver cancels slower statements. Empty: the environment policy."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 2,
+            "x-unit": "connections"
+          },
+          "schemaAllowlist": {
+            "type": "array",
+            "title": "Schema allowlist",
+            "uniqueItems": true,
+            "maxItems": 100,
+            "x-stricter": "intersect",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Only these schemas are available to agents. Unquoted names use uppercase. Empty: every schema the user may read."
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          },
+          "defaultSchema": {
+            "type": "string",
+            "title": "Default schema",
+            "maxLength": 130,
+            "pattern": "^(?:[A-Za-z][A-Za-z0-9_$#]{0,127}|\"(?:[^\"\\u0000]|\"\")+\")$",
+            "description": "Where table names without a schema resolve. Empty: the user's own schema. Unquoted names use uppercase; double-quote a case-sensitive name."
+          }
+        }
+      }
+    }
+  },
+  "sqlserver": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "Microsoft SQL Server. Read queries, schema, execution plans."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "port"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253,
+            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 1433
+          },
+          "database": {
+            "type": "string",
+            "title": "Database",
+            "pattern": "^[^\\u0000]{1,128}$",
+            "description": "The default database. Empty: the login default database."
+          },
+          "databases": {
+            "type": "array",
+            "title": "Databases",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\u0000]+$"
+            },
+            "description": "Only these databases are available through this connection."
+          },
+          "sslMode": {
+            "type": "string",
+            "title": "SSL mode",
+            "enum": [
+              "verify-full",
+              "require",
+              "disable"
+            ],
+            "default": "verify-full",
+            "x-enumTitles": [
+              "Verify the CA and host name (verify-full)",
+              "Encrypt, don't verify (require)",
+              "Off unless required by server (disable)"
+            ],
+            "description": "Verify-full encrypts the connection and validates the server certificate and host name. Require encrypts without certificate verification.",
+            "x-section": "/advanced"
+          },
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "x-section": "/advanced",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "For a private CA with verify-full. Empty: the system trust store."
+          }
+        }
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "x-gateway-secret": "login",
+        "additionalProperties": false,
+        "required": [
+          "user",
+          "password"
+        ],
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "maxLength": 128,
+            "description": "SQL Server login. Prefer a login with SELECT permission only; Windows and Microsoft Entra authentication are not supported.",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "The password for this SQL Server login.",
+            "writeOnly": true,
+            "format": "password",
+            "minLength": 1
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "Statements exceeding this limit are cancelled. Empty: the environment policy."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 2,
+            "x-unit": "connections"
+          },
+          "schemaAllowlist": {
+            "type": "array",
+            "title": "Schema allowlist",
+            "uniqueItems": true,
+            "maxItems": 100,
+            "x-stricter": "intersect",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Only these schemas are available to agents. Empty: every schema the login may read."
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          },
+          "defaultSchema": {
+            "type": "string",
+            "title": "Default schema",
+            "default": "dbo",
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[^\\u0000]+$",
+            "description": "The database user's default schema, where table names without a schema resolve: calls stop when it doesn't match. Qualify table names to use another schema."
+          }
+        }
+      }
+    },
+    "x-database-selection": {
+      "path": "/connection/databases",
+      "legacyPath": "/connection/database"
+    }
+  },
+  "sqlite": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "A SQLite database file on this computer. Read queries and schema."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Database file",
+        "description": "GateRook opens the file on this computer: reads through a read-only handle, approved changes through their own. It never creates a file.",
+        "additionalProperties": false,
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "Database file",
+            "x-file-picker": "sqlite-database",
+            "x-person-only": true,
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[^?\\u0000-\\u001f]+$",
+            "description": "An absolute path or ~/…, such as ~/projects/shop/db/development.sqlite3. Only you choose the file: an AI import can't."
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Timeouts, locking, foreign keys and the pool. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "GateRook interrupts slower statements. Empty: the environment policy."
+          },
+          "busyTimeoutMs": {
+            "type": "integer",
+            "title": "Lock wait",
+            "minimum": 0,
+            "maximum": 30000,
+            "default": 2000,
+            "x-unit": "ms",
+            "description": "How long a call waits while another program writes to the file."
+          },
+          "foreignKeys": {
+            "type": "boolean",
+            "title": "Enforce foreign keys",
+            "default": true,
+            "description": "SQLite checks the file's foreign keys, and runs their ON DELETE and ON UPDATE actions, on approved changes, as most apps that use them do."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 4,
+            "default": 2,
+            "x-unit": "connections"
+          }
+        }
+      }
+    }
+  },
+  "spanner": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Google Cloud Spanner",
+    "type": "object",
+    "x-card": {
+      "description": "Tables and GoogleSQL or PostgreSQL queries in read-only transactions. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "instance",
+      "database",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
+        "examples": [
+          "acme-prod"
+        ],
+        "description": "The Google Cloud project of the Spanner instance."
+      },
+      "instance": {
+        "x-suggest": true,
+        "type": "string",
+        "title": "Instance",
+        "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+        "examples": [
+          "orders-prod"
+        ],
+        "description": "The instance id, as gcloud spanner instances list shows it, not its display name."
+      },
+      "database": {
+        "x-suggest": true,
+        "type": "string",
+        "title": "Database",
+        "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
+        "examples": [
+          "orders"
+        ],
+        "description": "The database agents use. GoogleSQL and PostgreSQL-dialect databases both work."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ],
+            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer, from gcloud auth application-default login. A service account key signs in as that service account."
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-spanner@acme-prod.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/spanner.databaseReader on the database. Empty: calls use the sign-in or key itself."
+          },
+          "delegates": {
+            "type": "array",
+            "title": "Delegation chain",
+            "maxItems": 5,
+            "items": {
+              "title": "Service account",
+              "type": "string"
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Fine-grained access control. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "databaseRole": {
+            "type": "string",
+            "title": "Database role",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$",
+            "examples": [
+              "agent_reader"
+            ],
+            "description": "A fine-grained access control role whose privileges every session gets, instead of the credentials' IAM access to the whole database. The credentials need roles/spanner.fineGrainedAccessUser and access to the role."
+          }
+        }
+      }
     }
   },
   "mongodb": {
@@ -822,4213 +1378,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       }
     }
   },
-  "ssh": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-card": {
-      "description": "Runbooks with typed parameters, through an SSH CA or a key."
-    },
-    "additionalProperties": false,
-    "required": [
-      "connection",
-      "credentials"
-    ],
-    "properties": {
-      "connection": {
-        "type": "object",
-        "title": "Connection",
-        "additionalProperties": false,
-        "description": "The core connects from this machine, so your VPN and hosts file apply.",
-        "required": [
-          "host",
-          "username"
-        ],
-        "properties": {
-          "host": {
-            "type": "string",
-            "title": "Host",
-            "maxLength": 253,
-            "description": "The server's host name or IP address, not a ~/.ssh/config alias."
-          },
-          "port": {
-            "type": "integer",
-            "title": "Port",
-            "minimum": 1,
-            "maximum": 65535,
-            "default": 22
-          },
-          "username": {
-            "type": "string",
-            "title": "User",
-            "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
-            "description": "A dedicated user. The test shows whether it can use sudo or docker."
-          }
-        }
-      },
-      "hostKeys": {
-        "type": "object",
-        "title": "Host key",
-        "x-gateway-hostkey": true,
-        "additionalProperties": false,
-        "properties": {
-          "pinned": {
-            "type": "array",
-            "title": "Trusted host keys",
-            "x-person-only": true,
-            "maxItems": 8,
-            "items": {
-              "type": "string",
-              "maxLength": 16000
-            },
-            "description": "Filled by Test connection after you confirm the fingerprint."
-          },
-          "knownHosts": {
-            "type": "string",
-            "title": "Known hosts",
-            "x-person-only": true,
-            "x-widget": "textarea",
-            "maxLength": 64000,
-            "description": "Optional known_hosts lines, hashed lines too."
-          }
-        }
-      },
-      "credentials": {
-        "$ref": "#/$defs/credentialFields",
-        "title": "Credentials",
-        "properties": {
-          "method": {
-            "x-keep-default-with-store": "vault",
-            "title": "Authentication",
-            "enum": [
-              "vaultSshCa",
-              "privateKeyFile",
-              "privateKey",
-              "password"
-            ],
-            "default": "vaultSshCa",
-            "x-enumTitles": [
-              "Vault SSH CA: a fresh certificate per call",
-              "Private key file",
-              "Private key",
-              "Password"
-            ]
-          }
-        }
-      },
-      "runbooksOnly": {
-        "type": "boolean",
-        "title": "Runbooks only",
-        "default": false,
-        "x-env-default": {
-          "prod": true
-        },
-        "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
-        "x-badge": "Runbooks only"
-      },
-      "jump": {
-        "type": "object",
-        "title": "Bastion",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
-        "properties": {
-          "host": {
-            "type": "string",
-            "title": "Jump host",
-            "maxLength": 253
-          }
-        },
-        "patternProperties": {
-          "^(port|username|credentials|hostKeys)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "required": [
-                "host"
-              ],
-              "properties": {
-                "host": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              }
-            },
-            "then": {
-              "properties": {
-                "port": {
-                  "type": "integer",
-                  "title": "Jump host port",
-                  "minimum": 1,
-                  "maximum": 65535,
-                  "default": 22
-                },
-                "username": {
-                  "type": "string",
-                  "title": "Jump host user",
-                  "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
-                  "description": "Empty: use the connection user."
-                },
-                "credentials": {
-                  "$ref": "#/$defs/credentialFields",
-                  "title": "Jump host credentials",
-                  "properties": {
-                    "method": {
-                      "title": "Authentication",
-                      "enum": [
-                        "inherit",
-                        "vaultSshCa",
-                        "privateKeyFile",
-                        "privateKey",
-                        "password"
-                      ],
-                      "default": "inherit",
-                      "x-enumTitles": [
-                        "Use connection credentials",
-                        "Vault SSH CA: a fresh certificate per call",
-                        "Private key file",
-                        "Private key",
-                        "Password"
-                      ]
-                    }
-                  }
-                },
-                "hostKeys": {
-                  "$ref": "#/properties/hostKeys"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "properties": {
-          "connectTimeoutSeconds": {
-            "type": "integer",
-            "title": "Connect timeout",
-            "minimum": 1,
-            "maximum": 60,
-            "default": 10,
-            "x-unit": "s"
-          },
-          "keepaliveSeconds": {
-            "type": "integer",
-            "title": "Keepalive interval",
-            "minimum": 0,
-            "maximum": 300,
-            "default": 15,
-            "x-unit": "s"
-          },
-          "reuseSessions": {
-            "type": "boolean",
-            "title": "Reuse SSH sessions",
-            "default": true
-          },
-          "maxChannelsPerSession": {
-            "type": "integer",
-            "title": "Channels per session",
-            "minimum": 1,
-            "maximum": 10,
-            "default": 8
-          },
-          "remoteDeadline": {
-            "type": "boolean",
-            "title": "Stop commands on the server at the time limit",
-            "default": false,
-            "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
-          },
-          "legacyAlgorithms": {
-            "type": "boolean",
-            "title": "Allow legacy algorithms",
-            "default": false,
-            "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
-          },
-          "probeSudo": {
-            "type": "boolean",
-            "title": "Check sudo during the test",
-            "default": true,
-            "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
-          }
-        }
-      }
-    },
-    "$defs": {
-      "credentialFields": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "method"
-        ],
-        "properties": {
-          "method": true,
-          "vault": true,
-          "privateKey": true,
-          "privateKeyPath": true,
-          "passphrase": true,
-          "certificate": true,
-          "password": true
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "const": "vaultSshCa"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "vault"
-              ],
-              "properties": {
-                "vault": {
-                  "type": "object",
-                  "title": "Vault SSH CA",
-                  "additionalProperties": false,
-                  "properties": {
-                    "store": {
-                      "type": "string",
-                      "title": "Vault store",
-                      "description": "A Vault from Secrets › External stores"
-                    },
-                    "mount": {
-                      "type": "string",
-                      "title": "SSH secrets engine mount",
-                      "default": "ssh-client-signer"
-                    },
-                    "role": {
-                      "type": "string",
-                      "title": "Vault role",
-                      "default": "gw-runbooks"
-                    },
-                    "ttl": {
-                      "title": "Certificate lifetime",
-                      "enum": [
-                        "1m",
-                        "2m",
-                        "5m",
-                        "10m"
-                      ],
-                      "default": "5m"
-                    },
-                    "principal": {
-                      "type": "string",
-                      "title": "Principal",
-                      "description": "Empty: the user name"
-                    }
-                  },
-                  "required": [
-                    "store"
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "const": "privateKey"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "privateKey"
-              ],
-              "properties": {
-                "privateKey": {
-                  "type": "string",
-                  "title": "Private key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "pem",
-                  "x-widget": "textarea",
-                  "maxLength": 20000,
-                  "description": "OpenSSH or PEM (PKCS#1, PKCS#8): ed25519, ECDSA or RSA ≥ 2048."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "const": "privateKeyFile"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "privateKeyPath"
-              ],
-              "properties": {
-                "privateKeyPath": {
-                  "type": "string",
-                  "title": "Private key file",
-                  "x-file-picker": "ssh-private-key",
-                  "minLength": 1,
-                  "maxLength": 4096,
-                  "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "enum": [
-                    "privateKey",
-                    "privateKeyFile"
-                  ]
-                }
-              }
-            },
-            "then": {
-              "properties": {
-                "passphrase": {
-                  "type": "string",
-                  "title": "Key passphrase",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                },
-                "certificate": {
-                  "type": "string",
-                  "title": "User certificate",
-                  "maxLength": 20000,
-                  "description": "Optional user certificate for this key (…-cert.pub)."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "const": "password"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "password"
-              ],
-              "properties": {
-                "password": {
-                  "type": "string",
-                  "title": "Password",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                }
-              }
-            }
-          }
-        ],
-        "$comment": "Each method declares its own fields in its then branch (the form shows them only for that method); the properties above name them with true, so additionalProperties still refuses other keys."
-      }
-    }
-  },
-  "logs": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-legacy": true,
-    "x-project-selection": {
-      "path": "/resourceNames"
-    },
-    "required": [
-      "backend"
-    ],
-    "properties": {
-      "backend": {
-        "title": "Backend",
-        "enum": [
-          "loki",
-          "gcp-logging",
-          "cloudwatch",
-          "opensearch",
-          "azure-monitor"
-        ],
-        "x-enumTitles": [
-          "Loki",
-          "GCP Cloud Logging",
-          "AWS CloudWatch",
-          "OpenSearch",
-          "Azure Monitor Logs"
-        ]
-      }
-    },
-    "x-variants": [
-      {
-        "id": "gcp-logging",
-        "name": "GCP Cloud Logging",
-        "icon": "scroll-text",
-        "description": "Search logs with service account impersonation.",
-        "presetConfig": {
-          "backend": "gcp-logging"
-        },
-        "tools": [
-          "logs_search",
-          "logs_tail"
-        ]
-      },
-      {
-        "id": "cloudwatch",
-        "name": "AWS CloudWatch",
-        "icon": "scroll-text",
-        "description": "Logs Insights queries with AssumeRole.",
-        "presetConfig": {
-          "backend": "cloudwatch"
-        },
-        "tools": [
-          "logs_search",
-          "logs_tail"
-        ]
-      },
-      {
-        "id": "loki",
-        "name": "Loki",
-        "icon": "scroll-text",
-        "description": "LogQL search and label browsing.",
-        "presetConfig": {
-          "backend": "loki"
-        },
-        "tools": [
-          "logs_search",
-          "logs_tail"
-        ]
-      },
-      {
-        "id": "opensearch",
-        "name": "OpenSearch",
-        "icon": "scroll-text",
-        "description": "Scoped log search or full OpenSearch queries and approved administration.",
-        "presetConfig": {
-          "backend": "opensearch"
-        },
-        "tools": [
-          "logs_search",
-          "logs_tail",
-          "opensearch_indices",
-          "opensearch_query",
-          "opensearch_request"
-        ]
-      }
-    ],
-    "oneOf": [
-      {
-        "title": "Loki",
-        "required": [
-          "backend",
-          "url"
-        ],
-        "properties": {
-          "backend": {
-            "const": "loki"
-          },
-          "url": {
-            "type": "string",
-            "title": "Loki URL",
-            "format": "uri",
-            "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
-            "examples": [
-              "http://loki.dev.internal:3100"
-            ],
-            "description": "Base URL; Grafana Cloud: https://logs-prod-XXX.grafana.net"
-          },
-          "tenant": {
-            "type": "string",
-            "maxLength": 150,
-            "pattern": "^[A-Za-z0-9!._*'()|-]*$",
-            "title": "Tenant (X-Scope-OrgID)",
-            "description": "Empty for single-tenant Loki. Several: team-a|team-b"
-          },
-          "auth": {
-            "type": "object",
-            "title": "Credentials",
-            "additionalProperties": false,
-            "properties": {
-              "mode": {
-                "enum": [
-                  "none",
-                  "bearer",
-                  "basic"
-                ],
-                "default": "bearer",
-                "title": "Authentication",
-                "x-enumTitles": [
-                  "No authentication",
-                  "Bearer token",
-                  "Username and password"
-                ]
-              }
-            },
-            "patternProperties": {
-              "^(username|secret)$": {}
-            },
-            "allOf": [
-              {
-                "if": {
-                  "properties": {
-                    "mode": {
-                      "const": "bearer"
-                    }
-                  }
-                },
-                "then": {
-                  "required": [
-                    "secret"
-                  ],
-                  "properties": {
-                    "secret": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password",
-                      "title": "Bearer token",
-                      "minLength": 1
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "mode": {
-                      "const": "basic"
-                    }
-                  },
-                  "required": [
-                    "mode"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "username",
-                    "secret"
-                  ],
-                  "properties": {
-                    "username": {
-                      "type": "string",
-                      "maxLength": 200,
-                      "description": "Grafana Cloud: the numeric user ID.",
-                      "title": "Username",
-                      "minLength": 1,
-                      "pattern": ".*\\S.*"
-                    },
-                    "secret": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password",
-                      "title": "Password",
-                      "minLength": 1
-                    }
-                  }
-                }
-              }
-            ]
-          },
-          "caCertificate": {
-            "type": "string",
-            "maxLength": 20000,
-            "x-widget": "textarea",
-            "title": "CA certificate (PEM)",
-            "description": "Only for a private CA."
-          }
-        }
-      },
-      {
-        "title": "GCP Cloud Logging",
-        "required": [
-          "backend",
-          "resourceNames",
-          "credentials"
-        ],
-        "properties": {
-          "backend": {
-            "const": "gcp-logging"
-          },
-          "credentials": {
-            "type": "object",
-            "title": "Credentials",
-            "required": [
-              "source"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "source": {
-                "title": "Authentication",
-                "enum": [
-                  "adc",
-                  "serviceAccountKey"
-                ],
-                "default": "adc",
-                "x-enumTitles": [
-                  "Google sign-in on this computer (gcloud auth application-default login)",
-                  "Service account key (JSON)"
-                ]
-              },
-              "impersonate": {
-                "type": "string",
-                "title": "Service account to impersonate",
-                "maxLength": 254,
-                "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-                "examples": [
-                  "gw-reader@acme-prod.iam.gserviceaccount.com"
-                ]
-              },
-              "delegates": {
-                "type": "array",
-                "title": "Delegation chain",
-                "maxItems": 5,
-                "items": {
-                  "type": "string"
-                },
-                "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
-              }
-            },
-            "patternProperties": {
-              "^serviceAccountKey$": {}
-            },
-            "allOf": [
-              {
-                "if": {
-                  "properties": {
-                    "source": {
-                      "const": "serviceAccountKey"
-                    }
-                  },
-                  "required": [
-                    "source"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "serviceAccountKey"
-                  ],
-                  "properties": {
-                    "serviceAccountKey": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "x-widget": "textarea",
-                      "maxLength": 10000,
-                      "title": "Service account key (JSON)",
-                      "minLength": 1
-                    }
-                  }
-                }
-              }
-            ]
-          },
-          "resourceNames": {
-            "type": "array",
-            "title": "Project or log view scope",
-            "minItems": 1,
-            "maxItems": 100,
-            "uniqueItems": true,
-            "examples": [
-              [
-                "projects/acme-prod"
-              ]
-            ],
-            "items": {
-              "type": "string",
-              "title": "Resource scope",
-              "examples": [
-                "projects/example-prod"
-              ],
-              "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
-            },
-            "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope."
-          },
-          "scopeFilter": {
-            "type": "string",
-            "maxLength": 2000,
-            "title": "Always add this filter",
-            "examples": [
-              "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"app\""
-            ]
-          },
-          "quotaPerMinute": {
-            "type": "integer",
-            "title": "API calls per minute",
-            "minimum": 1,
-            "maximum": 60,
-            "default": 30,
-            "description": "Share of the project's 60 entries.list calls per minute this gateway may use."
-          }
-        }
-      },
-      {
-        "title": "AWS CloudWatch",
-        "required": [
-          "backend",
-          "region",
-          "logGroups",
-          "credentials"
-        ],
-        "properties": {
-          "backend": {
-            "const": "cloudwatch"
-          },
-          "region": {
-            "type": "string",
-            "title": "Region",
-            "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
-            "examples": [
-              "eu-central-1"
-            ]
-          },
-          "logGroups": {
-            "type": "array",
-            "title": "Log groups",
-            "minItems": 1,
-            "maxItems": 50,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "maxLength": 2048,
-              "pattern": "^([.\\-_/#A-Za-z0-9]{1,512}|arn:aws[a-z-]*:logs:[a-z0-9-]+:\\d{12}:log-group:[.\\-_/#A-Za-z0-9]+)$"
-            }
-          },
-          "credentials": {
-            "$ref": "#/$defs/awsCredentials",
-            "title": "Credentials"
-          },
-          "searchApi": {
-            "title": "Search API",
-            "enum": [
-              "insights",
-              "filter"
-            ],
-            "default": "insights",
-            "x-enumTitles": [
-              "Logs Insights (billed per GB scanned)",
-              "Filter patterns (FilterLogEvents)"
-            ]
-          }
-        }
-      },
-      {
-        "title": "OpenSearch",
-        "required": [
-          "backend",
-          "url",
-          "auth"
-        ],
-        "properties": {
-          "backend": {
-            "const": "opensearch"
-          },
-          "url": {
-            "type": "string",
-            "format": "uri",
-            "pattern": "^https?://[^/?#]+$",
-            "title": "Server URL",
-            "examples": [
-              "https://search.example.test:9200"
-            ],
-            "description": "OpenSearch host, including http:// or https:// and its port."
-          },
-          "auth": {
-            "type": "object",
-            "title": "Authorization",
-            "additionalProperties": false,
-            "properties": {
-              "mode": {
-                "title": "Authentication",
-                "enum": [
-                  "basic",
-                  "apiKey",
-                  "bearer",
-                  "awsSigV4",
-                  "none"
-                ],
-                "default": "basic",
-                "x-enumTitles": [
-                  "Username and password",
-                  "API key",
-                  "Bearer token",
-                  "AWS request signing",
-                  "No authentication"
-                ]
-              }
-            },
-            "patternProperties": {
-              "^(username|secret|awsRegion|awsService|awsCredentials)$": {}
-            },
-            "allOf": [
-              {
-                "if": {
-                  "properties": {
-                    "mode": {
-                      "const": "basic"
-                    }
-                  }
-                },
-                "then": {
-                  "required": [
-                    "username",
-                    "secret"
-                  ],
-                  "properties": {
-                    "username": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200,
-                      "pattern": ".*\\S.*",
-                      "title": "Username"
-                    },
-                    "secret": {
-                      "type": "string",
-                      "minLength": 1,
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password",
-                      "title": "Password",
-                      "description": "Stored securely by GateRook."
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "mode": {
-                      "const": "apiKey"
-                    }
-                  },
-                  "required": [
-                    "mode"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "secret"
-                  ],
-                  "properties": {
-                    "secret": {
-                      "type": "string",
-                      "minLength": 1,
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password",
-                      "title": "API key",
-                      "description": "OpenSearch API key, such as os_...; requires server support."
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "mode": {
-                      "const": "bearer"
-                    }
-                  },
-                  "required": [
-                    "mode"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "secret"
-                  ],
-                  "properties": {
-                    "secret": {
-                      "type": "string",
-                      "minLength": 1,
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password",
-                      "title": "Bearer token",
-                      "description": "Stored securely by GateRook."
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "mode": {
-                      "const": "awsSigV4"
-                    }
-                  },
-                  "required": [
-                    "mode"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "awsRegion",
-                    "awsCredentials"
-                  ],
-                  "properties": {
-                    "awsRegion": {
-                      "type": "string",
-                      "title": "AWS region",
-                      "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
-                      "examples": [
-                        "eu-central-1"
-                      ]
-                    },
-                    "awsService": {
-                      "title": "AWS service",
-                      "enum": [
-                        "es",
-                        "aoss"
-                      ],
-                      "default": "es",
-                      "x-enumTitles": [
-                        "OpenSearch Service",
-                        "OpenSearch Serverless"
-                      ]
-                    },
-                    "awsCredentials": {
-                      "$ref": "#/$defs/awsCredentials"
-                    }
-                  }
-                }
-              }
-            ]
-          },
-          "apiAccess": {
-            "enum": [
-              "logs",
-              "full"
-            ],
-            "default": "full",
-            "title": "OpenSearch API access",
-            "x-enumTitles": [
-              "Scoped log search",
-              "Full OpenSearch REST API"
-            ],
-            "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools.",
-            "x-section": "/advanced"
-          },
-          "timestampField": {
-            "type": "string",
-            "default": "@timestamp",
-            "x-section": "/advanced",
-            "title": "Timestamp field"
-          },
-          "messageField": {
-            "type": "string",
-            "default": "message",
-            "x-section": "/advanced",
-            "title": "Message field"
-          },
-          "severityField": {
-            "type": "string",
-            "default": "log.level",
-            "x-section": "/advanced",
-            "title": "Severity field"
-          },
-          "labelFields": {
-            "type": "array",
-            "maxItems": 20,
-            "default": [
-              "service.name",
-              "kubernetes.namespace",
-              "kubernetes.pod.name",
-              "host.name"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "x-section": "/advanced",
-            "title": "Label fields"
-          },
-          "scopeQuery": {
-            "type": "string",
-            "maxLength": 2000,
-            "title": "Always add this query (Lucene)",
-            "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools.",
-            "x-section": "/advanced"
-          },
-          "caCertificate": {
-            "type": "string",
-            "maxLength": 20000,
-            "x-widget": "textarea",
-            "title": "CA certificate (PEM)",
-            "description": "Only for a private CA.",
-            "x-section": "/advanced"
-          },
-          "advanced": {
-            "type": "object",
-            "title": "Advanced",
-            "description": "Log field mappings, log scope, API access and private certificate authority.",
-            "properties": {},
-            "x-collapsed": true
-          }
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "apiAccess": {
-                  "const": "logs"
-                }
-              },
-              "required": [
-                "apiAccess"
-              ]
-            },
-            "then": {
-              "required": [
-                "indices"
-              ],
-              "properties": {
-                "indices": {
-                  "$ref": "#/$defs/openSearchLogIndices",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
-                  }
-                }
-              }
-            },
-            "else": {
-              "properties": {
-                "indices": {
-                  "$ref": "#/$defs/openSearchLogIndices"
-                }
-              }
-            }
-          }
-        ]
-      },
-      {
-        "title": "Azure Monitor Logs",
-        "required": [
-          "backend",
-          "credentials"
-        ],
-        "properties": {
-          "backend": {
-            "const": "azure-monitor"
-          },
-          "cloud": {
-            "title": "Cloud",
-            "enum": [
-              "AzureCloud",
-              "AzureUSGovernment",
-              "AzureChinaCloud"
-            ],
-            "default": "AzureCloud",
-            "x-enumTitles": [
-              "Azure",
-              "Azure Government",
-              "Azure China (21Vianet)"
-            ]
-          },
-          "tenantId": {
-            "type": "string",
-            "title": "Tenant (directory) ID",
-            "maxLength": 253,
-            "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
-            "examples": [
-              "contoso.onmicrosoft.com"
-            ],
-            "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
-          },
-          "credentials": {
-            "type": "object",
-            "title": "Credentials",
-            "required": [
-              "source"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "source": {
-                "title": "Sign in with",
-                "enum": [
-                  "cli",
-                  "deviceCode",
-                  "clientSecret",
-                  "clientCertificate"
-                ],
-                "default": "cli",
-                "x-enumTitles": [
-                  "Azure CLI sign-in on this computer (az login)",
-                  "Sign in with a code in the browser",
-                  "Service principal with a client secret",
-                  "Service principal with a certificate"
-                ]
-              },
-              "clientId": {
-                "type": "string",
-                "title": "Application (client) ID",
-                "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
-                "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
-              }
-            },
-            "patternProperties": {
-              "^(clientSecret|certificate)$": {}
-            },
-            "allOf": [
-              {
-                "if": {
-                  "properties": {
-                    "source": {
-                      "const": "clientSecret"
-                    }
-                  },
-                  "required": [
-                    "source"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "clientId",
-                    "clientSecret"
-                  ],
-                  "properties": {
-                    "clientSecret": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password",
-                      "title": "Client secret",
-                      "minLength": 1
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "source": {
-                      "const": "clientCertificate"
-                    }
-                  },
-                  "required": [
-                    "source"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "clientId",
-                    "certificate"
-                  ],
-                  "properties": {
-                    "certificate": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "x-widget": "textarea",
-                      "maxLength": 20000,
-                      "minLength": 1,
-                      "title": "Certificate and private key (PEM)",
-                      "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
-                    }
-                  }
-                }
-              }
-            ]
-          },
-          "trustedCli": {
-            "type": "string",
-            "title": "Allowed Azure CLI command",
-            "readOnly": true,
-            "x-person-only": true,
-            "pattern": "^[0-9a-f]{64}$",
-            "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
-          },
-          "workspaces": {
-            "type": "array",
-            "title": "Log Analytics workspaces",
-            "maxItems": 20,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "title": "Workspace ID",
-              "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
-            },
-            "examples": [
-              [
-                "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
-              ]
-            ],
-            "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query."
-          },
-          "applicationInsights": {
-            "type": "array",
-            "title": "Application Insights components",
-            "maxItems": 20,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "title": "Component resource ID",
-              "maxLength": 512,
-              "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
-            },
-            "examples": [
-              [
-                "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
-              ]
-            ],
-            "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
-          }
-        }
-      }
-    ],
-    "$defs": {
-      "openSearchLogIndices": {
-        "type": "array",
-        "minItems": 1,
-        "maxItems": 20,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "pattern": "^(\\*|[a-z0-9][a-z0-9._*-]{0,254})$"
-        },
-        "examples": [
-          [
-            "logs-app-*"
-          ]
-        ],
-        "description": "Index patterns for logs_search, logs_tail and log-only index discovery. Required in scoped log mode. Full API mode defaults to * when omitted; REST tools use the server user's permissions instead.",
-        "title": "Log index patterns",
-        "x-section": "/advanced"
-      },
-      "awsCredentials": {
-        "type": "object",
-        "title": "AWS credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "enum": [
-              "accessKey",
-              "profile"
-            ],
-            "default": "accessKey",
-            "title": "Credential source",
-            "x-enumTitles": [
-              "Access key",
-              "AWS profile"
-            ]
-          },
-          "roleArn": {
-            "type": "string",
-            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
-            "examples": [
-              "arn:aws:iam::123456789012:role/gw-readonly"
-            ],
-            "title": "Assume role ARN"
-          },
-          "externalId": {
-            "type": "string",
-            "maxLength": 1224,
-            "title": "External ID"
-          },
-          "sessionSeconds": {
-            "type": "integer",
-            "minimum": 900,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "title": "Session duration"
-          }
-        },
-        "patternProperties": {
-          "^(accessKeyId|secretAccessKey|profile)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "accessKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "accessKeyId",
-                "secretAccessKey"
-              ],
-              "properties": {
-                "accessKeyId": {
-                  "type": "string",
-                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
-                  "x-not-secret": true,
-                  "title": "Access key ID"
-                },
-                "secretAccessKey": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Secret access key",
-                  "minLength": 1
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "profile"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "profile"
-              ],
-              "properties": {
-                "profile": {
-                  "type": "string",
-                  "maxLength": 128,
-                  "description": "A profile in ~/.aws/config on this computer",
-                  "title": "Profile",
-                  "minLength": 1,
-                  "pattern": ".*\\S.*"
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  },
-  "kubernetes": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-card": {
-      "description": "Pods, logs and events; rollouts and apply with approval."
-    },
-    "additionalProperties": false,
-    "required": [
-      "auth",
-      "namespace"
-    ],
-    "properties": {
-      "auth": {
-        "type": "string",
-        "enum": [
-          "token",
-          "kubeconfig",
-          "kubeconfig-file"
-        ],
-        "default": "token",
-        "title": "Sign in with",
-        "x-enumTitles": [
-          "Server URL and token",
-          "Paste kubeconfig",
-          "kubeconfig file on this computer"
-        ]
-      },
-      "server": true,
-      "token": true,
-      "caCert": {
-        "type": "string",
-        "title": "CA certificate (PEM)",
-        "x-widget": "textarea",
-        "maxLength": 20000,
-        "description": "Empty: the OS trust store"
-      },
-      "insecureSkipTlsVerify": {
-        "type": "boolean",
-        "title": "Skip TLS verification",
-        "default": false,
-        "x-forbidden-env": [
-          "prod"
-        ]
-      },
-      "kubeconfig": true,
-      "kubeconfigPath": true,
-      "context": true,
-      "allowExecPlugin": true,
-      "namespace": {
-        "type": "string",
-        "default": "default",
-        "title": "Default namespace",
-        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-        "maxLength": 63
-      },
-      "requestTimeoutMs": {
-        "type": "integer",
-        "title": "Request timeout",
-        "default": 10000,
-        "minimum": 1000,
-        "maximum": 60000,
-        "x-unit": "ms"
-      },
-      "proxy": {
-        "type": "string",
-        "title": "HTTPS proxy",
-        "description": "Empty: direct connection"
-      },
-      "pinnedCluster": true,
-      "trustedExec": true
-    },
-    "allOf": [
-      {
-        "if": {
-          "properties": {
-            "auth": {
-              "const": "token"
-            }
-          }
-        },
-        "then": {
-          "required": [
-            "server",
-            "token"
-          ],
-          "properties": {
-            "server": {
-              "type": "string",
-              "format": "uri",
-              "pattern": "^https://",
-              "title": "API server",
-              "examples": [
-                "https://k8s.dev.internal:6443"
-              ]
-            },
-            "token": {
-              "type": "string",
-              "title": "Bearer token",
-              "writeOnly": true,
-              "x-gateway-secret": "value"
-            }
-          }
-        }
-      },
-      {
-        "if": {
-          "properties": {
-            "auth": {
-              "const": "kubeconfig"
-            }
-          }
-        },
-        "then": {
-          "required": [
-            "kubeconfig"
-          ],
-          "properties": {
-            "kubeconfig": {
-              "type": "string",
-              "title": "kubeconfig",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "x-widget": "code",
-              "x-language": "yaml"
-            }
-          }
-        }
-      },
-      {
-        "if": {
-          "properties": {
-            "auth": {
-              "const": "kubeconfig-file"
-            }
-          }
-        },
-        "then": {
-          "required": [
-            "kubeconfigPath",
-            "context"
-          ],
-          "properties": {
-            "kubeconfigPath": {
-              "type": "string",
-              "title": "kubeconfig file",
-              "default": "~/.kube/config",
-              "x-local-path": true
-            },
-            "pinnedCluster": {
-              "type": "object",
-              "title": "Trusted cluster",
-              "readOnly": true,
-              "x-person-only": true,
-              "description": "Set by Test connection when you trust the cluster a kubeconfig file points to. Calls stop if the file points elsewhere.",
-              "additionalProperties": false,
-              "properties": {
-                "serverUrl": {
-                  "type": "string",
-                  "title": "Server URL",
-                  "maxLength": 2048
-                },
-                "caSha256": {
-                  "type": "string",
-                  "title": "CA certificate SHA-256",
-                  "pattern": "^([0-9a-f]{64})?$"
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "if": {
-          "properties": {
-            "auth": {
-              "enum": [
-                "kubeconfig",
-                "kubeconfig-file"
-              ]
-            }
-          }
-        },
-        "then": {
-          "properties": {
-            "context": {
-              "type": "string",
-              "title": "Context",
-              "x-options-from": "metadata.kubeconfigContexts",
-              "description": "Required for a kubeconfig file. Empty for a pasted kubeconfig: its current context."
-            },
-            "allowExecPlugin": {
-              "type": "boolean",
-              "default": false,
-              "title": "Run the credential command from kubeconfig",
-              "x-confirm": "warning",
-              "x-person-only": true,
-              "x-advanced": false,
-              "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
-            },
-            "trustedExec": {
-              "type": "string",
-              "title": "Allowed credential command",
-              "readOnly": true,
-              "x-person-only": true,
-              "pattern": "^[0-9a-f]{64}$",
-              "description": "Set by Test connection when you allow the kubeconfig's credential command; a changed command needs your approval again."
-            }
-          }
-        }
-      }
-    ],
-    "$comment": "Each sign-in mode declares its own fields in its then branch (the form shows them only for that mode); the properties above name them with true, so additionalProperties still refuses other keys."
-  },
-  "gcp": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "GCP",
-    "type": "object",
-    "x-project-selection": {
-      "path": "/scopes",
-      "title": "Projects, folders or organizations"
-    },
-    "additionalProperties": false,
-    "required": [
-      "scopes",
-      "credentials"
-    ],
-    "properties": {
-      "scopes": {
-        "type": "array",
-        "minItems": 1,
-        "maxItems": 20,
-        "uniqueItems": true,
-        "title": "Projects, folders or organizations",
-        "description": "What agents may use, with the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
-        "items": {
-          "type": "string",
-          "title": "Resource scope",
-          "pattern": "^(projects/([a-z][a-z0-9-]{4,28}[a-z0-9]|\\d{1,19})|folders/\\d{1,19}|organizations/\\d{1,19})$",
-          "examples": [
-            "projects/acme-stage",
-            "folders/123456",
-            "organizations/456789"
-          ]
-        },
-        "examples": [
-          [
-            "projects/acme-stage"
-          ]
-        ]
-      },
-      "metricsProjects": {
-        "type": "array",
-        "title": "Metrics projects",
-        "maxItems": 20,
-        "items": {
-          "type": "string",
-          "title": "Project ID",
-          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
-          "examples": [
-            "acme-stage"
-          ]
-        },
-        "description": "The projects whose metrics gcp_metrics reads, as project IDs without projects/. Empty: the projects among the scopes."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Authentication",
-            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer: if sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. A service account key signs in as that service account.",
-            "enum": [
-              "adc",
-              "serviceAccountKey"
-            ],
-            "default": "adc",
-            "x-enumTitles": [
-              "Existing Google sign-in (ADC)",
-              "Service account key (JSON)"
-            ]
-          },
-          "impersonate": {
-            "type": "string",
-            "title": "Service account to impersonate",
-            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-            "examples": [
-              "gw-reader@acme-stage.iam.gserviceaccount.com"
-            ],
-            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Empty: calls use the sign-in or key itself."
-          },
-          "delegates": {
-            "type": "array",
-            "title": "Delegation chain",
-            "maxItems": 5,
-            "items": {
-              "type": "string"
-            },
-            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
-          },
-          "lifetimeSeconds": {
-            "type": "integer",
-            "title": "Token lifetime",
-            "minimum": 300,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "description": "How long a borrowed token of the service account to impersonate lasts."
-          },
-          "quotaProject": {
-            "type": "string",
-            "title": "Billed project",
-            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
-          }
-        },
-        "patternProperties": {
-          "^(serviceAccountKey)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "serviceAccountKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "properties": {
-                "serviceAccountKey": {
-                  "type": "string",
-                  "title": "Service account key (JSON)",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 10000
-                }
-              },
-              "required": [
-                "serviceAccountKey"
-              ]
-            }
-          }
-        ]
-      },
-      "liveGet": {
-        "type": "boolean",
-        "default": true,
-        "title": "Read current state from service APIs",
-        "description": "gcp_describe with a resource name reads it from its own service. Off: the inventory's snapshot, which can be minutes old."
-      }
-    }
-  },
-  "aws": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "AWS",
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "regions",
-      "credentials"
-    ],
-    "properties": {
-      "regions": {
-        "type": "array",
-        "title": "Regions",
-        "minItems": 1,
-        "maxItems": 10,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$"
-        },
-        "examples": [
-          [
-            "eu-central-1"
-          ]
-        ],
-        "x-suggest": true,
-        "description": "The regions agents may read; the first is the default of every call."
-      },
-      "accountId": {
-        "type": "string",
-        "title": "Account ID",
-        "x-person-only": true,
-        "pattern": "^\\d{12}$",
-        "description": "The account the credentials must belong to, filled in once the form can sign in: calls fail if it changes. Empty: not checked."
-      },
-      "accountAlias": {
-        "type": "string",
-        "title": "Account alias",
-        "maxLength": 63,
-        "examples": [
-          "acme-stage"
-        ],
-        "description": "Display only, filled in from the account's IAM alias."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Credential source",
-            "enum": [
-              "accessKey",
-              "profile"
-            ],
-            "x-enumTitles": [
-              "Access key",
-              "AWS profile"
-            ],
-            "default": "accessKey"
-          },
-          "roleArn": {
-            "type": "string",
-            "title": "Assume role ARN",
-            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
-            "examples": [
-              "arn:aws:iam::412398765012:role/gw-readonly"
-            ],
-            "x-required-env": [
-              "prod"
-            ],
-            "description": "Required on prod: only an assumed role carries the read-only session policy that AWS enforces."
-          },
-          "externalId": {
-            "type": "string",
-            "title": "External ID",
-            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
-            "x-generated": "gw-ext-<12 hex>",
-            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
-          },
-          "sessionSeconds": {
-            "type": "integer",
-            "title": "Session duration",
-            "minimum": 900,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "description": "How long a role session lasts, 900 to 3,600 seconds."
-          },
-          "sessionPolicy": {
-            "title": "Session policy",
-            "enum": [
-              "generated",
-              "none"
-            ],
-            "default": "generated",
-            "x-forbidden-env-values": {
-              "prod": [
-                "none"
-              ]
-            },
-            "x-enumTitles": [
-              "Read only, enforced by AWS (recommended)",
-              "The role's permissions as they are"
-            ]
-          }
-        },
-        "patternProperties": {
-          "^(accessKeyId|secretAccessKey|profile)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "accessKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "properties": {
-                "accessKeyId": {
-                  "type": "string",
-                  "title": "Access key ID",
-                  "pattern": "^AKIA[A-Z0-9]{16}$",
-                  "x-not-secret": true
-                },
-                "secretAccessKey": {
-                  "type": "string",
-                  "title": "Secret access key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                }
-              },
-              "required": [
-                "accessKeyId",
-                "secretAccessKey"
-              ]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "profile"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "properties": {
-                "profile": {
-                  "type": "string",
-                  "title": "Profile",
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
-                }
-              },
-              "required": [
-                "profile"
-              ]
-            }
-          }
-        ]
-      }
-    }
-  },
-  "http": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "baseUrls",
-      "auth"
-    ],
-    "properties": {
-      "baseUrls": {
-        "type": "array",
-        "title": "Base URLs",
-        "minItems": 1,
-        "maxItems": 5,
-        "items": {
-          "type": "string",
-          "maxLength": 512,
-          "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
-        },
-        "description": "Requests must start with one of these, path included: https://billing.stage.acme.dev/v1. Added to the allowlist of this environment in Policies.",
-        "x-agent-visible": true
-      },
-      "allowedPaths": {
-        "type": "array",
-        "title": "Allowed paths",
-        "items": {
-          "type": "string",
-          "maxLength": 256
-        },
-        "default": [
-          "/**"
-        ],
-        "description": "Globs under the base path: /invoices/**, /refunds/*",
-        "x-agent-visible": true
-      },
-      "mutatingGetPaths": {
-        "type": "array",
-        "title": "GET paths that change state",
-        "items": {
-          "type": "string",
-          "maxLength": 256
-        },
-        "default": [],
-        "description": "GET requests here change state: http_get refuses them, every other tool asks a person first. Globs like allowedPaths.",
-        "x-agent-visible": true
-      },
-      "auth": {
-        "type": "object",
-        "title": "Credentials",
-        "additionalProperties": false,
-        "required": [
-          "type"
-        ],
-        "properties": {
-          "type": {
-            "title": "Authentication",
-            "enum": [
-              "none",
-              "bearer",
-              "apiKeyHeader",
-              "apiKeyQuery",
-              "basic"
-            ],
-            "default": "bearer",
-            "x-enumTitles": [
-              "None",
-              "Bearer token",
-              "API key in a header",
-              "API key in the query (not on prod)",
-              "User and password"
-            ],
-            "x-forbidden-env-values": {
-              "prod": [
-                "apiKeyQuery"
-              ]
-            },
-            "x-agent-visible": true
-          }
-        },
-        "patternProperties": {
-          "^(token|headerName|queryName|apiKey|username|password)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "type": {
-                  "const": "bearer"
-                }
-              },
-              "required": [
-                "type"
-              ]
-            },
-            "then": {
-              "properties": {
-                "token": {
-                  "type": "string",
-                  "title": "Token",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value"
-                }
-              },
-              "required": [
-                "token"
-              ]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "type": {
-                  "const": "apiKeyHeader"
-                }
-              },
-              "required": [
-                "type"
-              ]
-            },
-            "then": {
-              "properties": {
-                "headerName": {
-                  "type": "string",
-                  "title": "Header name",
-                  "default": "X-API-Key",
-                  "pattern": "^[A-Za-z0-9-]{1,64}$"
-                },
-                "apiKey": {
-                  "type": "string",
-                  "title": "API key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value"
-                }
-              },
-              "required": [
-                "apiKey"
-              ]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "type": {
-                  "const": "apiKeyQuery"
-                }
-              },
-              "required": [
-                "type"
-              ]
-            },
-            "then": {
-              "properties": {
-                "queryName": {
-                  "type": "string",
-                  "title": "Query parameter name",
-                  "default": "api_key",
-                  "maxLength": 64
-                },
-                "apiKey": {
-                  "type": "string",
-                  "title": "API key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value"
-                }
-              },
-              "required": [
-                "apiKey"
-              ]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "type": {
-                  "const": "basic"
-                }
-              },
-              "required": [
-                "type"
-              ]
-            },
-            "then": {
-              "properties": {
-                "username": {
-                  "type": "string",
-                  "title": "User",
-                  "maxLength": 256
-                },
-                "password": {
-                  "type": "string",
-                  "title": "Password",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                }
-              },
-              "required": [
-                "password"
-              ]
-            }
-          }
-        ]
-      },
-      "secretHeaders": {
-        "type": "array",
-        "maxItems": 5,
-        "title": "More secret headers",
-        "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "value"
-          ],
-          "properties": {
-            "name": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9-]{1,64}$"
-            },
-            "value": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value"
-            },
-            "methods": {
-              "type": "array",
-              "items": {
-                "enum": [
-                  "GET",
-                  "HEAD",
-                  "POST",
-                  "PUT",
-                  "PATCH",
-                  "DELETE"
-                ]
-              },
-              "description": "Empty: every request"
-            }
-          }
-        }
-      },
-      "defaultHeaders": {
-        "type": "object",
-        "title": "Default headers",
-        "maxProperties": 10,
-        "additionalProperties": {
-          "type": "string",
-          "maxLength": 1024
-        },
-        "description": "Not secret, e.g. Accept: application/json"
-      },
-      "tls": {
-        "type": "object",
-        "title": "TLS",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "properties": {
-          "caCertificates": {
-            "type": "string",
-            "title": "CA certificates",
-            "x-person-only": true,
-            "x-widget": "textarea",
-            "maxLength": 64000,
-            "description": "PEM of an internal CA or of one trusted certificate. Filled by Test connection after you trust it."
-          },
-          "pins": {
-            "type": "array",
-            "title": "Certificate pins",
-            "x-person-only": true,
-            "items": {
-              "type": "string",
-              "pattern": "^sha256/[A-Za-z0-9+/=]{44}$"
-            }
-          },
-          "minVersion": {
-            "title": "Minimum TLS version",
-            "enum": [
-              "TLSv1.2",
-              "TLSv1.3"
-            ],
-            "default": "TLSv1.2"
-          }
-        }
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "properties": {
-          "connectTimeoutSeconds": {
-            "type": "integer",
-            "title": "Connect timeout",
-            "minimum": 1,
-            "maximum": 30,
-            "default": 5,
-            "x-unit": "s"
-          },
-          "followRedirects": {
-            "title": "Follow redirects",
-            "enum": [
-              "off",
-              "same-origin"
-            ],
-            "default": "off",
-            "x-forbidden-env-values": {
-              "prod": [
-                "same-origin"
-              ]
-            },
-            "description": "same-origin: a read follows up to 3 redirects on the same host, each under the base URL and the allowed paths. Never on prod."
-          },
-          "allowPlainHttp": {
-            "type": "boolean",
-            "title": "Allow plain HTTP",
-            "default": false,
-            "x-forbidden-env": [
-              "prod"
-            ],
-            "description": "http:// only for private addresses you allowed in Policies"
-          },
-          "maxConcurrentCalls": {
-            "type": "integer",
-            "title": "Concurrent calls",
-            "minimum": 1,
-            "maximum": 16,
-            "default": 4,
-            "x-env-default": {
-              "prod": 2
-            }
-          },
-          "test": {
-            "type": "object",
-            "title": "Test request",
-            "additionalProperties": false,
-            "properties": {
-              "method": {
-                "title": "Method",
-                "enum": [
-                  "GET",
-                  "HEAD"
-                ],
-                "default": "GET"
-              },
-              "path": {
-                "type": "string",
-                "title": "Path",
-                "default": "/"
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "mcp-server": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "transport"
-    ],
-    "properties": {
-      "toolPrefix": {
-        "type": "string",
-        "title": "Tool prefix",
-        "pattern": "^[a-z][a-z0-9]{0,14}_$",
-        "description": "Default: from the name, github-mcp → github_. Agents see github_create_issue."
-      },
-      "transport": {
-        "enum": [
-          "stdio",
-          "http"
-        ],
-        "default": "stdio",
-        "x-enumTitles": [
-          "Command on this computer (stdio)",
-          "URL (Streamable HTTP or SSE)"
-        ]
-      },
-      "start": {
-        "enum": [
-          "on-first-call",
-          "with-core"
-        ],
-        "default": "on-first-call"
-      },
-      "idleStopMinutes": {
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 1440,
-        "default": 15,
-        "x-unit": "min",
-        "x-env-default": {
-          "prod": 5
-        }
-      },
-      "startTimeoutSeconds": {
-        "type": "integer",
-        "minimum": 5,
-        "maximum": 300,
-        "default": 30,
-        "x-unit": "s"
-      },
-      "callTimeoutSeconds": {
-        "type": "integer",
-        "minimum": 1,
-        "maximum": 300,
-        "default": 60,
-        "x-unit": "s",
-        "x-env-default": {
-          "prod": 30
-        }
-      },
-      "maxInFlight": {
-        "type": "integer",
-        "minimum": 1,
-        "maximum": 16,
-        "default": 4
-      },
-      "share": {
-        "type": "object",
-        "title": "Share with agents",
-        "additionalProperties": false,
-        "description": "What the server offers besides tools. Reads of its resources and prompts run without approval, through the endpoint's policy, masked and recorded in Activity.",
-        "properties": {
-          "resources": {
-            "type": "boolean",
-            "default": false,
-            "title": "Its resources and resource templates"
-          },
-          "prompts": {
-            "type": "boolean",
-            "default": false,
-            "title": "Its prompts and their completions"
-          }
-        }
-      },
-      "catalogEntry": {
-        "type": "string",
-        "readOnly": true,
-        "description": "github-mcp@0.6.2 when installed from the catalog"
-      }
-    },
-    "allOf": [
-      {
-        "if": {
-          "properties": {
-            "transport": {
-              "const": "stdio"
-            }
-          }
-        },
-        "then": {
-          "required": [
-            "command"
-          ],
-          "properties": {
-            "command": {
-              "type": "array",
-              "title": "Command",
-              "items": {
-                "type": "string",
-                "maxLength": 1024
-              },
-              "minItems": 1,
-              "maxItems": 64,
-              "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
-            },
-            "env": {
-              "type": "array",
-              "title": "Environment variables from secrets",
-              "maxItems": 32,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "name",
-                  "secretRef"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
-                  },
-                  "secretRef": {
-                    "type": "string",
-                    "writeOnly": true,
-                    "x-gateway-secret": "value",
-                    "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
-                  }
-                }
-              }
-            },
-            "inheritEnv": {
-              "type": "array",
-              "title": "Pass these variables of this computer",
-              "uniqueItems": true,
-              "items": {
-                "enum": [
-                  "HTTPS_PROXY",
-                  "HTTP_PROXY",
-                  "NO_PROXY",
-                  "NODE_EXTRA_CA_CERTS",
-                  "SSL_CERT_FILE",
-                  "LANG"
-                ]
-              },
-              "default": []
-            },
-            "offThisComputer": {
-              "type": "boolean",
-              "default": false,
-              "title": "Keep it off this computer (Windows)",
-              "description": "Runs it in an AppContainer: the internet and your network stay open, this computer's services and your files don't. Leave it off for a server that talks to a database on this computer or reads your files; it then runs at low integrity, which still keeps it out of GateRook's data."
-            }
-          }
-        }
-      },
-      {
-        "if": {
-          "properties": {
-            "transport": {
-              "const": "http"
-            }
-          }
-        },
-        "then": {
-          "required": [
-            "url"
-          ],
-          "properties": {
-            "url": {
-              "type": "string",
-              "format": "uri",
-              "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])",
-              "x-key-allowed": true
-            },
-            "auth": {
-              "type": "object",
-              "title": "Sign-in",
-              "additionalProperties": false,
-              "required": [
-                "type"
-              ],
-              "properties": {
-                "type": {
-                  "enum": [
-                    "oauth",
-                    "google",
-                    "aws"
-                  ],
-                  "x-enumTitles": [
-                    "Sign in with OAuth in the browser",
-                    "Google Cloud credentials",
-                    "AWS credentials (SigV4)"
-                  ]
-                },
-                "optional": {
-                  "type": "boolean",
-                  "default": false,
-                  "description": "OAuth only: the server also answers without a sign-in, so it connects without one until you sign in"
-                },
-                "clientId": {
-                  "type": "string",
-                  "title": "OAuth client ID",
-                  "minLength": 1,
-                  "maxLength": 512,
-                  "pattern": "^[\\x21-\\x7E]+$",
-                  "description": "Only for a server that doesn't let apps register themselves: the ID of the OAuth app you created for GateRook"
-                },
-                "clientSecret": {
-                  "type": "string",
-                  "title": "Client secret",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "description": "Only when that OAuth app has one"
-                },
-                "scopes": {
-                  "type": "string",
-                  "title": "Scopes",
-                  "maxLength": 2048,
-                  "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]+( [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$",
-                  "description": "Default: what the server asks for"
-                },
-                "callbackPort": {
-                  "type": "integer",
-                  "title": "Callback port",
-                  "minimum": 1024,
-                  "maximum": 65535,
-                  "description": "Default: any free port"
-                },
-                "callbackHost": {
-                  "enum": [
-                    "127.0.0.1",
-                    "localhost"
-                  ],
-                  "default": "127.0.0.1"
-                },
-                "callbackPath": {
-                  "type": "string",
-                  "title": "Callback path",
-                  "pattern": "^/[A-Za-z0-9._~/-]{0,127}$",
-                  "default": "/callback"
-                },
-                "credentials": {
-                  "type": "object",
-                  "title": "Credentials",
-                  "description": "Google Cloud or AWS: where GateRook takes the credentials of each request from",
-                  "additionalProperties": false,
-                  "properties": {
-                    "source": {
-                      "enum": [
-                        "adc",
-                        "serviceAccountKey",
-                        "profile",
-                        "accessKey"
-                      ],
-                      "x-enumTitles": [
-                        "Google sign-in on this computer (ADC)",
-                        "Service account key (JSON)",
-                        "AWS profile on this computer",
-                        "AWS access key"
-                      ]
-                    },
-                    "serviceAccountKey": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "x-widget": "textarea",
-                      "maxLength": 10000
-                    },
-                    "impersonate": {
-                      "type": "string",
-                      "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-                      "examples": [
-                        "gw-mcp@acme-stage.iam.gserviceaccount.com"
-                      ]
-                    },
-                    "lifetimeSeconds": {
-                      "type": "integer",
-                      "minimum": 300,
-                      "maximum": 3600,
-                      "default": 900,
-                      "x-unit": "s"
-                    },
-                    "quotaProject": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
-                      "description": "Billed project (x-goog-user-project)"
-                    },
-                    "profile": {
-                      "type": "string",
-                      "maxLength": 128,
-                      "pattern": "\\S"
-                    },
-                    "accessKeyId": {
-                      "type": "string",
-                      "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
-                      "x-not-secret": true
-                    },
-                    "secretAccessKey": {
-                      "type": "string",
-                      "writeOnly": true,
-                      "x-gateway-secret": "value",
-                      "format": "password"
-                    },
-                    "roleArn": {
-                      "type": "string",
-                      "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
-                      "examples": [
-                        "arn:aws:iam::412398765012:role/gw-mcp"
-                      ]
-                    },
-                    "externalId": {
-                      "type": "string",
-                      "pattern": "^[\\w+=,.@:/-]{2,1224}$",
-                      "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
-                    },
-                    "sessionSeconds": {
-                      "type": "integer",
-                      "minimum": 900,
-                      "maximum": 3600,
-                      "default": 900,
-                      "x-unit": "s"
-                    }
-                  }
-                },
-                "service": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9-]{1,64}$",
-                  "description": "AWS: the service requests are signed for. Default: from the URL, aws-mcp.us-east-1.api.aws → aws-mcp"
-                },
-                "region": {
-                  "type": "string",
-                  "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
-                  "description": "AWS: the region requests are signed for. Default: from the URL"
-                }
-              }
-            },
-            "headers": {
-              "type": "array",
-              "title": "Headers from secrets",
-              "maxItems": 16,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "name",
-                  "secretRef"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9-]{1,64}$"
-                  },
-                  "secretRef": {
-                    "type": "string",
-                    "writeOnly": true,
-                    "x-gateway-secret": "value",
-                    "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
-                  }
-                }
-              }
-            },
-            "fixedHeaders": {
-              "type": "array",
-              "title": "Headers with a fixed value",
-              "description": "Sent with every request as written here, not as secrets: switches such as X-MCP-Readonly: true. A key belongs in a header from a secret.",
-              "maxItems": 16,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "name",
-                  "text"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "title": "Header",
-                    "pattern": "^[A-Za-z0-9-]{1,64}$"
-                  },
-                  "text": {
-                    "type": "string",
-                    "title": "Value",
-                    "maxLength": 256,
-                    "pattern": "^[\\x20-\\x7E]*$"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    ],
-    "patternProperties": {
-      "^(command|env|inheritEnv|offThisComputer|url|headers|fixedHeaders|auth)$": {}
-    }
-  },
-  "ssh-logs": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "connection",
-      "credentials"
-    ],
-    "x-card": {
-      "description": "Read and search selected log files over SSH with bounded server-side commands."
-    },
-    "x-file-selection": {
-      "rootPath": "/logs/root",
-      "path": "/logs/allowedFiles",
-      "required": true
-    },
-    "properties": {
-      "connection": {
-        "type": "object",
-        "title": "Connection",
-        "additionalProperties": false,
-        "description": "The core connects from this machine, so your VPN and hosts file apply.",
-        "required": [
-          "host",
-          "username"
-        ],
-        "properties": {
-          "host": {
-            "type": "string",
-            "title": "Host",
-            "maxLength": 253
-          },
-          "port": {
-            "type": "integer",
-            "title": "Port",
-            "minimum": 1,
-            "maximum": 65535,
-            "default": 22
-          },
-          "username": {
-            "type": "string",
-            "title": "User",
-            "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
-            "description": "A dedicated account with read access to the selected logs."
-          }
-        }
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "additionalProperties": false,
-        "required": [
-          "method"
-        ],
-        "properties": {
-          "method": {
-            "enum": [
-              "password",
-              "privateKeyFile"
-            ],
-            "default": "password",
-            "x-enumTitles": [
-              "Password",
-              "Private key file"
-            ],
-            "title": "Authentication"
-          },
-          "password": true,
-          "privateKeyPath": true,
-          "passphrase": true
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "const": "password"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "password"
-              ],
-              "properties": {
-                "password": {
-                  "type": "string",
-                  "title": "Password",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "method": {
-                  "const": "privateKeyFile"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "privateKeyPath"
-              ],
-              "properties": {
-                "privateKeyPath": {
-                  "type": "string",
-                  "title": "Private key file",
-                  "x-file-picker": "ssh-private-key",
-                  "minLength": 1,
-                  "maxLength": 4096,
-                  "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."
-                },
-                "passphrase": {
-                  "type": "string",
-                  "title": "Key passphrase (optional)",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "logs": {
-        "type": "object",
-        "title": "Log format",
-        "additionalProperties": false,
-        "properties": {
-          "root": {
-            "type": "string",
-            "title": "Remote log folder",
-            "maxLength": 4096,
-            "description": "Choose an absolute folder on the SSH server. Symbolic links are not followed."
-          },
-          "allowedFiles": {
-            "type": "array",
-            "title": "Allowed log files",
-            "maxItems": 500,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 4096
-            },
-            "description": "Exact file paths relative to the selected folder. New or rotated names are not allowed automatically."
-          },
-          "format": {
-            "type": "string",
-            "title": "Format",
-            "enum": [
-              "auto",
-              "text",
-              "jsonl"
-            ],
-            "x-enumTitles": [
-              "Detect text or JSON Lines",
-              "Text",
-              "JSON Lines"
-            ],
-            "default": "auto",
-            "description": "Auto detects JSON objects per line and otherwise reads plain text."
-          },
-          "timezone": {
-            "type": "string",
-            "title": "Time zone",
-            "maxLength": 100,
-            "default": "UTC",
-            "description": "Used only when a timestamp has no UTC offset. Use an IANA zone such as Europe/Madrid or UTC. Ambiguous daylight-saving times are reported as unparsed."
-          },
-          "timestampField": {
-            "type": "string",
-            "title": "JSON timestamp field",
-            "maxLength": 256,
-            "description": "Optional exact field name, dotted path or JSON Pointer, such as @timestamp, event.time or /event/time. Empty detects @timestamp, timestamp, time or ts."
-          },
-          "levelField": {
-            "type": "string",
-            "title": "JSON level field",
-            "maxLength": 256,
-            "description": "Optional exact field name, dotted path or JSON Pointer. Empty detects level, severity or log.level."
-          },
-          "timestampPattern": {
-            "type": "string",
-            "title": "Timestamp pattern",
-            "maxLength": 256,
-            "description": "Optional Java date-time pattern for the text prefix or JSON timestamp, for example uuuu-MM-dd HH:mm:ss,SSS. Empty recognizes ISO timestamps and common year-month-day text dates. Include the year; dates without a year are not inferred."
-          },
-          "timestampUnit": {
-            "type": "string",
-            "title": "Numeric timestamp unit",
-            "enum": [
-              "milliseconds",
-              "seconds"
-            ],
-            "x-enumTitles": [
-              "Unix milliseconds",
-              "Unix seconds"
-            ],
-            "default": "milliseconds",
-            "description": "Unit of numeric timestamps in JSON Lines. Text date strings are parsed independently."
-          }
-        },
-        "x-collapsed": true,
-        "description": "Parse text logs and JSON Lines for time and level filters. Each physical line is one record; timestamps without an offset use the configured time zone."
-      },
-      "hostKeys": {
-        "type": "object",
-        "title": "Host key",
-        "x-gateway-hostkey": true,
-        "additionalProperties": false,
-        "properties": {
-          "pinned": {
-            "type": "array",
-            "x-person-only": true,
-            "maxItems": 8,
-            "items": {
-              "type": "string",
-              "maxLength": 16000
-            },
-            "description": "Filled by Test connection after you confirm the fingerprint.",
-            "title": "Trusted host keys"
-          },
-          "knownHosts": {
-            "type": "string",
-            "x-person-only": true,
-            "x-widget": "textarea",
-            "maxLength": 64000,
-            "description": "Optional known_hosts lines, hashed lines too.",
-            "title": "Known hosts"
-          }
-        },
-        "x-collapsed": true
-      }
-    }
-  },
-  "gcp-logging": {
-    "title": "GCP Cloud Logging",
-    "required": [
-      "backend",
-      "resourceNames",
-      "credentials"
-    ],
-    "properties": {
-      "backend": {
-        "type": "string",
-        "const": "gcp-logging",
-        "default": "gcp-logging"
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Authentication",
-            "enum": [
-              "adc",
-              "serviceAccountKey"
-            ],
-            "default": "adc",
-            "x-enumTitles": [
-              "Google sign-in on this computer (gcloud auth application-default login)",
-              "Service account key (JSON)"
-            ]
-          },
-          "impersonate": {
-            "type": "string",
-            "title": "Service account to impersonate",
-            "maxLength": 254,
-            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-            "examples": [
-              "gw-reader@acme-prod.iam.gserviceaccount.com"
-            ]
-          },
-          "delegates": {
-            "type": "array",
-            "title": "Delegation chain",
-            "maxItems": 5,
-            "items": {
-              "type": "string"
-            },
-            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
-          }
-        },
-        "patternProperties": {
-          "^serviceAccountKey$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "serviceAccountKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "serviceAccountKey"
-              ],
-              "properties": {
-                "serviceAccountKey": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 10000,
-                  "title": "Service account key (JSON)",
-                  "minLength": 1
-                }
-              }
-            }
-          }
-        ]
-      },
-      "resourceNames": {
-        "type": "array",
-        "title": "Project or log view scope",
-        "minItems": 1,
-        "maxItems": 100,
-        "uniqueItems": true,
-        "examples": [
-          [
-            "projects/acme-prod"
-          ]
-        ],
-        "items": {
-          "type": "string",
-          "title": "Resource scope",
-          "examples": [
-            "projects/example-prod"
-          ],
-          "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
-        },
-        "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope."
-      },
-      "scopeFilter": {
-        "type": "string",
-        "maxLength": 2000,
-        "title": "Always add this filter",
-        "examples": [
-          "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"app\""
-        ]
-      },
-      "quotaPerMinute": {
-        "type": "integer",
-        "title": "API calls per minute",
-        "minimum": 1,
-        "maximum": 60,
-        "default": 30,
-        "description": "Share of the project's 60 entries.list calls per minute this gateway may use."
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-project-selection": {
-      "path": "/resourceNames"
-    }
-  },
-  "loki": {
-    "title": "Loki",
-    "required": [
-      "backend",
-      "url"
-    ],
-    "properties": {
-      "backend": {
-        "type": "string",
-        "const": "loki",
-        "default": "loki"
-      },
-      "url": {
-        "type": "string",
-        "title": "Loki URL",
-        "format": "uri",
-        "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
-        "examples": [
-          "http://loki.dev.internal:3100"
-        ],
-        "description": "Base URL; Grafana Cloud: https://logs-prod-XXX.grafana.net"
-      },
-      "tenant": {
-        "type": "string",
-        "maxLength": 150,
-        "pattern": "^[A-Za-z0-9!._*'()|-]*$",
-        "title": "Tenant (X-Scope-OrgID)",
-        "description": "Empty for single-tenant Loki. Several: team-a|team-b"
-      },
-      "auth": {
-        "type": "object",
-        "title": "Credentials",
-        "additionalProperties": false,
-        "properties": {
-          "mode": {
-            "enum": [
-              "none",
-              "bearer",
-              "basic"
-            ],
-            "default": "bearer",
-            "title": "Authentication",
-            "x-enumTitles": [
-              "No authentication",
-              "Bearer token",
-              "Username and password"
-            ]
-          }
-        },
-        "patternProperties": {
-          "^(username|secret)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "bearer"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "secret"
-              ],
-              "properties": {
-                "secret": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Bearer token",
-                  "minLength": 1
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "basic"
-                }
-              },
-              "required": [
-                "mode"
-              ]
-            },
-            "then": {
-              "required": [
-                "username",
-                "secret"
-              ],
-              "properties": {
-                "username": {
-                  "type": "string",
-                  "maxLength": 200,
-                  "description": "Grafana Cloud: the numeric user ID.",
-                  "title": "Username",
-                  "minLength": 1,
-                  "pattern": ".*\\S.*"
-                },
-                "secret": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Password",
-                  "minLength": 1
-                }
-              }
-            }
-          }
-        ]
-      },
-      "caCertificate": {
-        "type": "string",
-        "maxLength": 20000,
-        "x-widget": "textarea",
-        "title": "CA certificate (PEM)",
-        "description": "Only for a private CA."
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object"
-  },
-  "cloudwatch": {
-    "title": "AWS CloudWatch",
-    "required": [
-      "backend",
-      "region",
-      "logGroups",
-      "credentials"
-    ],
-    "properties": {
-      "backend": {
-        "type": "string",
-        "const": "cloudwatch",
-        "default": "cloudwatch"
-      },
-      "region": {
-        "type": "string",
-        "title": "Region",
-        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
-        "examples": [
-          "eu-central-1"
-        ]
-      },
-      "logGroups": {
-        "type": "array",
-        "title": "Log groups",
-        "minItems": 1,
-        "maxItems": 50,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "maxLength": 2048,
-          "pattern": "^([.\\-_/#A-Za-z0-9]{1,512}|arn:aws[a-z-]*:logs:[a-z0-9-]+:\\d{12}:log-group:[.\\-_/#A-Za-z0-9]+)$"
-        }
-      },
-      "credentials": {
-        "$ref": "#/$defs/awsCredentials",
-        "title": "Credentials"
-      },
-      "searchApi": {
-        "title": "Search API",
-        "enum": [
-          "insights",
-          "filter"
-        ],
-        "default": "insights",
-        "x-enumTitles": [
-          "Logs Insights (billed per GB scanned)",
-          "Filter patterns (FilterLogEvents)"
-        ]
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "$defs": {
-      "awsCredentials": {
-        "type": "object",
-        "title": "AWS credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "enum": [
-              "accessKey",
-              "profile"
-            ],
-            "default": "accessKey",
-            "title": "Credential source",
-            "x-enumTitles": [
-              "Access key",
-              "AWS profile"
-            ]
-          },
-          "roleArn": {
-            "type": "string",
-            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
-            "examples": [
-              "arn:aws:iam::123456789012:role/gw-readonly"
-            ],
-            "title": "Assume role ARN"
-          },
-          "externalId": {
-            "type": "string",
-            "maxLength": 1224,
-            "title": "External ID"
-          },
-          "sessionSeconds": {
-            "type": "integer",
-            "minimum": 900,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "title": "Session duration"
-          }
-        },
-        "patternProperties": {
-          "^(accessKeyId|secretAccessKey|profile)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "accessKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "accessKeyId",
-                "secretAccessKey"
-              ],
-              "properties": {
-                "accessKeyId": {
-                  "type": "string",
-                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
-                  "x-not-secret": true,
-                  "title": "Access key ID"
-                },
-                "secretAccessKey": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Secret access key",
-                  "minLength": 1
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "profile"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "profile"
-              ],
-              "properties": {
-                "profile": {
-                  "type": "string",
-                  "maxLength": 128,
-                  "description": "A profile in ~/.aws/config on this computer",
-                  "title": "Profile",
-                  "minLength": 1,
-                  "pattern": ".*\\S.*"
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  },
-  "opensearch": {
-    "title": "OpenSearch",
-    "required": [
-      "backend",
-      "url",
-      "auth"
-    ],
-    "properties": {
-      "backend": {
-        "type": "string",
-        "const": "opensearch",
-        "default": "opensearch"
-      },
-      "url": {
-        "type": "string",
-        "format": "uri",
-        "pattern": "^https?://[^/?#]+$",
-        "title": "Server URL",
-        "examples": [
-          "https://search.example.test:9200"
-        ],
-        "description": "OpenSearch host, including http:// or https:// and its port."
-      },
-      "auth": {
-        "type": "object",
-        "title": "Authorization",
-        "additionalProperties": false,
-        "properties": {
-          "mode": {
-            "title": "Authentication",
-            "enum": [
-              "basic",
-              "apiKey",
-              "bearer",
-              "awsSigV4",
-              "none"
-            ],
-            "default": "basic",
-            "x-enumTitles": [
-              "Username and password",
-              "API key",
-              "Bearer token",
-              "AWS request signing",
-              "No authentication"
-            ]
-          }
-        },
-        "patternProperties": {
-          "^(username|secret|awsRegion|awsService|awsCredentials)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "basic"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "username",
-                "secret"
-              ],
-              "properties": {
-                "username": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200,
-                  "pattern": ".*\\S.*",
-                  "title": "Username"
-                },
-                "secret": {
-                  "type": "string",
-                  "minLength": 1,
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Password",
-                  "description": "Stored securely by GateRook."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "apiKey"
-                }
-              },
-              "required": [
-                "mode"
-              ]
-            },
-            "then": {
-              "required": [
-                "secret"
-              ],
-              "properties": {
-                "secret": {
-                  "type": "string",
-                  "minLength": 1,
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "API key",
-                  "description": "OpenSearch API key, such as os_...; requires server support."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "bearer"
-                }
-              },
-              "required": [
-                "mode"
-              ]
-            },
-            "then": {
-              "required": [
-                "secret"
-              ],
-              "properties": {
-                "secret": {
-                  "type": "string",
-                  "minLength": 1,
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Bearer token",
-                  "description": "Stored securely by GateRook."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "awsSigV4"
-                }
-              },
-              "required": [
-                "mode"
-              ]
-            },
-            "then": {
-              "required": [
-                "awsRegion",
-                "awsCredentials"
-              ],
-              "properties": {
-                "awsRegion": {
-                  "type": "string",
-                  "title": "AWS region",
-                  "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
-                  "examples": [
-                    "eu-central-1"
-                  ]
-                },
-                "awsService": {
-                  "title": "AWS service",
-                  "enum": [
-                    "es",
-                    "aoss"
-                  ],
-                  "default": "es",
-                  "x-enumTitles": [
-                    "OpenSearch Service",
-                    "OpenSearch Serverless"
-                  ]
-                },
-                "awsCredentials": {
-                  "$ref": "#/$defs/awsCredentials"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "apiAccess": {
-        "type": "string",
-        "const": "full",
-        "default": "full"
-      },
-      "caCertificate": {
-        "type": "string",
-        "maxLength": 20000,
-        "x-widget": "textarea",
-        "title": "CA certificate (PEM)",
-        "description": "Only for a private CA."
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "$defs": {
-      "awsCredentials": {
-        "type": "object",
-        "title": "AWS credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "enum": [
-              "accessKey",
-              "profile"
-            ],
-            "default": "accessKey",
-            "title": "Credential source",
-            "x-enumTitles": [
-              "Access key",
-              "AWS profile"
-            ]
-          },
-          "roleArn": {
-            "type": "string",
-            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
-            "examples": [
-              "arn:aws:iam::123456789012:role/gw-readonly"
-            ],
-            "title": "Assume role ARN"
-          },
-          "externalId": {
-            "type": "string",
-            "maxLength": 1224,
-            "title": "External ID"
-          },
-          "sessionSeconds": {
-            "type": "integer",
-            "minimum": 900,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "title": "Session duration"
-          }
-        },
-        "patternProperties": {
-          "^(accessKeyId|secretAccessKey|profile)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "accessKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "accessKeyId",
-                "secretAccessKey"
-              ],
-              "properties": {
-                "accessKeyId": {
-                  "type": "string",
-                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
-                  "x-not-secret": true,
-                  "title": "Access key ID"
-                },
-                "secretAccessKey": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Secret access key",
-                  "minLength": 1
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "profile"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "profile"
-              ],
-              "properties": {
-                "profile": {
-                  "type": "string",
-                  "maxLength": 128,
-                  "description": "A profile in ~/.aws/config on this computer",
-                  "title": "Profile",
-                  "minLength": 1,
-                  "pattern": ".*\\S.*"
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  },
-  "oracle": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-card": {
-      "description": "Oracle Database 19c and later. Read queries and schema."
-    },
-    "additionalProperties": false,
-    "required": [
-      "connection",
-      "credentials"
-    ],
-    "properties": {
-      "connection": {
-        "type": "object",
-        "title": "Connection",
-        "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
-        "additionalProperties": false,
-        "required": [
-          "host",
-          "port",
-          "database"
-        ],
-        "properties": {
-          "host": {
-            "type": "string",
-            "title": "Host",
-            "maxLength": 253,
-            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
-          },
-          "port": {
-            "type": "integer",
-            "title": "Port",
-            "minimum": 1,
-            "maximum": 65535,
-            "default": 1521
-          },
-          "database": {
-            "type": "string",
-            "title": "Service name",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_$#.-]{0,254}$",
-            "description": "The Oracle service name, such as FREEPDB1. A SID or TNS alias is not supported."
-          },
-          "sslMode": {
-            "type": "string",
-            "title": "SSL mode",
-            "enum": [
-              "disable",
-              "verify-ca",
-              "verify-full"
-            ],
-            "default": "verify-full",
-            "x-enumTitles": [
-              "Off (TCP)",
-              "Verify the CA (TCPS)",
-              "Verify the CA and host name (TCPS)"
-            ],
-            "description": "TCPS requires a TLS listener on the selected port. Verify-full checks the certificate and host name.",
-            "x-section": "/advanced"
-          },
-          "caCertificate": {
-            "type": "string",
-            "title": "CA certificate (PEM)",
-            "x-section": "/advanced",
-            "maxLength": 20000,
-            "x-widget": "textarea",
-            "description": "For a private CA with verify-ca or verify-full. Empty: the system trust store."
-          }
-        }
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "x-gateway-secret": "login",
-        "additionalProperties": false,
-        "required": [
-          "user"
-        ],
-        "properties": {
-          "user": {
-            "type": "string",
-            "title": "User",
-            "maxLength": 128,
-            "description": "Use a user that can only read wherever you can. The test below shows what it may do.",
-            "minLength": 1
-          },
-          "password": {
-            "type": "string",
-            "title": "Password",
-            "description": "The Oracle database password.",
-            "writeOnly": true,
-            "format": "password"
-          }
-        }
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
-        "properties": {
-          "statementTimeoutMs": {
-            "type": "integer",
-            "title": "Statement timeout",
-            "minimum": 100,
-            "maximum": 600000,
-            "x-unit": "ms",
-            "x-stricter": "min",
-            "description": "The driver cancels slower statements. Empty: the environment policy."
-          },
-          "poolSize": {
-            "type": "integer",
-            "title": "Pool size",
-            "minimum": 1,
-            "maximum": 10,
-            "default": 2,
-            "x-unit": "connections"
-          },
-          "schemaAllowlist": {
-            "type": "array",
-            "title": "Schema allowlist",
-            "uniqueItems": true,
-            "maxItems": 100,
-            "x-stricter": "intersect",
-            "items": {
-              "type": "string",
-              "maxLength": 200
-            }
-          },
-          "connectTimeoutMs": {
-            "type": "integer",
-            "title": "Connect timeout",
-            "minimum": 1000,
-            "maximum": 30000,
-            "default": 5000,
-            "x-unit": "ms"
-          },
-          "defaultSchema": {
-            "type": "string",
-            "title": "Default schema",
-            "maxLength": 130,
-            "pattern": "^(?:[A-Za-z][A-Za-z0-9_$#]{0,127}|\"(?:[^\"\\u0000]|\"\")+\")$",
-            "description": "Empty: the authenticated user. Unquoted names use uppercase; double-quote a case-sensitive name."
-          }
-        }
-      }
-    }
-  },
-  "sqlserver": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-card": {
-      "description": "Microsoft SQL Server. Read queries, schema, execution plans."
-    },
-    "additionalProperties": false,
-    "required": [
-      "connection",
-      "credentials"
-    ],
-    "properties": {
-      "connection": {
-        "type": "object",
-        "title": "Connection",
-        "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
-        "additionalProperties": false,
-        "required": [
-          "host",
-          "port"
-        ],
-        "properties": {
-          "host": {
-            "type": "string",
-            "title": "Host",
-            "maxLength": 253,
-            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
-          },
-          "port": {
-            "type": "integer",
-            "title": "Port",
-            "minimum": 1,
-            "maximum": 65535,
-            "default": 1433
-          },
-          "database": {
-            "type": "string",
-            "title": "Database",
-            "pattern": "^[^\\u0000]{1,128}$",
-            "description": "The default database. Empty: the login default database."
-          },
-          "databases": {
-            "type": "array",
-            "title": "Databases",
-            "minItems": 1,
-            "maxItems": 100,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[^\\u0000]+$"
-            },
-            "description": "Only these databases are available through this connection."
-          },
-          "sslMode": {
-            "type": "string",
-            "title": "SSL mode",
-            "enum": [
-              "verify-full",
-              "require",
-              "disable"
-            ],
-            "default": "verify-full",
-            "x-enumTitles": [
-              "Verify the CA and host name (verify-full)",
-              "Encrypt, don't verify (require)",
-              "Off unless required by server (disable)"
-            ],
-            "description": "Verify-full encrypts the connection and validates the server certificate and host name. Require encrypts without certificate verification.",
-            "x-section": "/advanced"
-          },
-          "caCertificate": {
-            "type": "string",
-            "title": "CA certificate (PEM)",
-            "x-section": "/advanced",
-            "maxLength": 20000,
-            "x-widget": "textarea",
-            "description": "For a private CA with verify-full. Empty: the system trust store."
-          }
-        }
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "x-gateway-secret": "login",
-        "additionalProperties": false,
-        "required": [
-          "user",
-          "password"
-        ],
-        "properties": {
-          "user": {
-            "type": "string",
-            "title": "User",
-            "maxLength": 128,
-            "description": "SQL Server login. Prefer a login with SELECT permission only; Windows and Microsoft Entra authentication are not supported.",
-            "minLength": 1
-          },
-          "password": {
-            "type": "string",
-            "title": "Password",
-            "description": "The password for this SQL Server login.",
-            "writeOnly": true,
-            "format": "password",
-            "minLength": 1
-          }
-        }
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
-        "properties": {
-          "statementTimeoutMs": {
-            "type": "integer",
-            "title": "Statement timeout",
-            "minimum": 100,
-            "maximum": 600000,
-            "x-unit": "ms",
-            "x-stricter": "min",
-            "description": "Statements exceeding this limit are cancelled. Empty: the environment policy."
-          },
-          "poolSize": {
-            "type": "integer",
-            "title": "Pool size",
-            "minimum": 1,
-            "maximum": 10,
-            "default": 2,
-            "x-unit": "connections"
-          },
-          "schemaAllowlist": {
-            "type": "array",
-            "title": "Schema allowlist",
-            "uniqueItems": true,
-            "maxItems": 100,
-            "x-stricter": "intersect",
-            "items": {
-              "type": "string",
-              "maxLength": 200
-            }
-          },
-          "connectTimeoutMs": {
-            "type": "integer",
-            "title": "Connect timeout",
-            "minimum": 1000,
-            "maximum": 30000,
-            "default": 5000,
-            "x-unit": "ms"
-          },
-          "defaultSchema": {
-            "type": "string",
-            "title": "Default schema",
-            "default": "dbo",
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[^\\u0000]+$",
-            "description": "Must match the database user's default schema. Qualify table names when using another schema."
-          }
-        }
-      }
-    },
-    "x-database-selection": {
-      "path": "/connection/databases",
-      "legacyPath": "/connection/database"
-    }
-  },
-  "elasticsearch": {
-    "title": "Elasticsearch",
-    "required": [
-      "backend",
-      "url",
-      "auth"
-    ],
-    "properties": {
-      "backend": {
-        "type": "string",
-        "const": "elasticsearch",
-        "default": "elasticsearch"
-      },
-      "url": {
-        "type": "string",
-        "format": "uri",
-        "pattern": "^https?://[^/?#]+$",
-        "title": "Server URL",
-        "examples": [
-          "https://search.example.test:9200"
-        ],
-        "description": "Elasticsearch host, including http:// or https:// and its port."
-      },
-      "auth": {
-        "type": "object",
-        "title": "Authorization",
-        "additionalProperties": false,
-        "properties": {
-          "mode": {
-            "title": "Authentication",
-            "enum": [
-              "basic",
-              "apiKey",
-              "bearer",
-              "none"
-            ],
-            "default": "basic",
-            "x-enumTitles": [
-              "Username and password",
-              "API key",
-              "Bearer token",
-              "No authentication"
-            ]
-          }
-        },
-        "patternProperties": {
-          "^(username|secret)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "basic"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "username",
-                "secret"
-              ],
-              "properties": {
-                "username": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200,
-                  "pattern": ".*\\S.*",
-                  "title": "Username"
-                },
-                "secret": {
-                  "type": "string",
-                  "minLength": 1,
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Password",
-                  "description": "Stored securely by GateRook."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "apiKey"
-                }
-              },
-              "required": [
-                "mode"
-              ]
-            },
-            "then": {
-              "required": [
-                "secret"
-              ],
-              "properties": {
-                "secret": {
-                  "type": "string",
-                  "minLength": 1,
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "API key",
-                  "description": "Encoded Elasticsearch API key (the encoded value returned when creating a key, or Base64 of id:api_key). Do not include the ApiKey prefix."
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "mode": {
-                  "const": "bearer"
-                }
-              },
-              "required": [
-                "mode"
-              ]
-            },
-            "then": {
-              "required": [
-                "secret"
-              ],
-              "properties": {
-                "secret": {
-                  "type": "string",
-                  "minLength": 1,
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Bearer token",
-                  "description": "Stored securely by GateRook."
-                }
-              }
-            }
-          }
-        ]
-      },
-      "apiAccess": {
-        "type": "string",
-        "const": "full",
-        "default": "full"
-      },
-      "caCertificate": {
-        "type": "string",
-        "maxLength": 20000,
-        "x-widget": "textarea",
-        "title": "CA certificate (PEM)",
-        "description": "Only for a private CA."
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": false
-  },
-  "sqlite": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "x-card": {
-      "description": "A SQLite database file on this computer. Read queries and schema."
-    },
-    "additionalProperties": false,
-    "required": [
-      "connection"
-    ],
-    "properties": {
-      "connection": {
-        "type": "object",
-        "title": "Database file",
-        "description": "GateRook opens the file on this computer: reads through a read-only handle, approved changes through their own. It never creates a file.",
-        "additionalProperties": false,
-        "required": [
-          "file"
-        ],
-        "properties": {
-          "file": {
-            "type": "string",
-            "title": "Database file",
-            "x-file-picker": "sqlite-database",
-            "x-person-only": true,
-            "minLength": 1,
-            "maxLength": 4096,
-            "pattern": "^[^?\\u0000-\\u001f]+$",
-            "description": "An absolute path or ~/…, such as ~/projects/shop/db/development.sqlite3. Only you choose the file: an AI import can't."
-          }
-        }
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "description": "Timeouts, locking, foreign keys and the pool. Policies can tighten limits per environment.",
-        "properties": {
-          "statementTimeoutMs": {
-            "type": "integer",
-            "title": "Statement timeout",
-            "minimum": 100,
-            "maximum": 600000,
-            "x-unit": "ms",
-            "x-stricter": "min",
-            "description": "GateRook interrupts slower statements. Empty: the environment policy."
-          },
-          "busyTimeoutMs": {
-            "type": "integer",
-            "title": "Lock wait",
-            "minimum": 0,
-            "maximum": 30000,
-            "default": 2000,
-            "x-unit": "ms",
-            "description": "How long a call waits while another program writes to the file."
-          },
-          "foreignKeys": {
-            "type": "boolean",
-            "title": "Enforce foreign keys",
-            "default": true,
-            "description": "SQLite checks the file's foreign keys, and runs their ON DELETE and ON UPDATE actions, on approved changes, as most apps that use them do."
-          },
-          "poolSize": {
-            "type": "integer",
-            "title": "Pool size",
-            "minimum": 1,
-            "maximum": 4,
-            "default": 2,
-            "x-unit": "connections"
-          }
-        }
-      }
-    }
-  },
   "dynamodb": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Amazon DynamoDB",
@@ -5284,6 +1633,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "title": "Delegation chain",
             "maxItems": 5,
             "items": {
+              "title": "Service account",
               "type": "string"
             },
             "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
@@ -5354,253 +1704,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "description": "The most bytes one statement may process (maximumBytesBilled). A dry run refuses a larger one before it runs."
           }
         }
-      }
-    }
-  },
-  "firestore": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Cloud Firestore",
-    "type": "object",
-    "x-card": {
-      "description": "Documents, collections and queries. Changes wait for approval."
-    },
-    "additionalProperties": false,
-    "required": [
-      "project",
-      "credentials"
-    ],
-    "properties": {
-      "project": {
-        "type": "string",
-        "title": "Project",
-        "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
-        "examples": [
-          "acme-stage"
-        ],
-        "description": "The ID of the Google Cloud project that holds the database."
-      },
-      "database": {
-        "type": "string",
-        "title": "Database",
-        "default": "(default)",
-        "pattern": "^(\\(default\\)|[a-z][a-z0-9-]{2,61}[a-z0-9])$",
-        "examples": [
-          "(default)"
-        ],
-        "description": "The Firestore database ID: (default) for the project's default database."
-      },
-      "collections": {
-        "type": "array",
-        "title": "Collections",
-        "maxItems": 50,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "maxLength": 1500,
-          "pattern": "^/?[^/\\u0000-\\u001f\\u007f#%\\\\]+(/[^/\\u0000-\\u001f\\u007f#%\\\\]+)*$"
-        },
-        "examples": [
-          [
-            "orders",
-            "users/*/orders"
-          ]
-        ],
-        "description": "The collections agents may use. An ID such as orders or audit-* allows every collection with that ID, collection-group queries included; a path such as /orders or users/*/orders allows the collections at that path (* is one ID, ** any number). Empty: every collection the credentials may read."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Authentication",
-            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
-            "enum": [
-              "adc",
-              "serviceAccountKey"
-            ],
-            "default": "adc",
-            "x-enumTitles": [
-              "Existing Google sign-in (ADC)",
-              "Service account key (JSON)"
-            ]
-          },
-          "impersonate": {
-            "type": "string",
-            "title": "Service account to impersonate",
-            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-            "examples": [
-              "gw-firestore@acme-stage.iam.gserviceaccount.com"
-            ],
-            "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes. Empty: calls use the sign-in or key itself."
-          },
-          "lifetimeSeconds": {
-            "type": "integer",
-            "title": "Token lifetime",
-            "minimum": 300,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "description": "How long a borrowed token of the service account to impersonate lasts."
-          },
-          "quotaProject": {
-            "type": "string",
-            "title": "Billed project",
-            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
-          }
-        },
-        "patternProperties": {
-          "^(serviceAccountKey)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "serviceAccountKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "properties": {
-                "serviceAccountKey": {
-                  "type": "string",
-                  "title": "Service account key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 10000
-                }
-              },
-              "required": [
-                "serviceAccountKey"
-              ]
-            }
-          }
-        ]
-      }
-    }
-  },
-  "firebase-rtdb": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Firebase Realtime Database",
-    "type": "object",
-    "x-card": {
-      "description": "Paths, shallow reads and queries. Changes wait for approval."
-    },
-    "additionalProperties": false,
-    "required": [
-      "databaseUrl",
-      "credentials"
-    ],
-    "properties": {
-      "databaseUrl": {
-        "type": "string",
-        "title": "Database URL",
-        "maxLength": 200,
-        "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.firebaseio\\.com|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.[a-z]{2,20}-[a-z]{2,20}[0-9]{1,2}\\.firebasedatabase\\.app)/?$",
-        "examples": [
-          "https://acme-default-rtdb.firebaseio.com",
-          "https://acme-eu.europe-west1.firebasedatabase.app"
-        ],
-        "description": "As the Firebase console shows it: https://<database>.firebaseio.com or https://<database>.<region>.firebasedatabase.app."
-      },
-      "paths": {
-        "type": "array",
-        "title": "Paths",
-        "maxItems": 50,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "maxLength": 768,
-          "pattern": "^[^/.$#\\[\\]%\\\\\\u0000-\\u001f\\u007f]+$"
-        },
-        "examples": [
-          [
-            "users",
-            "public-*"
-          ]
-        ],
-        "description": "The top-level paths agents may use, with everything under them; * matches any characters, such as public-*. Empty: the whole database."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Authentication",
-            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. Your own sign-in keeps the scopes it was given; a key or an impersonated service account gets firebase.database and userinfo.email.",
-            "enum": [
-              "adc",
-              "serviceAccountKey"
-            ],
-            "default": "adc",
-            "x-enumTitles": [
-              "Existing Google sign-in (ADC)",
-              "Service account key (JSON)"
-            ]
-          },
-          "impersonate": {
-            "type": "string",
-            "title": "Service account to impersonate",
-            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-            "examples": [
-              "gw-rtdb@acme-stage.iam.gserviceaccount.com"
-            ],
-            "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes. Empty: calls use the sign-in or key itself."
-          },
-          "lifetimeSeconds": {
-            "type": "integer",
-            "title": "Token lifetime",
-            "minimum": 300,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "description": "How long a borrowed token of the service account to impersonate lasts."
-          }
-        },
-        "patternProperties": {
-          "^(serviceAccountKey)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "serviceAccountKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "properties": {
-                "serviceAccountKey": {
-                  "type": "string",
-                  "title": "Service account key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 10000
-                }
-              },
-              "required": [
-                "serviceAccountKey"
-              ]
-            }
-          }
-        ]
       }
     }
   },
@@ -5729,7 +1832,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Warehouse",
         "maxLength": 257,
         "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
-        "description": "Runs the statements. Empty: the user's default warehouse."
+        "x-advanced": false,
+        "description": "Runs the statements: queries over tables need one. Empty: the user's default warehouse."
       },
       "role": {
         "type": "string",
@@ -5743,13 +1847,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Database",
         "maxLength": 257,
         "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
-        "description": "Where names without a database resolve. Empty: the user's default namespace."
+        "x-advanced": true,
+        "x-suggest": true,
+        "description": "Where names without a database resolve; required with a schema. Empty: the user's default namespace."
       },
       "schema": {
         "type": "string",
         "title": "Schema",
         "maxLength": 257,
         "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "x-advanced": true,
         "description": "Where names without a schema resolve; needs Database. Write names with lower case or spaces in double quotes."
       },
       "tables": {
@@ -5781,715 +1888,24 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         }
       }
-    }
-  },
-  "azure": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Azure",
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "subscriptions",
-      "credentials"
-    ],
-    "allOf": [
-      {
-        "if": {
-          "properties": {
-            "credentials": {
-              "properties": {
-                "source": {
-                  "enum": [
-                    "deviceCode",
-                    "clientSecret",
-                    "clientCertificate"
-                  ]
-                }
-              },
-              "required": [
-                "source"
-              ]
-            }
-          },
-          "required": [
-            "credentials"
-          ]
-        },
-        "then": {
-          "required": [
-            "tenantId"
-          ]
-        }
-      }
-    ],
-    "properties": {
-      "cloud": {
-        "title": "Cloud",
-        "enum": [
-          "AzureCloud",
-          "AzureUSGovernment",
-          "AzureChinaCloud"
-        ],
-        "default": "AzureCloud",
-        "x-enumTitles": [
-          "Azure",
-          "Azure Government",
-          "Azure China (21Vianet)"
-        ]
-      },
-      "tenantId": {
-        "type": "string",
-        "title": "Tenant (directory) ID",
-        "maxLength": 253,
-        "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
-        "examples": [
-          "contoso.onmicrosoft.com"
-        ],
-        "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
-      },
-      "subscriptions": {
-        "type": "array",
-        "title": "Subscriptions",
-        "minItems": 1,
-        "maxItems": 20,
-        "uniqueItems": true,
-        "x-suggest": true,
-        "items": {
-          "type": "string",
-          "title": "Subscription ID",
-          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
-        },
-        "examples": [
-          [
-            "0b1f6471-1bf0-4dda-aec3-111122223333"
-          ]
-        ],
-        "description": "Subscription IDs agents may read; calls outside them are refused."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Sign in with",
-            "enum": [
-              "cli",
-              "deviceCode",
-              "clientSecret",
-              "clientCertificate"
-            ],
-            "default": "cli",
-            "x-enumTitles": [
-              "Azure CLI sign-in on this computer (az login)",
-              "Sign in with a code in the browser",
-              "Service principal with a client secret",
-              "Service principal with a certificate"
-            ]
-          },
-          "clientId": {
-            "type": "string",
-            "title": "Application (client) ID",
-            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
-            "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
-          }
-        },
-        "patternProperties": {
-          "^(clientSecret|certificate)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "clientSecret"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "clientId",
-                "clientSecret"
-              ],
-              "properties": {
-                "clientSecret": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Client secret",
-                  "minLength": 1
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "clientCertificate"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "clientId",
-                "certificate"
-              ],
-              "properties": {
-                "certificate": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 20000,
-                  "minLength": 1,
-                  "title": "Certificate and private key (PEM)",
-                  "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
-                }
-              }
-            }
-          }
-        ]
-      },
-      "trustedCli": {
-        "type": "string",
-        "title": "Allowed Azure CLI command",
-        "readOnly": true,
-        "x-person-only": true,
-        "pattern": "^[0-9a-f]{64}$",
-        "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
-      },
-      "logAnalyticsWorkspaces": {
-        "type": "array",
-        "title": "Log Analytics workspaces",
-        "maxItems": 20,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "title": "Workspace ID",
-          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
-        },
-        "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL. Empty: no workspace logs."
-      },
-      "applicationInsights": {
-        "type": "array",
-        "title": "Application Insights components",
-        "maxItems": 20,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "title": "Component resource ID",
-          "maxLength": 512,
-          "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
-        },
-        "examples": [
-          [
-            "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
-          ]
-        ],
-        "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Empty: none."
-      }
-    }
-  },
-  "azure-monitor": {
-    "title": "Azure Monitor Logs",
-    "required": [
-      "backend",
-      "credentials"
-    ],
-    "properties": {
-      "backend": {
-        "type": "string",
-        "const": "azure-monitor",
-        "default": "azure-monitor"
-      },
-      "cloud": {
-        "title": "Cloud",
-        "enum": [
-          "AzureCloud",
-          "AzureUSGovernment",
-          "AzureChinaCloud"
-        ],
-        "default": "AzureCloud",
-        "x-enumTitles": [
-          "Azure",
-          "Azure Government",
-          "Azure China (21Vianet)"
-        ]
-      },
-      "tenantId": {
-        "type": "string",
-        "title": "Tenant (directory) ID",
-        "maxLength": 253,
-        "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
-        "examples": [
-          "contoso.onmicrosoft.com"
-        ],
-        "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Sign in with",
-            "enum": [
-              "cli",
-              "deviceCode",
-              "clientSecret",
-              "clientCertificate"
-            ],
-            "default": "cli",
-            "x-enumTitles": [
-              "Azure CLI sign-in on this computer (az login)",
-              "Sign in with a code in the browser",
-              "Service principal with a client secret",
-              "Service principal with a certificate"
-            ]
-          },
-          "clientId": {
-            "type": "string",
-            "title": "Application (client) ID",
-            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
-            "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
-          }
-        },
-        "patternProperties": {
-          "^(clientSecret|certificate)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "clientSecret"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "clientId",
-                "clientSecret"
-              ],
-              "properties": {
-                "clientSecret": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password",
-                  "title": "Client secret",
-                  "minLength": 1
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "clientCertificate"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "required": [
-                "clientId",
-                "certificate"
-              ],
-              "properties": {
-                "certificate": {
-                  "type": "string",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 20000,
-                  "minLength": 1,
-                  "title": "Certificate and private key (PEM)",
-                  "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
-                }
-              }
-            }
-          }
-        ]
-      },
-      "trustedCli": {
-        "type": "string",
-        "title": "Allowed Azure CLI command",
-        "readOnly": true,
-        "x-person-only": true,
-        "pattern": "^[0-9a-f]{64}$",
-        "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
-      },
-      "workspaces": {
-        "type": "array",
-        "title": "Log Analytics workspaces",
-        "maxItems": 20,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "title": "Workspace ID",
-          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
-        },
-        "examples": [
-          [
-            "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
-          ]
-        ],
-        "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query."
-      },
-      "applicationInsights": {
-        "type": "array",
-        "title": "Application Insights components",
-        "maxItems": 20,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "title": "Component resource ID",
-          "maxLength": 512,
-          "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
-        },
-        "examples": [
-          [
-            "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
-          ]
-        ],
-        "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object"
-  },
-  "cloudflare": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Cloudflare",
-    "type": "object",
-    "x-card": {
-      "description": "DNS, cache, Workers, Pages, analytics and tunnels. Changes wait for approval."
-    },
-    "additionalProperties": false,
-    "required": [
-      "accountId",
-      "credentials"
-    ],
-    "properties": {
-      "accountId": {
-        "type": "string",
-        "title": "Account ID",
-        "pattern": "^[0-9a-f]{32}$",
-        "examples": [
-          "0123456789abcdef0123456789abcdef"
-        ],
-        "x-suggest": true,
-        "description": "The 32-character ID of the Cloudflare account, shown on the dashboard's account home and in its Overview pages. Workers, Pages, KV, tunnels and Logpush are read in this account; a zone of another account is refused."
-      },
-      "zones": {
-        "type": "array",
-        "title": "Zones",
-        "maxItems": 200,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "maxLength": 253,
-          "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
-        },
-        "examples": [
-          [
-            "example.com",
-            "example.org"
-          ]
-        ],
-        "description": "The zones agents may use, by name. Empty: every zone of the account that the token can see."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "token"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "token": {
-            "type": "string",
-            "title": "API token",
-            "writeOnly": true,
-            "x-gateway-secret": "value",
-            "format": "password",
-            "minLength": 20,
-            "maxLength": 512,
-            "description": "A user or account API token, limited to this account and its zones. Read permissions cover the read tools; add DNS Edit, Cache Purge, Workers Scripts Edit or Pages Edit only for the changes you want agents to request. The Global API Key isn't accepted."
-          }
-        }
-      }
-    }
-  },
-  "s3": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "S3 object storage",
-    "type": "object",
-    "x-card": {
-      "description": "Buckets and objects on Amazon S3, Cloudflare R2, MinIO and other S3-compatible storage. Writes wait for approval."
-    },
-    "additionalProperties": false,
-    "required": [
-      "region",
-      "credentials"
-    ],
-    "properties": {
-      "endpoint": {
-        "type": "string",
-        "title": "Endpoint",
-        "maxLength": 2048,
-        "pattern": "^(https?://\\S+)?$",
-        "examples": [
-          "https://<account-id>.r2.cloudflarestorage.com"
-        ],
-        "description": "Empty for Amazon S3. For other S3-compatible storage, its endpoint URL, such as https://s3.us-west-002.backblazeb2.com or http://minio.internal:9000."
-      },
-      "buckets": {
-        "type": "array",
-        "title": "Buckets",
-        "maxItems": 50,
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9._*-]{1,222}$"
-        },
-        "description": "The buckets agents may use; * matches any characters, such as acme-reports-*. Empty: every bucket the credentials list, on Amazon S3 only buckets of the credentials' own account."
-      }
-    },
-    "patternProperties": {
-      "^(region|pathStyle|credentials)$": {}
     },
     "allOf": [
       {
         "if": {
           "properties": {
-            "endpoint": {
+            "schema": {
               "type": "string",
               "minLength": 1
             }
           },
           "required": [
-            "endpoint"
+            "schema"
           ]
         },
         "then": {
           "required": [
-            "region",
-            "credentials"
-          ],
-          "properties": {
-            "region": {
-              "type": "string",
-              "title": "Region",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
-              "examples": [
-                "auto"
-              ],
-              "description": "The region the provider names for this endpoint: auto for Cloudflare R2, us-east-1 when it names none."
-            },
-            "pathStyle": {
-              "type": "boolean",
-              "title": "Path-style addressing",
-              "default": true,
-              "description": "Requests go to the endpoint with the bucket in the path. Off: the bucket leads the host name, as some providers require."
-            },
-            "credentials": {
-              "type": "object",
-              "title": "Credentials",
-              "required": [
-                "accessKeyId",
-                "secretAccessKey"
-              ],
-              "additionalProperties": false,
-              "patternProperties": {
-                "^source$": {
-                  "const": "accessKey"
-                }
-              },
-              "properties": {
-                "accessKeyId": {
-                  "type": "string",
-                  "title": "Access key ID",
-                  "pattern": "^[A-Za-z0-9._+-]{3,128}$",
-                  "x-not-secret": true
-                },
-                "secretAccessKey": {
-                  "type": "string",
-                  "title": "Secret access key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "format": "password"
-                }
-              }
-            }
-          }
-        },
-        "else": {
-          "required": [
-            "region",
-            "credentials"
-          ],
-          "properties": {
-            "region": {
-              "type": "string",
-              "title": "Region",
-              "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
-              "examples": [
-                "eu-central-1"
-              ],
-              "x-suggest": true,
-              "description": "The AWS region of the buckets."
-            },
-            "credentials": {
-              "type": "object",
-              "title": "Credentials",
-              "required": [
-                "source"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "source": {
-                  "enum": [
-                    "accessKey",
-                    "profile"
-                  ],
-                  "default": "accessKey",
-                  "title": "Credentials source",
-                  "x-enumTitles": [
-                    "Access key",
-                    "AWS profile on this computer"
-                  ]
-                },
-                "roleArn": {
-                  "type": "string",
-                  "title": "Role to assume",
-                  "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
-                  "examples": [
-                    "arn:aws:iam::412398765012:role/gw-s3"
-                  ],
-                  "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
-                },
-                "externalId": {
-                  "type": "string",
-                  "title": "External ID",
-                  "pattern": "^[\\w+=,.@:/-]{2,1224}$",
-                  "x-generated": "gw-ext-<12 hex>",
-                  "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
-                },
-                "sessionSeconds": {
-                  "type": "integer",
-                  "title": "Session length",
-                  "minimum": 900,
-                  "maximum": 3600,
-                  "default": 900,
-                  "x-unit": "s",
-                  "description": "How long a role session lasts, 900 to 3,600 seconds."
-                },
-                "sessionPolicy": {
-                  "enum": [
-                    "generated",
-                    "none"
-                  ],
-                  "default": "generated",
-                  "title": "Session policy",
-                  "x-forbidden-env-values": {
-                    "prod": [
-                      "none"
-                    ]
-                  },
-                  "x-enumTitles": [
-                    "Each call's own permissions, enforced by AWS (recommended)",
-                    "The role's permissions as they are"
-                  ]
-                }
-              },
-              "patternProperties": {
-                "^(accessKeyId|secretAccessKey|profile)$": {}
-              },
-              "allOf": [
-                {
-                  "if": {
-                    "properties": {
-                      "source": {
-                        "const": "accessKey"
-                      }
-                    },
-                    "required": [
-                      "source"
-                    ]
-                  },
-                  "then": {
-                    "properties": {
-                      "accessKeyId": {
-                        "type": "string",
-                        "title": "Access key ID",
-                        "pattern": "^AKIA[A-Z0-9]{16}$",
-                        "x-not-secret": true
-                      },
-                      "secretAccessKey": {
-                        "type": "string",
-                        "title": "Secret access key",
-                        "writeOnly": true,
-                        "x-gateway-secret": "value",
-                        "format": "password"
-                      }
-                    },
-                    "required": [
-                      "accessKeyId",
-                      "secretAccessKey"
-                    ]
-                  }
-                },
-                {
-                  "if": {
-                    "properties": {
-                      "source": {
-                        "const": "profile"
-                      }
-                    },
-                    "required": [
-                      "source"
-                    ]
-                  },
-                  "then": {
-                    "properties": {
-                      "profile": {
-                        "type": "string",
-                        "title": "Profile",
-                        "maxLength": 128,
-                        "pattern": "\\S",
-                        "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
-                      }
-                    },
-                    "required": [
-                      "profile"
-                    ]
-                  }
-                }
-              ]
-            }
-          }
+            "database"
+          ]
         }
       }
     ]
@@ -6865,7 +2281,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "1a2b3c4d5e6f7a8b"
         ],
-        "description": "From the warehouse's Connection details: the end of its HTTP path."
+        "x-suggest": true,
+        "description": "From the warehouse's Connection details: the ID that ends its HTTP path, /sql/1.0/warehouses/<ID>."
       },
       "catalog": {
         "type": "string",
@@ -6874,7 +2291,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "main"
         ],
-        "description": "For tables named without a catalog. Empty: the workspace's default."
+        "x-suggest": true,
+        "description": "For tables named without a catalog; with Catalogs set, one of them. Empty: the workspace's default."
       },
       "schema": {
         "type": "string",
@@ -6883,7 +2301,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "sales"
         ],
-        "description": "For tables named without a schema. Empty: default."
+        "x-suggest": true,
+        "description": "For tables named without a schema; with Schemas set, one of them. Empty: default."
       },
       "catalogs": {
         "type": "array",
@@ -7001,7 +2420,45 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         ]
       }
-    }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "minItems": 1
+            }
+          },
+          "required": [
+            "catalogs"
+          ]
+        },
+        "then": {
+          "required": [
+            "catalog"
+          ]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "schemas": {
+              "type": "array",
+              "minItems": 1
+            }
+          },
+          "required": [
+            "schemas"
+          ]
+        },
+        "then": {
+          "required": [
+            "schema"
+          ]
+        }
+      }
+    ]
   },
   "trino": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7037,7 +2494,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "Trino",
           "Presto"
         ],
-        "description": "Presto (prestodb) speaks the same protocol with X-Presto headers."
+        "description": "Trino, or Presto (prestodb) with its X-Presto headers; the form fills it in from the coordinator's /v1/info."
       },
       "auth": {
         "type": "object",
@@ -7160,7 +2617,9 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "hive"
         ],
-        "description": "The catalog of names without one."
+        "x-advanced": true,
+        "x-suggest": true,
+        "description": "The catalog of table names without one; required with a default schema. Empty: every name needs its catalog."
       },
       "schema": {
         "type": "string",
@@ -7168,6 +2627,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "minLength": 1,
         "maxLength": 255,
         "pattern": "^[ -~]+$",
+        "x-advanced": true,
         "description": "The schema of table names without one; needs a default catalog."
       },
       "catalogs": {
@@ -7206,7 +2666,27 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         }
       }
-    }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "schema"
+          ]
+        },
+        "then": {
+          "required": [
+            "catalog"
+          ]
+        }
+      }
+    ]
   },
   "athena": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7396,6 +2876,253 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               },
               "required": [
                 "profile"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "firestore": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Cloud Firestore",
+    "type": "object",
+    "x-card": {
+      "description": "Documents, collections and queries. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+        "examples": [
+          "acme-stage"
+        ],
+        "description": "The ID of the Google Cloud project that holds the database."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "default": "(default)",
+        "pattern": "^(\\(default\\)|[a-z][a-z0-9-]{2,61}[a-z0-9])$",
+        "examples": [
+          "(default)"
+        ],
+        "description": "The Firestore database ID: (default) for the project's default database."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 1500,
+          "pattern": "^/?[^/\\u0000-\\u001f\\u007f#%\\\\]+(/[^/\\u0000-\\u001f\\u007f#%\\\\]+)*$"
+        },
+        "examples": [
+          [
+            "orders",
+            "users/*/orders"
+          ]
+        ],
+        "description": "The collections agents may use. An ID such as orders or audit-* allows every collection with that ID, collection-group queries included; a path such as /orders or users/*/orders allows the collections at that path (* is one ID, ** any number). Empty: every collection the credentials may read."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-firestore@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes. Empty: calls use the sign-in or key itself."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "firebase-rtdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Firebase Realtime Database",
+    "type": "object",
+    "x-card": {
+      "description": "Paths, shallow reads and queries. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "databaseUrl",
+      "credentials"
+    ],
+    "properties": {
+      "databaseUrl": {
+        "type": "string",
+        "title": "Database URL",
+        "maxLength": 200,
+        "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.firebaseio\\.com|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.[a-z]{2,20}-[a-z]{2,20}[0-9]{1,2}\\.firebasedatabase\\.app)/?$",
+        "examples": [
+          "https://acme-default-rtdb.firebaseio.com",
+          "https://acme-eu.europe-west1.firebasedatabase.app"
+        ],
+        "description": "As the Firebase console shows it: https://<database>.firebaseio.com or https://<database>.<region>.firebasedatabase.app."
+      },
+      "paths": {
+        "type": "array",
+        "title": "Paths",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 768,
+          "pattern": "^[^/.$#\\[\\]%\\\\\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "users",
+            "public-*"
+          ]
+        ],
+        "description": "The top-level paths agents may use, with everything under them; * matches any characters, such as public-*. Empty: the whole database."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. Your own sign-in keeps the scopes it was given; a key or an impersonated service account gets firebase.database and userinfo.email.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-rtdb@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes. Empty: calls use the sign-in or key itself."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
               ]
             }
           }
@@ -8383,157 +4110,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       }
     }
   },
-  "spanner": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Google Cloud Spanner",
-    "type": "object",
-    "x-card": {
-      "description": "Tables and GoogleSQL or PostgreSQL queries in read-only transactions. Changes wait for approval."
-    },
-    "additionalProperties": false,
-    "required": [
-      "project",
-      "instance",
-      "database",
-      "credentials"
-    ],
-    "properties": {
-      "project": {
-        "type": "string",
-        "title": "Project",
-        "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
-        "examples": [
-          "acme-prod"
-        ],
-        "description": "The Google Cloud project of the Spanner instance."
-      },
-      "instance": {
-        "x-suggest": true,
-        "type": "string",
-        "title": "Instance",
-        "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
-        "examples": [
-          "orders-prod"
-        ],
-        "description": "The instance id, as gcloud spanner instances list shows it, not its display name."
-      },
-      "database": {
-        "x-suggest": true,
-        "type": "string",
-        "title": "Database",
-        "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
-        "examples": [
-          "orders"
-        ],
-        "description": "The database agents use. GoogleSQL and PostgreSQL-dialect databases both work."
-      },
-      "credentials": {
-        "type": "object",
-        "title": "Credentials",
-        "required": [
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "title": "Authentication",
-            "enum": [
-              "adc",
-              "serviceAccountKey"
-            ],
-            "default": "adc",
-            "x-enumTitles": [
-              "Existing Google sign-in (ADC)",
-              "Service account key (JSON)"
-            ],
-            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer, from gcloud auth application-default login. A service account key signs in as that service account."
-          },
-          "impersonate": {
-            "type": "string",
-            "title": "Service account to impersonate",
-            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
-            "examples": [
-              "gw-spanner@acme-prod.iam.gserviceaccount.com"
-            ],
-            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/spanner.databaseReader on the database. Empty: calls use the sign-in or key itself."
-          },
-          "delegates": {
-            "type": "array",
-            "title": "Delegation chain",
-            "maxItems": 5,
-            "items": {
-              "type": "string"
-            },
-            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
-          },
-          "lifetimeSeconds": {
-            "type": "integer",
-            "title": "Token lifetime",
-            "minimum": 300,
-            "maximum": 3600,
-            "default": 900,
-            "x-unit": "s",
-            "description": "How long a borrowed token of the service account to impersonate lasts."
-          },
-          "quotaProject": {
-            "type": "string",
-            "title": "Billed project",
-            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
-          }
-        },
-        "patternProperties": {
-          "^(serviceAccountKey)$": {}
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "source": {
-                  "const": "serviceAccountKey"
-                }
-              },
-              "required": [
-                "source"
-              ]
-            },
-            "then": {
-              "properties": {
-                "serviceAccountKey": {
-                  "type": "string",
-                  "title": "Service account key",
-                  "writeOnly": true,
-                  "x-gateway-secret": "value",
-                  "x-widget": "textarea",
-                  "maxLength": 10000
-                }
-              },
-              "required": [
-                "serviceAccountKey"
-              ]
-            }
-          }
-        ]
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "description": "Fine-grained access control. Policies set row limits and timeouts per environment.",
-        "properties": {
-          "databaseRole": {
-            "type": "string",
-            "title": "Database role",
-            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$",
-            "examples": [
-              "agent_reader"
-            ],
-            "description": "A fine-grained access control role whose privileges every session gets, instead of the credentials' IAM access to the whole database. The credentials need roles/spanner.fineGrainedAccessUser and access to the role."
-          }
-        }
-      }
-    }
-  },
   "pinecone": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Pinecone",
@@ -8733,7 +4309,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "maxLength": 255,
         "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,254}$",
         "default": "default",
-        "description": "The database of the collections."
+        "description": "The database of the collections: default unless the server has others."
       },
       "collections": {
         "type": "array",
@@ -9187,6 +4763,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "maxItems": 100,
         "uniqueItems": true,
         "items": {
+          "title": "Index",
           "type": "string",
           "minLength": 1,
           "maxLength": 255,
@@ -9639,6 +5216,4665 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     ]
+  },
+  "ssh": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "Runbooks with typed parameters, through an SSH CA or a key."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "additionalProperties": false,
+        "description": "The core connects from this machine, so your VPN and hosts file apply.",
+        "required": [
+          "host",
+          "username"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253,
+            "description": "The server's host name or IP address, not a ~/.ssh/config alias."
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 22
+          },
+          "username": {
+            "type": "string",
+            "title": "User",
+            "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+            "description": "A dedicated user. The test shows whether it can use sudo or docker."
+          }
+        }
+      },
+      "hostKeys": {
+        "type": "object",
+        "title": "Host key",
+        "x-gateway-hostkey": true,
+        "additionalProperties": false,
+        "properties": {
+          "pinned": {
+            "type": "array",
+            "title": "Trusted host keys",
+            "x-person-only": true,
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "description": "Filled by Test connection after you confirm the fingerprint."
+          },
+          "knownHosts": {
+            "type": "string",
+            "title": "Known hosts",
+            "x-person-only": true,
+            "x-widget": "textarea",
+            "maxLength": 64000,
+            "description": "Optional known_hosts lines, hashed lines too."
+          }
+        }
+      },
+      "credentials": {
+        "$ref": "#/$defs/credentialFields",
+        "title": "Credentials",
+        "properties": {
+          "method": {
+            "x-keep-default-with-store": "vault",
+            "title": "Authentication",
+            "enum": [
+              "vaultSshCa",
+              "privateKeyFile",
+              "privateKey",
+              "password"
+            ],
+            "default": "vaultSshCa",
+            "x-enumTitles": [
+              "Vault SSH CA: a fresh certificate per call",
+              "Private key file",
+              "Private key",
+              "Password"
+            ]
+          }
+        }
+      },
+      "runbooksOnly": {
+        "type": "boolean",
+        "title": "Runbooks only",
+        "default": false,
+        "x-env-default": {
+          "prod": true
+        },
+        "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
+        "x-badge": "Runbooks only"
+      },
+      "jump": {
+        "type": "object",
+        "title": "Bastion",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Jump host",
+            "maxLength": 253
+          }
+        },
+        "patternProperties": {
+          "^(port|username|credentials|hostKeys)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "host"
+              ],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "port": {
+                  "type": "integer",
+                  "title": "Jump host port",
+                  "minimum": 1,
+                  "maximum": 65535,
+                  "default": 22
+                },
+                "username": {
+                  "type": "string",
+                  "title": "Jump host user",
+                  "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+                  "description": "Empty: use the connection user."
+                },
+                "credentials": {
+                  "$ref": "#/$defs/credentialFields",
+                  "title": "Jump host credentials",
+                  "properties": {
+                    "method": {
+                      "title": "Authentication",
+                      "enum": [
+                        "inherit",
+                        "vaultSshCa",
+                        "privateKeyFile",
+                        "privateKey",
+                        "password"
+                      ],
+                      "default": "inherit",
+                      "x-enumTitles": [
+                        "Use connection credentials",
+                        "Vault SSH CA: a fresh certificate per call",
+                        "Private key file",
+                        "Private key",
+                        "Password"
+                      ]
+                    }
+                  }
+                },
+                "hostKeys": {
+                  "$ref": "#/properties/hostKeys"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "properties": {
+          "connectTimeoutSeconds": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 10,
+            "x-unit": "s"
+          },
+          "keepaliveSeconds": {
+            "type": "integer",
+            "title": "Keepalive interval",
+            "minimum": 0,
+            "maximum": 300,
+            "default": 15,
+            "x-unit": "s"
+          },
+          "reuseSessions": {
+            "type": "boolean",
+            "title": "Reuse SSH sessions",
+            "default": true
+          },
+          "maxChannelsPerSession": {
+            "type": "integer",
+            "title": "Channels per session",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 8
+          },
+          "remoteDeadline": {
+            "type": "boolean",
+            "title": "Stop commands on the server at the time limit",
+            "default": false,
+            "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
+          },
+          "legacyAlgorithms": {
+            "type": "boolean",
+            "title": "Allow legacy algorithms",
+            "default": false,
+            "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
+          },
+          "probeSudo": {
+            "type": "boolean",
+            "title": "Check sudo during the test",
+            "default": true,
+            "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
+          }
+        }
+      }
+    },
+    "$defs": {
+      "credentialFields": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": true,
+          "vault": true,
+          "privateKey": true,
+          "privateKeyPath": true,
+          "passphrase": true,
+          "certificate": true,
+          "password": true
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "vaultSshCa"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "vault"
+              ],
+              "properties": {
+                "vault": {
+                  "type": "object",
+                  "title": "Vault SSH CA",
+                  "additionalProperties": false,
+                  "properties": {
+                    "store": {
+                      "type": "string",
+                      "title": "Vault store",
+                      "description": "A Vault from Secrets › External stores"
+                    },
+                    "mount": {
+                      "type": "string",
+                      "title": "SSH secrets engine mount",
+                      "default": "ssh-client-signer"
+                    },
+                    "role": {
+                      "type": "string",
+                      "title": "Vault role",
+                      "default": "gw-runbooks"
+                    },
+                    "ttl": {
+                      "title": "Certificate lifetime",
+                      "enum": [
+                        "1m",
+                        "2m",
+                        "5m",
+                        "10m"
+                      ],
+                      "default": "5m"
+                    },
+                    "principal": {
+                      "type": "string",
+                      "title": "Principal",
+                      "description": "Empty: the user name"
+                    }
+                  },
+                  "required": [
+                    "store"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "privateKey"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "privateKey"
+              ],
+              "properties": {
+                "privateKey": {
+                  "type": "string",
+                  "title": "Private key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "pem",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "description": "OpenSSH or PEM (PKCS#1, PKCS#8): ed25519, ECDSA or RSA ≥ 2048."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "privateKeyFile"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "privateKeyPath"
+              ],
+              "properties": {
+                "privateKeyPath": {
+                  "type": "string",
+                  "title": "Private key file",
+                  "x-file-picker": "ssh-private-key",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "enum": [
+                    "privateKey",
+                    "privateKeyFile"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "passphrase": {
+                  "type": "string",
+                  "title": "Key passphrase",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                },
+                "certificate": {
+                  "type": "string",
+                  "title": "User certificate",
+                  "maxLength": 20000,
+                  "description": "Optional user certificate for this key (…-cert.pub)."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        ],
+        "$comment": "Each method declares its own fields in its then branch (the form shows them only for that method); the properties above name them with true, so additionalProperties still refuses other keys."
+      }
+    }
+  },
+  "ssh-logs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "x-card": {
+      "description": "Read and search selected log files over SSH with bounded server-side commands."
+    },
+    "x-file-selection": {
+      "rootPath": "/logs/root",
+      "path": "/logs/allowedFiles",
+      "required": true
+    },
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "additionalProperties": false,
+        "description": "The core connects from this machine, so your VPN and hosts file apply.",
+        "required": [
+          "host",
+          "username"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253,
+            "description": "The server's host name or IP address, not a ~/.ssh/config alias."
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 22
+          },
+          "username": {
+            "type": "string",
+            "title": "User",
+            "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+            "description": "A dedicated account with read access to the selected logs."
+          }
+        }
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "enum": [
+              "password",
+              "privateKeyFile"
+            ],
+            "default": "password",
+            "x-enumTitles": [
+              "Password",
+              "Private key file"
+            ],
+            "title": "Authentication"
+          },
+          "password": true,
+          "privateKeyPath": true,
+          "passphrase": true
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "privateKeyFile"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "privateKeyPath"
+              ],
+              "properties": {
+                "privateKeyPath": {
+                  "type": "string",
+                  "title": "Private key file",
+                  "x-file-picker": "ssh-private-key",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."
+                },
+                "passphrase": {
+                  "type": "string",
+                  "title": "Key passphrase",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "logs": {
+        "type": "object",
+        "title": "Log format",
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "type": "string",
+            "title": "Remote log folder",
+            "maxLength": 4096,
+            "description": "Choose an absolute folder on the SSH server. Symbolic links are not followed."
+          },
+          "allowedFiles": {
+            "type": "array",
+            "title": "Allowed log files",
+            "maxItems": 500,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "description": "Exact file paths relative to the selected folder. New or rotated names are not allowed automatically."
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "enum": [
+              "auto",
+              "text",
+              "jsonl"
+            ],
+            "x-enumTitles": [
+              "Detect text or JSON Lines",
+              "Text",
+              "JSON Lines"
+            ],
+            "default": "auto",
+            "description": "Auto detects JSON objects per line and otherwise reads plain text."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "maxLength": 100,
+            "default": "UTC",
+            "description": "Used only when a timestamp has no UTC offset. Use an IANA zone such as Europe/Madrid or UTC. Ambiguous daylight-saving times are reported as unparsed."
+          },
+          "timestampField": {
+            "type": "string",
+            "title": "JSON timestamp field",
+            "maxLength": 256,
+            "description": "Optional exact field name, dotted path or JSON Pointer, such as @timestamp, event.time or /event/time. Empty detects @timestamp, timestamp, time or ts."
+          },
+          "levelField": {
+            "type": "string",
+            "title": "JSON level field",
+            "maxLength": 256,
+            "description": "Optional exact field name, dotted path or JSON Pointer. Empty detects level, severity or log.level."
+          },
+          "timestampPattern": {
+            "type": "string",
+            "title": "Timestamp pattern",
+            "maxLength": 256,
+            "description": "Optional Java date-time pattern for the text prefix or JSON timestamp, for example uuuu-MM-dd HH:mm:ss,SSS. Empty recognizes ISO timestamps and common year-month-day text dates. Include the year; dates without a year are not inferred."
+          },
+          "timestampUnit": {
+            "type": "string",
+            "title": "Numeric timestamp unit",
+            "enum": [
+              "milliseconds",
+              "seconds"
+            ],
+            "x-enumTitles": [
+              "Unix milliseconds",
+              "Unix seconds"
+            ],
+            "default": "milliseconds",
+            "description": "Unit of numeric timestamps in JSON Lines. Text date strings are parsed independently."
+          }
+        },
+        "x-collapsed": true,
+        "description": "Parse text logs and JSON Lines for time and level filters. Each physical line is one record; timestamps without an offset use the configured time zone."
+      },
+      "hostKeys": {
+        "type": "object",
+        "title": "Host key",
+        "x-gateway-hostkey": true,
+        "additionalProperties": false,
+        "properties": {
+          "pinned": {
+            "type": "array",
+            "x-person-only": true,
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "description": "Filled by Test connection after you confirm the fingerprint.",
+            "title": "Trusted host keys"
+          },
+          "knownHosts": {
+            "type": "string",
+            "x-person-only": true,
+            "x-widget": "textarea",
+            "maxLength": 64000,
+            "description": "Optional known_hosts lines, hashed lines too.",
+            "title": "Known hosts"
+          }
+        },
+        "x-collapsed": true
+      }
+    }
+  },
+  "logs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-legacy": true,
+    "x-project-selection": {
+      "path": "/resourceNames"
+    },
+    "required": [
+      "backend"
+    ],
+    "properties": {
+      "backend": {
+        "title": "Backend",
+        "enum": [
+          "loki",
+          "gcp-logging",
+          "cloudwatch",
+          "opensearch",
+          "azure-monitor"
+        ],
+        "x-enumTitles": [
+          "Loki",
+          "GCP Cloud Logging",
+          "AWS CloudWatch",
+          "OpenSearch",
+          "Azure Monitor Logs"
+        ]
+      }
+    },
+    "x-variants": [
+      {
+        "id": "gcp-logging",
+        "name": "GCP Cloud Logging",
+        "icon": "scroll-text",
+        "description": "Search logs with service account impersonation.",
+        "presetConfig": {
+          "backend": "gcp-logging"
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail"
+        ]
+      },
+      {
+        "id": "cloudwatch",
+        "name": "AWS CloudWatch",
+        "icon": "scroll-text",
+        "description": "Logs Insights queries with AssumeRole.",
+        "presetConfig": {
+          "backend": "cloudwatch"
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail"
+        ]
+      },
+      {
+        "id": "loki",
+        "name": "Loki",
+        "icon": "scroll-text",
+        "description": "LogQL search and label browsing.",
+        "presetConfig": {
+          "backend": "loki"
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail"
+        ]
+      },
+      {
+        "id": "opensearch",
+        "name": "OpenSearch",
+        "icon": "scroll-text",
+        "description": "Scoped log search or full OpenSearch queries and approved administration.",
+        "presetConfig": {
+          "backend": "opensearch"
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail",
+          "opensearch_indices",
+          "opensearch_query",
+          "opensearch_request"
+        ]
+      }
+    ],
+    "oneOf": [
+      {
+        "title": "Loki",
+        "required": [
+          "backend",
+          "url"
+        ],
+        "properties": {
+          "backend": {
+            "const": "loki"
+          },
+          "url": {
+            "type": "string",
+            "title": "Loki URL",
+            "format": "uri",
+            "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
+            "examples": [
+              "http://loki.dev.internal:3100"
+            ],
+            "description": "Loki's base URL with http:// or https://; Grafana Cloud: https://logs-prod-XXX.grafana.net."
+          },
+          "tenant": {
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[A-Za-z0-9!._*'()|-]*$",
+            "title": "Tenant (X-Scope-OrgID)",
+            "description": "The X-Scope-OrgID your log shippers send; several: team-a|team-b. Empty for single-tenant Loki and Grafana Cloud."
+          },
+          "auth": {
+            "type": "object",
+            "title": "Credentials",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "enum": [
+                  "none",
+                  "bearer",
+                  "basic"
+                ],
+                "default": "bearer",
+                "title": "Authentication",
+                "x-enumTitles": [
+                  "No authentication",
+                  "Bearer token",
+                  "Username and password"
+                ]
+              }
+            },
+            "patternProperties": {
+              "^(username|secret)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "bearer"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "secret"
+                  ],
+                  "properties": {
+                    "secret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Bearer token",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "basic"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "username",
+                    "secret"
+                  ],
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "description": "Grafana Cloud: the numeric user ID.",
+                      "title": "Username",
+                      "minLength": 1,
+                      "pattern": ".*\\S.*"
+                    },
+                    "secret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Password",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "caCertificate": {
+            "type": "string",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "title": "CA certificate (PEM)",
+            "description": "PEM of the CA that signed Loki's certificate. Empty: the CAs this computer trusts."
+          }
+        }
+      },
+      {
+        "title": "GCP Cloud Logging",
+        "required": [
+          "backend",
+          "resourceNames",
+          "credentials"
+        ],
+        "properties": {
+          "backend": {
+            "const": "gcp-logging"
+          },
+          "credentials": {
+            "type": "object",
+            "title": "Credentials",
+            "required": [
+              "source"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "title": "Authentication",
+                "enum": [
+                  "adc",
+                  "serviceAccountKey"
+                ],
+                "default": "adc",
+                "x-enumTitles": [
+                  "Google sign-in on this computer (gcloud auth application-default login)",
+                  "Service account key (JSON)"
+                ]
+              },
+              "impersonate": {
+                "type": "string",
+                "title": "Service account to impersonate",
+                "maxLength": 254,
+                "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+                "examples": [
+                  "gw-reader@acme-prod.iam.gserviceaccount.com"
+                ],
+                "description": "A service account whose short-lived token GateRook uses. Empty: the sign-in or key itself."
+              },
+              "delegates": {
+                "type": "array",
+                "title": "Delegation chain",
+                "maxItems": 5,
+                "items": {
+                  "title": "Service account",
+                  "type": "string"
+                },
+                "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+              }
+            },
+            "patternProperties": {
+              "^serviceAccountKey$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "serviceAccountKey"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "serviceAccountKey"
+                  ],
+                  "properties": {
+                    "serviceAccountKey": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 10000,
+                      "title": "Service account key (JSON)",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "resourceNames": {
+            "type": "array",
+            "title": "Project or log view scope",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "examples": [
+              [
+                "projects/acme-prod"
+              ]
+            ],
+            "items": {
+              "type": "string",
+              "title": "Resource scope",
+              "examples": [
+                "projects/example-prod"
+              ],
+              "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
+            },
+            "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope.",
+            "x-suggest": true
+          },
+          "scopeFilter": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Always add this filter",
+            "examples": [
+              "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"app\""
+            ],
+            "description": "A Logging query filter every search and tail adds with AND. Empty: all entries of the scopes above."
+          },
+          "quotaPerMinute": {
+            "type": "integer",
+            "title": "API calls per minute",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 30,
+            "description": "Share of the project's 60 entries.list calls per minute this gateway may use."
+          }
+        }
+      },
+      {
+        "title": "AWS CloudWatch",
+        "required": [
+          "backend",
+          "region",
+          "logGroups",
+          "credentials"
+        ],
+        "properties": {
+          "backend": {
+            "const": "cloudwatch"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region",
+            "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+            "examples": [
+              "eu-central-1"
+            ],
+            "description": "The region of the log groups, like eu-central-1."
+          },
+          "logGroups": {
+            "type": "array",
+            "title": "Log groups",
+            "minItems": 1,
+            "maxItems": 50,
+            "uniqueItems": true,
+            "description": "Names or ARNs of the log groups agents may read.",
+            "x-suggest": true,
+            "items": {
+              "type": "string",
+              "maxLength": 2048,
+              "pattern": "^([.\\-_/#A-Za-z0-9]{1,512}|arn:aws[a-z-]*:logs:[a-z0-9-]+:\\d{12}:log-group:[.\\-_/#A-Za-z0-9]+)$"
+            }
+          },
+          "credentials": {
+            "$ref": "#/$defs/awsCredentials",
+            "title": "Credentials"
+          },
+          "searchApi": {
+            "title": "Search API",
+            "enum": [
+              "insights",
+              "filter"
+            ],
+            "default": "insights",
+            "x-enumTitles": [
+              "Logs Insights (billed per GB scanned)",
+              "Filter patterns (FilterLogEvents)"
+            ]
+          }
+        }
+      },
+      {
+        "title": "OpenSearch",
+        "required": [
+          "backend",
+          "url",
+          "auth"
+        ],
+        "properties": {
+          "backend": {
+            "const": "opensearch"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://[^/?#]+$",
+            "title": "Server URL",
+            "examples": [
+              "https://search.example.test:9200"
+            ],
+            "description": "OpenSearch host, including http:// or https:// and its port."
+          },
+          "auth": {
+            "type": "object",
+            "title": "Authorization",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "title": "Authentication",
+                "enum": [
+                  "basic",
+                  "apiKey",
+                  "bearer",
+                  "awsSigV4",
+                  "none"
+                ],
+                "default": "basic",
+                "x-enumTitles": [
+                  "Username and password",
+                  "API key",
+                  "Bearer token",
+                  "AWS request signing",
+                  "No authentication"
+                ]
+              }
+            },
+            "patternProperties": {
+              "^(username|secret|awsRegion|awsService|awsCredentials)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "basic"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "username",
+                    "secret"
+                  ],
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": ".*\\S.*",
+                      "title": "Username"
+                    },
+                    "secret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Password",
+                      "description": "Stored securely by GateRook."
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "apiKey"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "secret"
+                  ],
+                  "properties": {
+                    "secret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "API key",
+                      "description": "OpenSearch API key, such as os_...; requires server support."
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "bearer"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "secret"
+                  ],
+                  "properties": {
+                    "secret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Bearer token",
+                      "description": "Stored securely by GateRook."
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "awsSigV4"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "awsRegion",
+                    "awsCredentials"
+                  ],
+                  "properties": {
+                    "awsRegion": {
+                      "type": "string",
+                      "title": "AWS region",
+                      "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+                      "examples": [
+                        "eu-central-1"
+                      ],
+                      "description": "The region of the domain or collection; its address names it."
+                    },
+                    "awsService": {
+                      "title": "AWS service",
+                      "enum": [
+                        "es",
+                        "aoss"
+                      ],
+                      "default": "es",
+                      "x-enumTitles": [
+                        "OpenSearch Service",
+                        "OpenSearch Serverless"
+                      ]
+                    },
+                    "awsCredentials": {
+                      "$ref": "#/$defs/awsCredentials"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "apiAccess": {
+            "enum": [
+              "logs",
+              "full"
+            ],
+            "default": "full",
+            "title": "OpenSearch API access",
+            "x-enumTitles": [
+              "Scoped log search",
+              "Full OpenSearch REST API"
+            ],
+            "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools.",
+            "x-section": "/advanced"
+          },
+          "timestampField": {
+            "type": "string",
+            "default": "@timestamp",
+            "x-section": "/advanced",
+            "title": "Timestamp field"
+          },
+          "messageField": {
+            "type": "string",
+            "default": "message",
+            "x-section": "/advanced",
+            "title": "Message field"
+          },
+          "severityField": {
+            "type": "string",
+            "default": "log.level",
+            "x-section": "/advanced",
+            "title": "Severity field"
+          },
+          "labelFields": {
+            "type": "array",
+            "maxItems": 20,
+            "default": [
+              "service.name",
+              "kubernetes.namespace",
+              "kubernetes.pod.name",
+              "host.name"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "x-section": "/advanced",
+            "title": "Label fields"
+          },
+          "scopeQuery": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Always add this query (Lucene)",
+            "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools.",
+            "x-section": "/advanced"
+          },
+          "caCertificate": {
+            "type": "string",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "title": "CA certificate (PEM)",
+            "description": "PEM of the CA that signed the server's certificate, such as a demo setup's root-ca.pem. Empty: the CAs this computer trusts.",
+            "x-section": "/advanced"
+          },
+          "advanced": {
+            "type": "object",
+            "title": "Advanced",
+            "description": "Log field mappings, log scope, API access and private certificate authority.",
+            "properties": {},
+            "x-collapsed": true
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "apiAccess": {
+                  "const": "logs"
+                }
+              },
+              "required": [
+                "apiAccess"
+              ]
+            },
+            "then": {
+              "required": [
+                "indices"
+              ],
+              "properties": {
+                "indices": {
+                  "$ref": "#/$defs/openSearchLogIndices",
+                  "x-suggest": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "indices": {
+                  "$ref": "#/$defs/openSearchLogIndices"
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Azure Monitor Logs",
+        "required": [
+          "backend",
+          "credentials"
+        ],
+        "properties": {
+          "backend": {
+            "const": "azure-monitor"
+          },
+          "cloud": {
+            "title": "Cloud",
+            "enum": [
+              "AzureCloud",
+              "AzureUSGovernment",
+              "AzureChinaCloud"
+            ],
+            "default": "AzureCloud",
+            "x-enumTitles": [
+              "Azure",
+              "Azure Government",
+              "Azure China (21Vianet)"
+            ]
+          },
+          "tenantId": {
+            "type": "string",
+            "title": "Tenant (directory) ID",
+            "maxLength": 253,
+            "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+            "examples": [
+              "contoso.onmicrosoft.com"
+            ],
+            "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+          },
+          "credentials": {
+            "type": "object",
+            "title": "Credentials",
+            "required": [
+              "source"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "title": "Sign in with",
+                "enum": [
+                  "cli",
+                  "deviceCode",
+                  "clientSecret",
+                  "clientCertificate"
+                ],
+                "default": "cli",
+                "x-enumTitles": [
+                  "Azure CLI sign-in on this computer (az login)",
+                  "Sign in with a code in the browser",
+                  "Service principal with a client secret",
+                  "Service principal with a certificate"
+                ]
+              },
+              "clientId": {
+                "type": "string",
+                "title": "Application (client) ID",
+                "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+                "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+              }
+            },
+            "patternProperties": {
+              "^(clientSecret|certificate)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "clientSecret"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "clientId",
+                    "clientSecret"
+                  ],
+                  "properties": {
+                    "clientSecret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Client secret",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "clientCertificate"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "clientId",
+                    "certificate"
+                  ],
+                  "properties": {
+                    "certificate": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 20000,
+                      "minLength": 1,
+                      "title": "Certificate and private key (PEM)",
+                      "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "trustedCli": {
+            "type": "string",
+            "title": "Allowed Azure CLI command",
+            "readOnly": true,
+            "x-person-only": true,
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+          },
+          "workspaces": {
+            "type": "array",
+            "title": "Log Analytics workspaces",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "title": "Workspace ID",
+              "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+            },
+            "examples": [
+              [
+                "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
+              ]
+            ],
+            "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query. Name at least one workspace or component.",
+            "x-advanced": false
+          },
+          "applicationInsights": {
+            "type": "array",
+            "title": "Application Insights components",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "title": "Component resource ID",
+              "maxLength": 512,
+              "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+            },
+            "examples": [
+              [
+                "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+              ]
+            ],
+            "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Name at least one workspace or component.",
+            "x-advanced": false
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "credentials"
+              ],
+              "properties": {
+                "credentials": {
+                  "required": [
+                    "source"
+                  ],
+                  "properties": {
+                    "source": {
+                      "enum": [
+                        "deviceCode",
+                        "clientSecret",
+                        "clientCertificate"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "tenantId"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "$defs": {
+      "openSearchLogIndices": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^(\\*|[a-z0-9][a-z0-9._*-]{0,254})$"
+        },
+        "examples": [
+          [
+            "logs-app-*"
+          ]
+        ],
+        "description": "Index patterns for logs_search, logs_tail and log-only index discovery. Required in scoped log mode. Full API mode defaults to * when omitted; REST tools use the server user's permissions instead.",
+        "title": "Log index patterns",
+        "x-section": "/advanced"
+      },
+      "awsCredentials": {
+        "type": "object",
+        "title": "AWS credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credential source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
+            "examples": [
+              "arn:aws:iam::123456789012:role/gw-readonly"
+            ],
+            "title": "Assume role ARN",
+            "description": "A role GateRook assumes for short sessions. Empty: the access key or profile signs requests itself."
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 1224,
+            "title": "External ID",
+            "description": "The external ID the role's trust policy asks for, if any."
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "title": "Session duration"
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ],
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                  "x-not-secret": true,
+                  "title": "Access key ID"
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Secret access key",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "profile"
+              ],
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "description": "A profile in ~/.aws/config on this computer",
+                  "title": "Profile",
+                  "minLength": 1,
+                  "pattern": ".*\\S.*"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "gcp-logging": {
+    "title": "GCP Cloud Logging",
+    "required": [
+      "backend",
+      "resourceNames",
+      "credentials"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "gcp-logging",
+        "default": "gcp-logging"
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Google sign-in on this computer (gcloud auth application-default login)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "maxLength": 254,
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-reader@acme-prod.iam.gserviceaccount.com"
+            ],
+            "description": "A service account whose short-lived token GateRook uses. Empty: the sign-in or key itself."
+          },
+          "delegates": {
+            "type": "array",
+            "title": "Delegation chain",
+            "maxItems": 5,
+            "items": {
+              "title": "Service account",
+              "type": "string"
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+          }
+        },
+        "patternProperties": {
+          "^serviceAccountKey$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "serviceAccountKey"
+              ],
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000,
+                  "title": "Service account key (JSON)",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "resourceNames": {
+        "type": "array",
+        "title": "Project or log view scope",
+        "minItems": 1,
+        "maxItems": 100,
+        "uniqueItems": true,
+        "examples": [
+          [
+            "projects/acme-prod"
+          ]
+        ],
+        "items": {
+          "type": "string",
+          "title": "Resource scope",
+          "examples": [
+            "projects/example-prod"
+          ],
+          "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
+        },
+        "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope.",
+        "x-suggest": true
+      },
+      "scopeFilter": {
+        "type": "string",
+        "maxLength": 2000,
+        "title": "Always add this filter",
+        "examples": [
+          "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"app\""
+        ],
+        "description": "A Logging query filter every search and tail adds with AND. Empty: all entries of the scopes above."
+      },
+      "quotaPerMinute": {
+        "type": "integer",
+        "title": "API calls per minute",
+        "minimum": 1,
+        "maximum": 60,
+        "default": 30,
+        "description": "Share of the project's 60 entries.list calls per minute this gateway may use."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-project-selection": {
+      "path": "/resourceNames"
+    }
+  },
+  "loki": {
+    "title": "Loki",
+    "required": [
+      "backend",
+      "url"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "loki",
+        "default": "loki"
+      },
+      "url": {
+        "type": "string",
+        "title": "Loki URL",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
+        "examples": [
+          "http://loki.dev.internal:3100"
+        ],
+        "description": "Loki's base URL with http:// or https://; Grafana Cloud: https://logs-prod-XXX.grafana.net."
+      },
+      "tenant": {
+        "type": "string",
+        "maxLength": 150,
+        "pattern": "^[A-Za-z0-9!._*'()|-]*$",
+        "title": "Tenant (X-Scope-OrgID)",
+        "description": "The X-Scope-OrgID your log shippers send; several: team-a|team-b. Empty for single-tenant Loki and Grafana Cloud."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "none",
+              "bearer",
+              "basic"
+            ],
+            "default": "bearer",
+            "title": "Authentication",
+            "x-enumTitles": [
+              "No authentication",
+              "Bearer token",
+              "Username and password"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Bearer token",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "Grafana Cloud: the numeric user ID.",
+                  "title": "Username",
+                  "minLength": 1,
+                  "pattern": ".*\\S.*"
+                },
+                "secret": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "PEM of the CA that signed Loki's certificate. Empty: the CAs this computer trusts."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object"
+  },
+  "cloudwatch": {
+    "title": "AWS CloudWatch",
+    "required": [
+      "backend",
+      "region",
+      "logGroups",
+      "credentials"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "cloudwatch",
+        "default": "cloudwatch"
+      },
+      "region": {
+        "type": "string",
+        "title": "Region",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+        "examples": [
+          "eu-central-1"
+        ],
+        "description": "The region of the log groups, like eu-central-1."
+      },
+      "logGroups": {
+        "type": "array",
+        "title": "Log groups",
+        "minItems": 1,
+        "maxItems": 50,
+        "uniqueItems": true,
+        "description": "Names or ARNs of the log groups agents may read.",
+        "x-suggest": true,
+        "items": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^([.\\-_/#A-Za-z0-9]{1,512}|arn:aws[a-z-]*:logs:[a-z0-9-]+:\\d{12}:log-group:[.\\-_/#A-Za-z0-9]+)$"
+        }
+      },
+      "credentials": {
+        "$ref": "#/$defs/awsCredentials",
+        "title": "Credentials"
+      },
+      "searchApi": {
+        "title": "Search API",
+        "enum": [
+          "insights",
+          "filter"
+        ],
+        "default": "insights",
+        "x-enumTitles": [
+          "Logs Insights (billed per GB scanned)",
+          "Filter patterns (FilterLogEvents)"
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "$defs": {
+      "awsCredentials": {
+        "type": "object",
+        "title": "AWS credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credential source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
+            "examples": [
+              "arn:aws:iam::123456789012:role/gw-readonly"
+            ],
+            "title": "Assume role ARN",
+            "description": "A role GateRook assumes for short sessions. Empty: the access key or profile signs requests itself."
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 1224,
+            "title": "External ID",
+            "description": "The external ID the role's trust policy asks for, if any."
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "title": "Session duration"
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ],
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                  "x-not-secret": true,
+                  "title": "Access key ID"
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Secret access key",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "profile"
+              ],
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "description": "A profile in ~/.aws/config on this computer",
+                  "title": "Profile",
+                  "minLength": 1,
+                  "pattern": ".*\\S.*"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "opensearch": {
+    "title": "OpenSearch",
+    "required": [
+      "backend",
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "opensearch",
+        "default": "opensearch"
+      },
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+$",
+        "title": "Server URL",
+        "examples": [
+          "https://search.example.test:9200"
+        ],
+        "description": "OpenSearch host, including http:// or https:// and its port."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authorization",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "title": "Authentication",
+            "enum": [
+              "basic",
+              "apiKey",
+              "bearer",
+              "awsSigV4",
+              "none"
+            ],
+            "default": "basic",
+            "x-enumTitles": [
+              "Username and password",
+              "API key",
+              "Bearer token",
+              "AWS request signing",
+              "No authentication"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret|awsRegion|awsService|awsCredentials)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": ".*\\S.*",
+                  "title": "Username"
+                },
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "API key",
+                  "description": "OpenSearch API key, such as os_...; requires server support."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Bearer token",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "awsSigV4"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "awsRegion",
+                "awsCredentials"
+              ],
+              "properties": {
+                "awsRegion": {
+                  "type": "string",
+                  "title": "AWS region",
+                  "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+                  "examples": [
+                    "eu-central-1"
+                  ],
+                  "description": "The region of the domain or collection; its address names it."
+                },
+                "awsService": {
+                  "title": "AWS service",
+                  "enum": [
+                    "es",
+                    "aoss"
+                  ],
+                  "default": "es",
+                  "x-enumTitles": [
+                    "OpenSearch Service",
+                    "OpenSearch Serverless"
+                  ]
+                },
+                "awsCredentials": {
+                  "$ref": "#/$defs/awsCredentials"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "apiAccess": {
+        "type": "string",
+        "const": "full",
+        "default": "full"
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "PEM of the CA that signed the server's certificate, such as a demo setup's root-ca.pem. Empty: the CAs this computer trusts."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "$defs": {
+      "awsCredentials": {
+        "type": "object",
+        "title": "AWS credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credential source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
+            "examples": [
+              "arn:aws:iam::123456789012:role/gw-readonly"
+            ],
+            "title": "Assume role ARN",
+            "description": "A role GateRook assumes for short sessions. Empty: the access key or profile signs requests itself."
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 1224,
+            "title": "External ID",
+            "description": "The external ID the role's trust policy asks for, if any."
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "title": "Session duration"
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ],
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                  "x-not-secret": true,
+                  "title": "Access key ID"
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Secret access key",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "profile"
+              ],
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "description": "A profile in ~/.aws/config on this computer",
+                  "title": "Profile",
+                  "minLength": 1,
+                  "pattern": ".*\\S.*"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "elasticsearch": {
+    "title": "Elasticsearch",
+    "required": [
+      "backend",
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "elasticsearch",
+        "default": "elasticsearch"
+      },
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+$",
+        "title": "Server URL",
+        "examples": [
+          "https://search.example.test:9200"
+        ],
+        "description": "Elasticsearch host, including http:// or https:// and its port."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authorization",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "title": "Authentication",
+            "enum": [
+              "basic",
+              "apiKey",
+              "bearer",
+              "none"
+            ],
+            "default": "basic",
+            "x-enumTitles": [
+              "Username and password",
+              "API key",
+              "Bearer token",
+              "No authentication"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": ".*\\S.*",
+                  "title": "Username"
+                },
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "API key",
+                  "description": "Encoded Elasticsearch API key (the encoded value returned when creating a key, or Base64 of id:api_key). Do not include the ApiKey prefix."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Bearer token",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "apiAccess": {
+        "type": "string",
+        "const": "full",
+        "default": "full"
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "PEM of the CA that signed the server's certificate; Elasticsearch writes its own to config/certs/http_ca.crt. Empty: the CAs this computer trusts."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false
+  },
+  "kubernetes": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "Pods, logs and events; rollouts and apply with approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "auth",
+      "namespace"
+    ],
+    "properties": {
+      "auth": {
+        "type": "string",
+        "enum": [
+          "token",
+          "kubeconfig",
+          "kubeconfig-file"
+        ],
+        "default": "token",
+        "title": "Sign in with",
+        "x-enumTitles": [
+          "Server URL and token",
+          "Paste kubeconfig",
+          "kubeconfig file on this computer"
+        ]
+      },
+      "server": true,
+      "token": true,
+      "caCert": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "x-widget": "textarea",
+        "maxLength": 20000,
+        "description": "Empty: the OS trust store"
+      },
+      "insecureSkipTlsVerify": {
+        "type": "boolean",
+        "title": "Skip TLS verification",
+        "default": false,
+        "x-forbidden-env": [
+          "prod"
+        ]
+      },
+      "kubeconfig": true,
+      "kubeconfigPath": true,
+      "context": true,
+      "allowExecPlugin": true,
+      "namespace": {
+        "type": "string",
+        "default": "default",
+        "title": "Default namespace",
+        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+        "maxLength": 63
+      },
+      "requestTimeoutMs": {
+        "type": "integer",
+        "title": "Request timeout",
+        "default": 10000,
+        "minimum": 1000,
+        "maximum": 60000,
+        "x-unit": "ms"
+      },
+      "proxy": {
+        "type": "string",
+        "title": "HTTPS proxy",
+        "description": "Empty: direct connection"
+      },
+      "pinnedCluster": true,
+      "trustedExec": true
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "auth": {
+              "const": "token"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "server",
+            "token"
+          ],
+          "properties": {
+            "server": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "title": "API server",
+              "examples": [
+                "https://k8s.dev.internal:6443"
+              ]
+            },
+            "token": {
+              "type": "string",
+              "title": "Bearer token",
+              "writeOnly": true,
+              "x-gateway-secret": "value"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "auth": {
+              "const": "kubeconfig"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "kubeconfig"
+          ],
+          "properties": {
+            "kubeconfig": {
+              "type": "string",
+              "title": "kubeconfig",
+              "writeOnly": true,
+              "x-gateway-secret": "value",
+              "x-widget": "code",
+              "x-language": "yaml"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "auth": {
+              "const": "kubeconfig-file"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "kubeconfigPath",
+            "context"
+          ],
+          "properties": {
+            "kubeconfigPath": {
+              "type": "string",
+              "title": "kubeconfig file",
+              "default": "~/.kube/config",
+              "x-local-path": true
+            },
+            "pinnedCluster": {
+              "type": "object",
+              "title": "Trusted cluster",
+              "readOnly": true,
+              "x-person-only": true,
+              "description": "Set by Test connection when you trust the cluster a kubeconfig file points to. Calls stop if the file points elsewhere.",
+              "additionalProperties": false,
+              "properties": {
+                "serverUrl": {
+                  "type": "string",
+                  "title": "Server URL",
+                  "maxLength": 2048
+                },
+                "caSha256": {
+                  "type": "string",
+                  "title": "CA certificate SHA-256",
+                  "pattern": "^([0-9a-f]{64})?$"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "auth": {
+              "enum": [
+                "kubeconfig",
+                "kubeconfig-file"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "context": {
+              "type": "string",
+              "title": "Context",
+              "x-options-from": "metadata.kubeconfigContexts",
+              "description": "Required for a kubeconfig file. Empty for a pasted kubeconfig: its current context."
+            },
+            "allowExecPlugin": {
+              "type": "boolean",
+              "default": false,
+              "title": "Run the credential command from kubeconfig",
+              "x-confirm": "warning",
+              "x-person-only": true,
+              "x-advanced": false,
+              "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
+            },
+            "trustedExec": {
+              "type": "string",
+              "title": "Allowed credential command",
+              "readOnly": true,
+              "x-person-only": true,
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "Set by Test connection when you allow the kubeconfig's credential command; a changed command needs your approval again."
+            }
+          }
+        }
+      }
+    ],
+    "$comment": "Each sign-in mode declares its own fields in its then branch (the form shows them only for that mode); the properties above name them with true, so additionalProperties still refuses other keys."
+  },
+  "gcp": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GCP",
+    "type": "object",
+    "x-project-selection": {
+      "path": "/scopes",
+      "title": "Projects, folders or organizations"
+    },
+    "additionalProperties": false,
+    "required": [
+      "scopes",
+      "credentials"
+    ],
+    "properties": {
+      "scopes": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "title": "Projects, folders or organizations",
+        "description": "What agents may use, with the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
+        "items": {
+          "type": "string",
+          "title": "Resource scope",
+          "pattern": "^(projects/([a-z][a-z0-9-]{4,28}[a-z0-9]|\\d{1,19})|folders/\\d{1,19}|organizations/\\d{1,19})$",
+          "examples": [
+            "projects/acme-stage",
+            "folders/123456",
+            "organizations/456789"
+          ]
+        },
+        "examples": [
+          [
+            "projects/acme-stage"
+          ]
+        ]
+      },
+      "metricsProjects": {
+        "type": "array",
+        "title": "Metrics projects",
+        "maxItems": 20,
+        "items": {
+          "type": "string",
+          "title": "Project ID",
+          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+          "examples": [
+            "acme-stage"
+          ]
+        },
+        "description": "The projects whose metrics gcp_metrics reads, as project IDs without projects/. Empty: the projects among the scopes."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer: if sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. A service account key signs in as that service account.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-reader@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Empty: calls use the sign-in or key itself."
+          },
+          "delegates": {
+            "type": "array",
+            "title": "Delegation chain",
+            "maxItems": 5,
+            "items": {
+              "title": "Service account",
+              "type": "string"
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key (JSON)",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      },
+      "liveGet": {
+        "type": "boolean",
+        "default": true,
+        "title": "Read current state from service APIs",
+        "description": "gcp_describe with a resource name reads it from its own service. Off: the inventory's snapshot, which can be minutes old."
+      }
+    }
+  },
+  "aws": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AWS",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "regions",
+      "credentials"
+    ],
+    "properties": {
+      "regions": {
+        "type": "array",
+        "title": "Regions",
+        "minItems": 1,
+        "maxItems": 10,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$"
+        },
+        "examples": [
+          [
+            "eu-central-1"
+          ]
+        ],
+        "x-suggest": true,
+        "description": "The regions agents may read; the first is the default of every call."
+      },
+      "accountId": {
+        "type": "string",
+        "title": "Account ID",
+        "x-person-only": true,
+        "pattern": "^\\d{12}$",
+        "description": "The account the credentials must belong to, filled in once the form can sign in: calls fail if it changes. Empty: not checked."
+      },
+      "accountAlias": {
+        "type": "string",
+        "title": "Account alias",
+        "maxLength": 63,
+        "examples": [
+          "acme-stage"
+        ],
+        "description": "Display only, filled in from the account's IAM alias."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Credential source",
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile"
+            ],
+            "default": "accessKey"
+          },
+          "roleArn": {
+            "type": "string",
+            "title": "Assume role ARN",
+            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+            "examples": [
+              "arn:aws:iam::412398765012:role/gw-readonly"
+            ],
+            "x-required-env": [
+              "prod"
+            ],
+            "description": "Required on prod: only an assumed role carries the read-only session policy that AWS enforces."
+          },
+          "externalId": {
+            "type": "string",
+            "title": "External ID",
+            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+            "x-generated": "gw-ext-<12 hex>",
+            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "title": "Session duration",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "description": "How long a role session lasts, 900 to 3,600 seconds."
+          },
+          "sessionPolicy": {
+            "title": "Session policy",
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "default": "generated",
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "x-enumTitles": [
+              "Read only, enforced by AWS (recommended)",
+              "The role's permissions as they are"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "title": "Profile",
+                  "maxLength": 128,
+                  "pattern": "\\S",
+                  "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "azure": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Azure",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "subscriptions",
+      "credentials"
+    ],
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "credentials": {
+              "properties": {
+                "source": {
+                  "enum": [
+                    "deviceCode",
+                    "clientSecret",
+                    "clientCertificate"
+                  ]
+                }
+              },
+              "required": [
+                "source"
+              ]
+            }
+          },
+          "required": [
+            "credentials"
+          ]
+        },
+        "then": {
+          "required": [
+            "tenantId"
+          ]
+        }
+      }
+    ],
+    "properties": {
+      "cloud": {
+        "title": "Cloud",
+        "enum": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "default": "AzureCloud",
+        "x-enumTitles": [
+          "Azure",
+          "Azure Government",
+          "Azure China (21Vianet)"
+        ]
+      },
+      "tenantId": {
+        "type": "string",
+        "title": "Tenant (directory) ID",
+        "maxLength": 253,
+        "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+        "examples": [
+          "contoso.onmicrosoft.com"
+        ],
+        "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+      },
+      "subscriptions": {
+        "type": "array",
+        "title": "Subscriptions",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "x-suggest": true,
+        "items": {
+          "type": "string",
+          "title": "Subscription ID",
+          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+        },
+        "examples": [
+          [
+            "0b1f6471-1bf0-4dda-aec3-111122223333"
+          ]
+        ],
+        "description": "Subscription IDs agents may read; calls outside them are refused."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Sign in with",
+            "enum": [
+              "cli",
+              "deviceCode",
+              "clientSecret",
+              "clientCertificate"
+            ],
+            "default": "cli",
+            "x-enumTitles": [
+              "Azure CLI sign-in on this computer (az login)",
+              "Sign in with a code in the browser",
+              "Service principal with a client secret",
+              "Service principal with a certificate"
+            ]
+          },
+          "clientId": {
+            "type": "string",
+            "title": "Application (client) ID",
+            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+            "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+          }
+        },
+        "patternProperties": {
+          "^(clientSecret|certificate)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientSecret"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "clientSecret"
+              ],
+              "properties": {
+                "clientSecret": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Client secret",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientCertificate"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "certificate"
+              ],
+              "properties": {
+                "certificate": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "title": "Certificate and private key (PEM)",
+                  "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "trustedCli": {
+        "type": "string",
+        "title": "Allowed Azure CLI command",
+        "readOnly": true,
+        "x-person-only": true,
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+      },
+      "logAnalyticsWorkspaces": {
+        "type": "array",
+        "title": "Log Analytics workspaces",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Workspace ID",
+          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+        },
+        "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL. Empty: no workspace logs."
+      },
+      "applicationInsights": {
+        "type": "array",
+        "title": "Application Insights components",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Component resource ID",
+          "maxLength": 512,
+          "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+        },
+        "examples": [
+          [
+            "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+          ]
+        ],
+        "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Empty: none."
+      }
+    }
+  },
+  "azure-monitor": {
+    "title": "Azure Monitor Logs",
+    "required": [
+      "backend",
+      "credentials"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "azure-monitor",
+        "default": "azure-monitor"
+      },
+      "cloud": {
+        "title": "Cloud",
+        "enum": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "default": "AzureCloud",
+        "x-enumTitles": [
+          "Azure",
+          "Azure Government",
+          "Azure China (21Vianet)"
+        ]
+      },
+      "tenantId": {
+        "type": "string",
+        "title": "Tenant (directory) ID",
+        "maxLength": 253,
+        "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+        "examples": [
+          "contoso.onmicrosoft.com"
+        ],
+        "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Sign in with",
+            "enum": [
+              "cli",
+              "deviceCode",
+              "clientSecret",
+              "clientCertificate"
+            ],
+            "default": "cli",
+            "x-enumTitles": [
+              "Azure CLI sign-in on this computer (az login)",
+              "Sign in with a code in the browser",
+              "Service principal with a client secret",
+              "Service principal with a certificate"
+            ]
+          },
+          "clientId": {
+            "type": "string",
+            "title": "Application (client) ID",
+            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+            "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+          }
+        },
+        "patternProperties": {
+          "^(clientSecret|certificate)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientSecret"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "clientSecret"
+              ],
+              "properties": {
+                "clientSecret": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Client secret",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientCertificate"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "certificate"
+              ],
+              "properties": {
+                "certificate": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "title": "Certificate and private key (PEM)",
+                  "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "trustedCli": {
+        "type": "string",
+        "title": "Allowed Azure CLI command",
+        "readOnly": true,
+        "x-person-only": true,
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+      },
+      "workspaces": {
+        "type": "array",
+        "title": "Log Analytics workspaces",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Workspace ID",
+          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+        },
+        "examples": [
+          [
+            "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
+          ]
+        ],
+        "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query. Name at least one workspace or component.",
+        "x-advanced": false
+      },
+      "applicationInsights": {
+        "type": "array",
+        "title": "Application Insights components",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Component resource ID",
+          "maxLength": 512,
+          "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+        },
+        "examples": [
+          [
+            "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+          ]
+        ],
+        "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Name at least one workspace or component.",
+        "x-advanced": false
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "required": [
+            "credentials"
+          ],
+          "properties": {
+            "credentials": {
+              "required": [
+                "source"
+              ],
+              "properties": {
+                "source": {
+                  "enum": [
+                    "deviceCode",
+                    "clientSecret",
+                    "clientCertificate"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "tenantId"
+          ]
+        }
+      }
+    ],
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object"
+  },
+  "cloudflare": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Cloudflare",
+    "type": "object",
+    "x-card": {
+      "description": "DNS, cache, Workers, Pages, analytics and tunnels. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "accountId",
+      "credentials"
+    ],
+    "properties": {
+      "accountId": {
+        "type": "string",
+        "title": "Account ID",
+        "pattern": "^[0-9a-f]{32}$",
+        "examples": [
+          "0123456789abcdef0123456789abcdef"
+        ],
+        "x-suggest": true,
+        "description": "The 32-character ID of the Cloudflare account, shown on the dashboard's account home and in its Overview pages. Workers, Pages, KV, tunnels and Logpush are read in this account; a zone of another account is refused."
+      },
+      "zones": {
+        "type": "array",
+        "title": "Zones",
+        "maxItems": 200,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+        },
+        "examples": [
+          [
+            "example.com",
+            "example.org"
+          ]
+        ],
+        "description": "The zones agents may use, by name. Empty: every zone of the account that the token can see."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "API token",
+            "writeOnly": true,
+            "x-gateway-secret": "value",
+            "format": "password",
+            "minLength": 20,
+            "maxLength": 512,
+            "description": "A user or account API token, limited to this account and its zones. Read permissions cover the read tools; add DNS Edit, Cache Purge, Workers Scripts Edit or Pages Edit only for the changes you want agents to request. The Global API Key isn't accepted."
+          }
+        }
+      }
+    }
+  },
+  "s3": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "S3 object storage",
+    "type": "object",
+    "x-card": {
+      "description": "Buckets and objects on Amazon S3, Cloudflare R2, MinIO and other S3-compatible storage. Writes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "credentials"
+    ],
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "title": "Endpoint",
+        "maxLength": 2048,
+        "pattern": "^(https?://\\S+)?$",
+        "examples": [
+          "https://<account-id>.r2.cloudflarestorage.com"
+        ],
+        "description": "Empty for Amazon S3. For other S3-compatible storage, its endpoint URL, such as https://s3.us-west-002.backblazeb2.com or http://minio.internal:9000."
+      },
+      "buckets": {
+        "type": "array",
+        "title": "Buckets",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._*-]{1,222}$"
+        },
+        "description": "The buckets agents may use; * matches any characters, such as acme-reports-*. Empty: every bucket the credentials list, on Amazon S3 only buckets of the credentials' own account."
+      }
+    },
+    "patternProperties": {
+      "^(region|pathStyle|credentials)$": {}
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "endpoint"
+          ]
+        },
+        "then": {
+          "required": [
+            "region",
+            "credentials"
+          ],
+          "properties": {
+            "region": {
+              "type": "string",
+              "title": "Region",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+              "examples": [
+                "auto"
+              ],
+              "description": "The region the provider names for this endpoint: auto for Cloudflare R2, us-east-1 when it names none."
+            },
+            "pathStyle": {
+              "type": "boolean",
+              "title": "Path-style addressing",
+              "default": true,
+              "description": "Requests go to the endpoint with the bucket in the path. Off: the bucket leads the host name, as some providers require."
+            },
+            "credentials": {
+              "type": "object",
+              "title": "Credentials",
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ],
+              "additionalProperties": false,
+              "patternProperties": {
+                "^source$": {
+                  "const": "accessKey"
+                }
+              },
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^[A-Za-z0-9._+-]{3,128}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "region",
+            "credentials"
+          ],
+          "properties": {
+            "region": {
+              "type": "string",
+              "title": "Region",
+              "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+              "examples": [
+                "eu-central-1"
+              ],
+              "x-suggest": true,
+              "description": "The AWS region of the buckets."
+            },
+            "credentials": {
+              "type": "object",
+              "title": "Credentials",
+              "required": [
+                "source"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "enum": [
+                    "accessKey",
+                    "profile"
+                  ],
+                  "default": "accessKey",
+                  "title": "Credentials source",
+                  "x-enumTitles": [
+                    "Access key",
+                    "AWS profile on this computer"
+                  ]
+                },
+                "roleArn": {
+                  "type": "string",
+                  "title": "Role to assume",
+                  "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+                  "examples": [
+                    "arn:aws:iam::412398765012:role/gw-s3"
+                  ],
+                  "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
+                },
+                "externalId": {
+                  "type": "string",
+                  "title": "External ID",
+                  "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+                  "x-generated": "gw-ext-<12 hex>",
+                  "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+                },
+                "sessionSeconds": {
+                  "type": "integer",
+                  "title": "Session length",
+                  "minimum": 900,
+                  "maximum": 3600,
+                  "default": 900,
+                  "x-unit": "s",
+                  "description": "How long a role session lasts, 900 to 3,600 seconds."
+                },
+                "sessionPolicy": {
+                  "enum": [
+                    "generated",
+                    "none"
+                  ],
+                  "default": "generated",
+                  "title": "Session policy",
+                  "x-forbidden-env-values": {
+                    "prod": [
+                      "none"
+                    ]
+                  },
+                  "x-enumTitles": [
+                    "Each call's own permissions, enforced by AWS (recommended)",
+                    "The role's permissions as they are"
+                  ]
+                }
+              },
+              "patternProperties": {
+                "^(accessKeyId|secretAccessKey|profile)$": {}
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "accessKey"
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "accessKeyId": {
+                        "type": "string",
+                        "title": "Access key ID",
+                        "pattern": "^AKIA[A-Z0-9]{16}$",
+                        "x-not-secret": true
+                      },
+                      "secretAccessKey": {
+                        "type": "string",
+                        "title": "Secret access key",
+                        "writeOnly": true,
+                        "x-gateway-secret": "value",
+                        "format": "password"
+                      }
+                    },
+                    "required": [
+                      "accessKeyId",
+                      "secretAccessKey"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "profile"
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "profile": {
+                        "type": "string",
+                        "title": "Profile",
+                        "maxLength": 128,
+                        "pattern": "\\S",
+                        "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
+                      }
+                    },
+                    "required": [
+                      "profile"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "http": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "baseUrls",
+      "auth"
+    ],
+    "properties": {
+      "baseUrls": {
+        "type": "array",
+        "title": "Base URLs",
+        "minItems": 1,
+        "maxItems": 5,
+        "items": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
+        },
+        "description": "Requests must start with one of these, path included: https://billing.stage.acme.dev/v1. Added to the allowlist of this environment in Policies.",
+        "x-agent-visible": true
+      },
+      "allowedPaths": {
+        "type": "array",
+        "title": "Allowed paths",
+        "items": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "default": [
+          "/**"
+        ],
+        "description": "Globs under the base path: /invoices/**, /refunds/*",
+        "x-agent-visible": true
+      },
+      "mutatingGetPaths": {
+        "type": "array",
+        "title": "GET paths that change state",
+        "items": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "default": [],
+        "description": "GET requests here change state: http_get refuses them, every other tool asks a person first. Globs like allowedPaths.",
+        "x-agent-visible": true
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "title": "Authentication",
+            "enum": [
+              "none",
+              "bearer",
+              "apiKeyHeader",
+              "apiKeyQuery",
+              "basic"
+            ],
+            "default": "bearer",
+            "x-enumTitles": [
+              "None",
+              "Bearer token",
+              "API key in a header",
+              "API key in the query (not on prod)",
+              "User and password"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "apiKeyQuery"
+              ]
+            },
+            "x-agent-visible": true
+          }
+        },
+        "patternProperties": {
+          "^(token|headerName|queryName|apiKey|username|password)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value"
+                }
+              },
+              "required": [
+                "token"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "apiKeyHeader"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "headerName": {
+                  "type": "string",
+                  "title": "Header name",
+                  "default": "X-API-Key",
+                  "pattern": "^[A-Za-z0-9-]{1,64}$",
+                  "x-advanced": false,
+                  "description": "The header the API reads the key from, such as X-API-Key or api-key."
+                },
+                "apiKey": {
+                  "type": "string",
+                  "title": "API key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value"
+                }
+              },
+              "required": [
+                "apiKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "apiKeyQuery"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "queryName": {
+                  "type": "string",
+                  "title": "Query parameter name",
+                  "default": "api_key",
+                  "maxLength": 64,
+                  "x-advanced": false,
+                  "description": "The query parameter the API reads the key from, such as api_key or key."
+                },
+                "apiKey": {
+                  "type": "string",
+                  "title": "API key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value"
+                }
+              },
+              "required": [
+                "apiKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "title": "User",
+                  "maxLength": 256,
+                  "description": "Empty sends only the password."
+                },
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "password"
+              ]
+            }
+          }
+        ]
+      },
+      "secretHeaders": {
+        "type": "array",
+        "maxItems": 5,
+        "title": "More secret headers",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "value"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "writeOnly": true,
+              "x-gateway-secret": "value"
+            },
+            "methods": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "GET",
+                  "HEAD",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ]
+              },
+              "description": "Empty: every request"
+            }
+          }
+        }
+      },
+      "defaultHeaders": {
+        "type": "object",
+        "title": "Default headers",
+        "maxProperties": 10,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "description": "Not secret, e.g. Accept: application/json"
+      },
+      "tls": {
+        "type": "object",
+        "title": "TLS",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "properties": {
+          "caCertificates": {
+            "type": "string",
+            "title": "CA certificates",
+            "x-person-only": true,
+            "x-widget": "textarea",
+            "maxLength": 64000,
+            "description": "PEM of an internal CA or of one trusted certificate. Filled by Test connection after you trust it."
+          },
+          "pins": {
+            "type": "array",
+            "title": "Certificate pins",
+            "x-person-only": true,
+            "items": {
+              "type": "string",
+              "pattern": "^sha256/[A-Za-z0-9+/=]{44}$"
+            }
+          },
+          "minVersion": {
+            "title": "Minimum TLS version",
+            "enum": [
+              "TLSv1.2",
+              "TLSv1.3"
+            ],
+            "default": "TLSv1.2"
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "properties": {
+          "connectTimeoutSeconds": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1,
+            "maximum": 30,
+            "default": 5,
+            "x-unit": "s"
+          },
+          "followRedirects": {
+            "title": "Follow redirects",
+            "enum": [
+              "off",
+              "same-origin"
+            ],
+            "default": "off",
+            "x-forbidden-env-values": {
+              "prod": [
+                "same-origin"
+              ]
+            },
+            "description": "same-origin: a read follows up to 3 redirects on the same host, each under the base URL and the allowed paths. Never on prod."
+          },
+          "allowPlainHttp": {
+            "type": "boolean",
+            "title": "Allow plain HTTP",
+            "default": false,
+            "x-forbidden-env": [
+              "prod"
+            ],
+            "description": "http:// only for private addresses you allowed in Policies"
+          },
+          "maxConcurrentCalls": {
+            "type": "integer",
+            "title": "Concurrent calls",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 4,
+            "x-env-default": {
+              "prod": 2
+            }
+          },
+          "test": {
+            "type": "object",
+            "title": "Test request",
+            "additionalProperties": false,
+            "properties": {
+              "method": {
+                "title": "Method",
+                "enum": [
+                  "GET",
+                  "HEAD"
+                ],
+                "default": "GET"
+              },
+              "path": {
+                "type": "string",
+                "title": "Path",
+                "default": "/",
+                "description": "Under the first base URL. A path that needs the credentials shows that they work."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mcp-server": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "transport"
+    ],
+    "properties": {
+      "toolPrefix": {
+        "type": "string",
+        "title": "Tool prefix",
+        "pattern": "^[a-z][a-z0-9]{0,14}_$",
+        "description": "Default: from the name, github-mcp → github_. Agents see github_create_issue."
+      },
+      "transport": {
+        "enum": [
+          "stdio",
+          "http"
+        ],
+        "title": "Transport",
+        "default": "stdio",
+        "x-enumTitles": [
+          "Command on this computer (stdio)",
+          "URL (Streamable HTTP or SSE)"
+        ]
+      },
+      "start": {
+        "enum": [
+          "on-first-call",
+          "with-core"
+        ],
+        "title": "Start",
+        "default": "on-first-call",
+        "x-enumTitles": [
+          "On the first call",
+          "When GateRook starts"
+        ]
+      },
+      "idleStopMinutes": {
+        "type": "integer",
+        "title": "Stop when idle for",
+        "minimum": 0,
+        "maximum": 1440,
+        "default": 15,
+        "x-unit": "min",
+        "x-env-default": {
+          "prod": 5
+        },
+        "description": "0 keeps it running."
+      },
+      "startTimeoutSeconds": {
+        "type": "integer",
+        "title": "Start timeout",
+        "minimum": 5,
+        "maximum": 300,
+        "default": 30,
+        "x-unit": "s"
+      },
+      "callTimeoutSeconds": {
+        "type": "integer",
+        "title": "Call timeout",
+        "minimum": 1,
+        "maximum": 300,
+        "default": 60,
+        "x-unit": "s",
+        "x-env-default": {
+          "prod": 30
+        }
+      },
+      "maxInFlight": {
+        "type": "integer",
+        "title": "Calls at a time",
+        "minimum": 1,
+        "maximum": 16,
+        "default": 4
+      },
+      "share": {
+        "type": "object",
+        "title": "Share with agents",
+        "additionalProperties": false,
+        "description": "What the server offers besides tools. Reads of its resources and prompts run without approval, through the endpoint's policy, masked and recorded in Activity.",
+        "properties": {
+          "resources": {
+            "type": "boolean",
+            "default": false,
+            "title": "Its resources and resource templates"
+          },
+          "prompts": {
+            "type": "boolean",
+            "default": false,
+            "title": "Its prompts and their completions"
+          }
+        }
+      },
+      "catalogEntry": {
+        "type": "string",
+        "title": "Catalog entry",
+        "readOnly": true,
+        "description": "github-mcp@0.6.2 when installed from the catalog"
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "transport": {
+              "const": "stdio"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "command"
+          ],
+          "properties": {
+            "command": {
+              "type": "array",
+              "title": "Command",
+              "items": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "minItems": 1,
+              "maxItems": 64,
+              "description": "The program, then each of its arguments. No shell runs it."
+            },
+            "env": {
+              "type": "array",
+              "title": "Environment variables from secrets",
+              "x-advanced": false,
+              "maxItems": 32,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "secretRef"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "Variable",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                  },
+                  "secretRef": {
+                    "type": "string",
+                    "title": "Value",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+                  }
+                }
+              }
+            },
+            "inheritEnv": {
+              "type": "array",
+              "title": "Pass these variables of this computer",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "HTTPS_PROXY",
+                  "HTTP_PROXY",
+                  "NO_PROXY",
+                  "NODE_EXTRA_CA_CERTS",
+                  "SSL_CERT_FILE",
+                  "LANG"
+                ]
+              },
+              "default": []
+            },
+            "offThisComputer": {
+              "type": "boolean",
+              "default": false,
+              "title": "Keep it off this computer (Windows)",
+              "description": "Runs it in an AppContainer: the internet and your network stay open, this computer's services and your files don't. Leave it off for a server that talks to a database on this computer or reads your files; it then runs at low integrity, which still keeps it out of GateRook's data."
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "transport": {
+              "const": "http"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "url"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "title": "URL",
+              "format": "uri",
+              "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])",
+              "x-key-allowed": true,
+              "description": "The server's MCP address: https://, or http:// on this computer."
+            },
+            "auth": {
+              "type": "object",
+              "title": "Sign-in",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "oauth",
+                    "google",
+                    "aws"
+                  ],
+                  "title": "Sign in with",
+                  "x-enumTitles": [
+                    "Sign in with OAuth in the browser",
+                    "Google Cloud credentials",
+                    "AWS credentials (SigV4)"
+                  ]
+                },
+                "optional": {
+                  "type": "boolean",
+                  "title": "Sign-in is optional",
+                  "default": false,
+                  "description": "OAuth only: the server also answers without a sign-in, so it connects without one until you sign in"
+                },
+                "clientId": {
+                  "type": "string",
+                  "title": "OAuth client ID",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "^[\\x21-\\x7E]+$",
+                  "description": "Only for a server that doesn't let apps register themselves: the ID of the OAuth app you created for GateRook"
+                },
+                "clientSecret": {
+                  "type": "string",
+                  "title": "Client secret",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "description": "Only when that OAuth app has one"
+                },
+                "scopes": {
+                  "type": "string",
+                  "title": "Scopes",
+                  "maxLength": 2048,
+                  "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]+( [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$",
+                  "description": "Default: what the server asks for"
+                },
+                "callbackPort": {
+                  "type": "integer",
+                  "title": "Callback port",
+                  "minimum": 1024,
+                  "maximum": 65535,
+                  "description": "Default: any free port"
+                },
+                "callbackHost": {
+                  "enum": [
+                    "127.0.0.1",
+                    "localhost"
+                  ],
+                  "title": "Callback host",
+                  "default": "127.0.0.1"
+                },
+                "callbackPath": {
+                  "type": "string",
+                  "title": "Callback path",
+                  "pattern": "^/[A-Za-z0-9._~/-]{0,127}$",
+                  "default": "/callback"
+                },
+                "credentials": {
+                  "type": "object",
+                  "title": "Credentials",
+                  "description": "Google Cloud or AWS: where GateRook takes the credentials of each request from",
+                  "additionalProperties": false,
+                  "properties": {
+                    "source": {
+                      "enum": [
+                        "adc",
+                        "serviceAccountKey",
+                        "profile",
+                        "accessKey"
+                      ],
+                      "title": "Credentials from",
+                      "x-enumTitles": [
+                        "Google sign-in on this computer (ADC)",
+                        "Service account key (JSON)",
+                        "AWS profile on this computer",
+                        "AWS access key"
+                      ]
+                    },
+                    "serviceAccountKey": {
+                      "type": "string",
+                      "title": "Service account key",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 10000
+                    },
+                    "impersonate": {
+                      "type": "string",
+                      "title": "Act as a service account",
+                      "description": "Empty: the credentials themselves.",
+                      "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+                      "examples": [
+                        "gw-mcp@acme-stage.iam.gserviceaccount.com"
+                      ]
+                    },
+                    "lifetimeSeconds": {
+                      "type": "integer",
+                      "title": "Token lifetime",
+                      "minimum": 300,
+                      "maximum": 3600,
+                      "default": 900,
+                      "x-unit": "s"
+                    },
+                    "quotaProject": {
+                      "type": "string",
+                      "title": "Billed project",
+                      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+                      "description": "The project billed for the requests (x-goog-user-project). Empty: the credentials decide."
+                    },
+                    "profile": {
+                      "type": "string",
+                      "title": "Profile",
+                      "maxLength": 128,
+                      "pattern": "\\S",
+                      "description": "A profile of ~/.aws/config or ~/.aws/credentials, such as default."
+                    },
+                    "accessKeyId": {
+                      "type": "string",
+                      "title": "Access key ID",
+                      "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                      "x-not-secret": true
+                    },
+                    "secretAccessKey": {
+                      "type": "string",
+                      "title": "Secret access key",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password"
+                    },
+                    "roleArn": {
+                      "type": "string",
+                      "title": "Assume a role",
+                      "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+                      "examples": [
+                        "arn:aws:iam::412398765012:role/gw-mcp"
+                      ]
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "title": "External ID",
+                      "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+                      "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+                    },
+                    "sessionSeconds": {
+                      "type": "integer",
+                      "title": "Session length",
+                      "minimum": 900,
+                      "maximum": 3600,
+                      "default": 900,
+                      "x-unit": "s"
+                    }
+                  }
+                },
+                "service": {
+                  "type": "string",
+                  "title": "Service",
+                  "pattern": "^[a-z0-9-]{1,64}$",
+                  "description": "AWS: the service requests are signed for. Default: from the URL, aws-mcp.us-east-1.api.aws → aws-mcp"
+                },
+                "region": {
+                  "type": "string",
+                  "title": "Region",
+                  "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+                  "description": "AWS: the region requests are signed for. Default: from the URL"
+                }
+              }
+            },
+            "headers": {
+              "type": "array",
+              "title": "Headers from secrets",
+              "x-advanced": false,
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "secretRef"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "Header",
+                    "pattern": "^[A-Za-z0-9-]{1,64}$"
+                  },
+                  "secretRef": {
+                    "type": "string",
+                    "title": "Value",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+                  }
+                }
+              }
+            },
+            "fixedHeaders": {
+              "type": "array",
+              "title": "Headers with a fixed value",
+              "description": "Sent with every request as written here, not as secrets: switches such as X-MCP-Readonly: true. A key belongs in a header from a secret.",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "text"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "Header",
+                    "pattern": "^[A-Za-z0-9-]{1,64}$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "title": "Value",
+                    "maxLength": 256,
+                    "pattern": "^[\\x20-\\x7E]*$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "patternProperties": {
+      "^(command|env|inheritEnv|offThisComputer|url|headers|fixedHeaders|auth)$": {}
+    }
   }
 };
 
@@ -9687,7 +9923,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/advanced/allowedFunctions"
         ],
         [
-          "/advanced/defaultSchema",
+          "/advanced/defaultSchema"
+        ],
+        [
           "/advanced/connectTimeoutMs"
         ],
         [
@@ -9849,6 +10087,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [
+          "auto",
           "disable",
           "require",
           "verify-ca",
@@ -9856,7 +10095,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         "when": [],
         "multiline": false,
-        "envDefault": {},
+        "envDefault": {
+          "prod": "verify-full"
+        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -9993,7 +10234,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "defaults": {
       "connection": {
         "port": 5432,
-        "sslMode": "verify-full"
+        "sslMode": "auto"
       },
       "credentials": {},
       "advanced": {
@@ -10523,7 +10764,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/password",
         "kind": "secret",
         "title": "Password",
-        "required": false,
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
@@ -18629,7 +18870,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "rows": {
       "/connection": [
         [
-          "/connection/host",
+          "/connection/host"
+        ],
+        [
           "/connection/port"
         ],
         [
@@ -18824,7 +19067,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/passphrase",
         "kind": "secret",
-        "title": "Key passphrase (optional)",
+        "title": "Key passphrase",
         "required": false,
         "secret": "value",
         "mono": false,
@@ -20857,8 +21100,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/credentials/profile"
         ],
         [
-          "/credentials/roleArn",
-          "/credentials/externalId",
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
           "/credentials/sessionSeconds"
         ]
       ]
@@ -24172,7 +24419,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/transport",
         "kind": "select",
-        "title": "transport",
+        "title": "Transport",
         "required": true,
         "secret": null,
         "mono": false,
@@ -24263,7 +24510,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/url",
         "kind": "text",
-        "title": "url",
+        "title": "URL",
         "required": true,
         "secret": null,
         "mono": true,
@@ -24317,7 +24564,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/start",
         "kind": "select",
-        "title": "start",
+        "title": "Start",
         "required": false,
         "secret": null,
         "mono": false,
@@ -24336,7 +24583,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/idleStopMinutes",
         "kind": "number",
-        "title": "idleStopMinutes",
+        "title": "Stop when idle for",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24354,7 +24601,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/startTimeoutSeconds",
         "kind": "number",
-        "title": "startTimeoutSeconds",
+        "title": "Start timeout",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24370,7 +24617,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/callTimeoutSeconds",
         "kind": "number",
-        "title": "callTimeoutSeconds",
+        "title": "Call timeout",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24388,7 +24635,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/maxInFlight",
         "kind": "number",
-        "title": "maxInFlight",
+        "title": "Calls at a time",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24404,7 +24651,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/catalogEntry",
         "kind": "text",
-        "title": "catalogEntry",
+        "title": "Catalog entry",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24438,7 +24685,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/type",
         "kind": "select",
-        "title": "type",
+        "title": "Sign in with",
         "required": true,
         "secret": null,
         "mono": false,
@@ -24460,7 +24707,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/optional",
         "kind": "checkbox",
-        "title": "optional",
+        "title": "Sign-in is optional",
         "required": false,
         "secret": null,
         "mono": false,
@@ -24550,7 +24797,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/callbackHost",
         "kind": "select",
-        "title": "callbackHost",
+        "title": "Callback host",
         "required": false,
         "secret": null,
         "mono": false,
@@ -24607,7 +24854,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Credentials from",
         "required": false,
         "secret": null,
         "mono": false,
@@ -24630,7 +24877,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/serviceAccountKey",
         "kind": "secret",
-        "title": "serviceAccountKey",
+        "title": "Service account key",
         "required": false,
         "secret": "value",
         "mono": false,
@@ -24648,7 +24895,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/impersonate",
         "kind": "text",
-        "title": "impersonate",
+        "title": "Act as a service account",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24666,7 +24913,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/lifetimeSeconds",
         "kind": "number",
-        "title": "lifetimeSeconds",
+        "title": "Token lifetime",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24684,7 +24931,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/quotaProject",
         "kind": "text",
-        "title": "quotaProject",
+        "title": "Billed project",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24702,7 +24949,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/profile",
         "kind": "text",
-        "title": "profile",
+        "title": "Profile",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24720,7 +24967,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/accessKeyId",
         "kind": "text",
-        "title": "accessKeyId",
+        "title": "Access key ID",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24738,7 +24985,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/secretAccessKey",
         "kind": "secret",
-        "title": "secretAccessKey",
+        "title": "Secret access key",
         "required": false,
         "secret": "value",
         "mono": false,
@@ -24756,7 +25003,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/roleArn",
         "kind": "text",
-        "title": "roleArn",
+        "title": "Assume a role",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24774,7 +25021,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/externalId",
         "kind": "text",
-        "title": "externalId",
+        "title": "External ID",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24792,7 +25039,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/credentials/sessionSeconds",
         "kind": "number",
-        "title": "sessionSeconds",
+        "title": "Session length",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24810,7 +25057,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/service",
         "kind": "text",
-        "title": "service",
+        "title": "Service",
         "required": false,
         "secret": null,
         "mono": true,
@@ -24828,7 +25075,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/region",
         "kind": "text",
-        "title": "region",
+        "title": "Region",
         "required": false,
         "secret": null,
         "mono": true,

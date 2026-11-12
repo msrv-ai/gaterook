@@ -915,9 +915,11 @@ describe('Add connection: wizard', () => {
     p.button('Continue', p.q('#cf-form')!).click();
     await p.settle();
     expect(p.visible()).toEqual(['step-3']);
-    expect(core.discoveries).toHaveLength(1);
+    // Prod moves the SSL mode from Auto to verify-full: the list is loaded again with it, the choice kept.
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.discoveries[1]).toMatchObject({ env: 'prod', config: { connection: { sslMode: 'verify-full' } } });
     expect(core.tests.map((request) => request.env)).toEqual(testInDev ? ['dev', 'prod'] : ['prod']);
-    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'] });
+    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'], sslMode: 'verify-full' });
 
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
@@ -1204,7 +1206,7 @@ describe('Add connection: wizard', () => {
         type: 'postgres',
         env: 'dev',
         config: {
-          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'verify-full' },
+          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'auto' },
           credentials: { user: 'app_rw' },
           advanced: { poolSize: 2, defaultSchema: 'public', connectTimeoutMs: 5000, discoveryDatabase: 'postgres' },
         },
