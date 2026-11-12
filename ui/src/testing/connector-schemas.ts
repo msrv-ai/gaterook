@@ -2587,14 +2587,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           [
             "eu-central-1"
           ]
-        ]
+        ],
+        "x-suggest": true,
+        "description": "The regions agents may read; the first is the default of every call."
       },
       "accountId": {
         "type": "string",
         "title": "Account ID",
         "x-person-only": true,
         "pattern": "^\\d{12}$",
-        "description": "Filled by Test connection; calls fail if the account changes"
+        "description": "The account the credentials must belong to, filled in once the form can sign in: calls fail if it changes. Empty: not checked."
       },
       "accountAlias": {
         "type": "string",
@@ -2603,7 +2605,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "acme-stage"
         ],
-        "description": "Display only"
+        "description": "Display only, filled in from the account's IAM alias."
       },
       "credentials": {
         "type": "object",
@@ -2631,7 +2633,11 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
             "examples": [
               "arn:aws:iam::412398765012:role/gw-readonly"
-            ]
+            ],
+            "x-required-env": [
+              "prod"
+            ],
+            "description": "Required on prod: only an assumed role carries the read-only session policy that AWS enforces."
           },
           "externalId": {
             "type": "string",
@@ -2646,7 +2652,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 900,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a role session lasts, 900 to 3,600 seconds."
           },
           "sessionPolicy": {
             "title": "Session policy",
@@ -2720,7 +2727,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "type": "string",
                   "title": "Profile",
                   "maxLength": 128,
-                  "pattern": "\\S"
+                  "pattern": "\\S",
+                  "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
                 }
               },
               "required": [
@@ -5074,7 +5082,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "examples": [
               "arn:aws:iam::412398765012:role/gw-dynamodb"
             ],
-            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
           },
           "externalId": {
             "type": "string",
@@ -5089,7 +5097,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 900,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a role session lasts, 900 to 3,600 seconds."
           },
           "sessionPolicy": {
             "enum": [
@@ -5163,7 +5172,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "type": "string",
                   "title": "Profile",
                   "maxLength": 128,
-                  "pattern": "\\S"
+                  "pattern": "\\S",
+                  "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
                 }
               },
               "required": [
@@ -6342,6 +6352,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "examples": [
                 "eu-central-1"
               ],
+              "x-suggest": true,
               "description": "The AWS region of the buckets."
             },
             "credentials": {
@@ -6371,7 +6382,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "examples": [
                     "arn:aws:iam::412398765012:role/gw-s3"
                   ],
-                  "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+                  "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
                 },
                 "externalId": {
                   "type": "string",
@@ -6386,7 +6397,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "minimum": 900,
                   "maximum": 3600,
                   "default": 900,
-                  "x-unit": "s"
+                  "x-unit": "s",
+                  "description": "How long a role session lasts, 900 to 3,600 seconds."
                 },
                 "sessionPolicy": {
                   "enum": [
@@ -6460,7 +6472,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                         "type": "string",
                         "title": "Profile",
                         "maxLength": 128,
-                        "pattern": "\\S"
+                        "pattern": "\\S",
+                        "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
                       }
                     },
                     "required": [
@@ -6544,7 +6557,9 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                   "examples": [
                     "acme-analytics"
-                  ]
+                  ],
+                  "x-suggest": true,
+                  "description": "The identifier of a provisioned cluster in the region."
                 }
               },
               "required": [
@@ -6573,6 +6588,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "examples": [
                     "acme-wg"
                   ],
+                  "x-suggest": true,
                   "description": "Its name, or its ARN: with the ARN, the session policy names this workgroup only."
                 }
               },
@@ -6587,10 +6603,12 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "type": "string",
         "title": "Database",
         "pattern": "^[A-Za-z_][A-Za-z0-9_$]{0,126}$",
+        "default": "dev",
         "examples": [
           "dev"
         ],
-        "description": "The database the Data API connects to."
+        "x-suggest": true,
+        "description": "The database the Data API connects to: dev unless the cluster or namespace was made with another."
       },
       "databaseAuth": {
         "type": "object",
@@ -6669,6 +6687,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "examples": [
                     "arn:aws:secretsmanager:eu-central-1:412398765012:secret:redshift/gw-reader-AbCdEf"
                   ],
+                  "x-suggest": true,
                   "description": "Its ARN or name. The Data API reads its username and password; GateRook doesn't."
                 }
               },
@@ -6706,7 +6725,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "examples": [
               "arn:aws:iam::412398765012:role/gw-redshift"
             ],
-            "description": "With a role, GateRook limits each call to this warehouse, database and sign-in, enforced by AWS."
+            "description": "With a role, GateRook limits each call to this warehouse, database and sign-in, enforced by AWS; empty: the credentials' own permissions apply."
           },
           "externalId": {
             "type": "string",
@@ -6721,7 +6740,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 900,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a role session lasts, 900 to 3,600 seconds."
           },
           "sessionPolicy": {
             "enum": [
@@ -6795,7 +6815,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "type": "string",
                   "title": "Profile",
                   "maxLength": 128,
-                  "pattern": "\\S"
+                  "pattern": "\\S",
+                  "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
                 }
               },
               "required": [
@@ -7273,7 +7294,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "examples": [
               "arn:aws:iam::412398765012:role/gw-athena"
             ],
-            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
           },
           "externalId": {
             "type": "string",
@@ -7288,7 +7309,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 900,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a role session lasts, 900 to 3,600 seconds."
           },
           "sessionPolicy": {
             "enum": [
@@ -7362,7 +7384,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "type": "string",
                   "title": "Profile",
                   "maxLength": 128,
-                  "pattern": "\\S"
+                  "pattern": "\\S",
+                  "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
                 }
               },
               "required": [
@@ -13441,6 +13464,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "target": {
         "kind": "cluster"
       },
+      "database": "dev",
       "credentials": {
         "source": "accessKey",
         "sessionSeconds": 900,
@@ -13451,6 +13475,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "target": {
         "kind": "cluster"
       },
+      "database": "dev",
       "credentials": {
         "source": "accessKey",
         "sessionSeconds": 900,

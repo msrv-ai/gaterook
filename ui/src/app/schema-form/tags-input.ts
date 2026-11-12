@@ -41,7 +41,8 @@ import { LucideDynamicIcon } from '@lucide/angular';
         [attr.aria-describedby]="describedBy()"
         [attr.aria-invalid]="invalid() ? 'true' : null"
         [value]="draft()"
-        (input)="draft.set(entry.value)"
+        [attr.list]="list()"
+        (input)="typed(entry.value, $event)"
         (keydown.enter)="add($event)"
         (blur)="commit(); touch.emit()"
       />
@@ -63,6 +64,8 @@ export class GwTagsInput implements FormValueControl<string[]> {
   readonly describedBy = input<string | null>(null);
   readonly invalid = input(false, { transform: booleanAttribute });
   readonly mono = input(true, { transform: booleanAttribute });
+  /** The id of a `<datalist>` of values to pick (what the setup helpers found): a pick is added at once. */
+  readonly list = input<string | null>(null);
   readonly touch = output<void>();
   protected readonly draft = signal('');
 
@@ -74,6 +77,16 @@ export class GwTagsInput implements FormValueControl<string[]> {
     };
     doc.addEventListener('submit', beforeSubmit, true);
     inject(DestroyRef).onDestroy(() => doc.removeEventListener('submit', beforeSubmit, true));
+  }
+
+  /** A value picked from the input's list is added at once; typed text waits for Enter, Add or leaving the field. */
+  protected typed(text: string, event: Event): void {
+    this.draft.set(text);
+    if (this.list() && event instanceof InputEvent && event.inputType === 'insertReplacementText') {
+      this.commit();
+      // The binding still holds '' from before the pick, so it wouldn't clear the input by itself.
+      if (event.target instanceof HTMLInputElement) event.target.value = '';
+    }
   }
 
   protected add(event: Event): void {

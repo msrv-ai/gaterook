@@ -590,7 +590,8 @@ describe('schema-form: minimal active connector configurations', () => {
       config: { endpoint: 'https://contoso.search.windows.net', auth: 'entraId', tenantId: 'contoso.onmicrosoft.com',
         credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
       pointer: '/credentials/clientSecret' },
-    { name: 'Redshift database', type: 'redshift', config: { region: 'eu-central-1', target: { kind: 'serverless', workgroup: 'acme-wg' }, credentials: { source: 'accessKey', accessKeyId } },
+    // The database starts as dev, the default database of every cluster and workgroup; emptied, it is still required.
+    { name: 'Redshift database', type: 'redshift', config: { region: 'eu-central-1', database: '', target: { kind: 'serverless', workgroup: 'acme-wg' }, credentials: { source: 'accessKey', accessKeyId } },
       pointer: '/database' },
     { name: 'Databricks workspace', type: 'databricks', config: { warehouseId: '1a2b3c4d5e6f7a8b', auth: { method: 'token' } }, pointer: '/host' },
     { name: 'Trino coordinator URL', type: 'trino', config: { auth: { mode: 'none', user: 'dev' } }, pointer: '/url' },

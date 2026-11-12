@@ -137,9 +137,15 @@ export class GwSchemaField {
     return Math.max(0, extra) + (this.suggestion()?.complete === false ? 1 : 0);
   }
 
-  /** The id of the field's autocomplete list, while the helpers found values for a text field. */
+  /** The id of the field's autocomplete list, while the helpers found values for a text or list field. */
   protected datalistId(): string | null {
-    return this.node().kind === 'text' && this.suggestion()?.options.length ? `${this.form().id(this.node())}-found` : null;
+    const kind = this.node().kind;
+    return (kind === 'text' || kind === 'tags') && this.listed().length ? `${this.form().id(this.node())}-found` : null;
+  }
+
+  /** What the autocomplete lists: every value found for a text field, those not added yet for a list. */
+  protected listed() {
+    return this.node().kind === 'tags' ? this.form().offered(this.node()) : (this.suggestion()?.options ?? []);
   }
 
   /** "Found in your kubeconfig:" before the values; "Filled in from …" when one was put into the field. */

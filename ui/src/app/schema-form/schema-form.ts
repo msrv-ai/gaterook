@@ -240,7 +240,8 @@ export class SchemaForm {
    * of a sign-in that has a client ID; nothing while Sign-in is left empty).
    */
   needed(node: SchemaNode): boolean {
-    return isRequired(node, this.model()) && node.within.every((path) => inUse(this.compiled, path, this.model(), this.filled()));
+    return (isRequired(node, this.model()) || node.requiredEnv.includes(this.env()))
+      && node.within.every((path) => inUse(this.compiled, path, this.model(), this.filled()));
   }
 
   /**
@@ -982,7 +983,7 @@ export class SchemaForm {
       // A text field read from a store holds its reference, or keeps the stored one: checked as a reference, not as
       // the field's value.
       const active = () => this.visible(node) && !this.fieldKind(node) && this.textState(node) !== 'reference';
-      const requirable = node.required || node.requiredWhen.length > 0;
+      const requirable = node.required || node.requiredWhen.length > 0 || node.requiredEnv.length > 0;
       if (requirable && node.kind === 'tags') {
         // An empty list is a value to `required`; "at least one" is the rule here.
         validate(path, ({ value }) => {

@@ -117,7 +117,7 @@ describe('setup helpers: the compiled form', () => {
     expect(['/auth', '/server', '/token', '/namespace', '/allowExecPlugin'].map(advanced)).toEqual([false, false, false, false, false]);
     const aws = compileSchema(CONNECTOR_FORMS['aws']);
     const awsAdvanced = (pointer: string) => isAdvanced(aws.all.find((n) => n.pointer === pointer)!, aws);
-    expect(['/credentials/roleArn', '/credentials/externalId', '/accountAlias'].map(awsAdvanced)).toEqual([true, true, true]);
+    expect(['/credentials/externalId', '/credentials/sessionSeconds', '/accountAlias'].map(awsAdvanced)).toEqual([true, true, true]);
     expect(['/credentials/source', '/credentials/accessKeyId', '/regions'].map(awsAdvanced)).toEqual([false, false, false]);
   });
 });
@@ -204,6 +204,38 @@ describe('setup helpers: fields the service lists', () => {
     const service = await v.asked('service');
     expect(service).not.toBeNull();
     expect(service!.value.config['accountId'] ?? null).toBeNull();
+  });
+});
+
+describe('setup helpers: AWS', () => {
+  it('requires the role to assume on prod only, where the connector refuses to run without one', async () => {
+    const form = compileSchema(CONNECTOR_FORMS['aws']);
+    const role = form.all.find((n) => n.pointer === '/credentials/roleArn')!;
+    expect(role.requiredEnv).toEqual(['prod']);
+    expect(isAdvanced(role, form)).toBe(false);
+    const v = await render('aws');
+    expect(v.label('cf-credentials-roleArn')).toContain('Optional');
+    v.el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await v.settle();
+    expect(v.label('cf-credentials-roleArn')).not.toContain('Optional');
+  });
+
+  it('offers every region in the list field\'s autocomplete and adds a picked one at once', async () => {
+    const v = await render('aws');
+    const request = (await v.asked('local'))!;
+    const regions = ['eu-central-1', 'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-west-2',
+      'eu-west-3', 'ap-south-1', 'ap-southeast-2'];
+    await v.answer(request, { fields: { '/regions': { value: 'eu-central-1', source: '~/.aws/config', complete: true,
+      options: regions.map((value) => ({ value, label: null, detail: null })) } }, notes: [] });
+    const input = v.el.querySelector<HTMLInputElement>('#cf-regions')!;
+    const list = v.el.querySelector<HTMLDataListElement>(`#${input.getAttribute('list')}`)!;
+    // eu-central-1 was filled in; the other nine stay in the autocomplete, more than the line under the field shows.
+    expect([...list.options].map((o) => o.value)).toEqual(regions.slice(1));
+    input.value = 'ap-south-1';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' }));
+    await v.settle();
+    expect(v.host.form().value().config['regions']).toEqual(['eu-central-1', 'ap-south-1']);
+    expect(input.value).toBe('');
   });
 });
 

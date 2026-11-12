@@ -69,7 +69,9 @@
           "examples": [
             "arn:aws:iam::412398765012:role/gw-readonly"
           ],
-          "x-advanced": false,
+          "x-required-env": [
+            "prod"
+          ],
           "description": "Required on prod: only an assumed role carries the read-only session policy that AWS enforces."
         },
         "externalId": {

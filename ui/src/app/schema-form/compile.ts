@@ -60,6 +60,8 @@ export interface SchemaNode {
   readonly advanced: boolean | null;
   /** `readOnly` (on the field or an object around it): set by Test connection, shown only once it has a value. */
   readonly readOnly: boolean;
+  /** `x-required-env`: environments where the connector requires the field although the schema can't say so (prod). */
+  readonly requiredEnv: readonly string[];
   /** Identifiers, hosts, paths: the kit sets config values in the mono face. */
   readonly mono: boolean;
   readonly schema: JsonObject;
@@ -448,6 +450,7 @@ function compileNode(
     optional,
     advanced: s['x-advanced'] === true ? true : s['x-advanced'] === false ? false : null,
     readOnly,
+    requiredEnv: Array.isArray(s['x-required-env']) ? s['x-required-env'].filter((e): e is string => typeof e === 'string') : [],
     mono: kind === 'text' || kind === 'number' || kind === 'tags',
     schema: s,
     unit: str(s['x-unit']),
@@ -487,6 +490,7 @@ export function rootSection(fields: readonly SchemaNode[], title: string, rows: 
     optional: false,
     advanced: null,
     readOnly: false,
+    requiredEnv: [],
     mono: false,
     schema: {},
     unit: null,
@@ -667,7 +671,9 @@ export function isAdvanced(node: SchemaNode, form: CompiledForm): boolean {
   if (node.kind === 'object') return false;
   if (node.advanced !== null) return node.advanced;
   if (node.readOnly) return true;
-  if (node.required || node.requiredWhen.length || node.kind === 'secret' || node.secret === 'login') return false;
+  if (node.required || node.requiredWhen.length || node.requiredEnv.length || node.kind === 'secret' || node.secret === 'login') {
+    return false;
+  }
   const siblings = (test: (n: SchemaNode) => boolean) => form.all.some((n) => n !== node && test(n)
     && samePath(n.path.slice(0, -1), node.path.slice(0, -1)));
   if (LOGIN_KEY.test(node.key) && siblings((n) => n.kind === 'secret')) return false;

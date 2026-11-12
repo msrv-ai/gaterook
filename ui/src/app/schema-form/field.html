@@ -26,7 +26,7 @@
     }
     @if (datalistId(); as listId) {
       <datalist [id]="listId">
-        @for (o of suggestion()!.options; track o.value) {
+        @for (o of listed(); track o.value) {
           <option [value]="o.value">{{ o.detail ? (o.label ?? o.value) + ' · ' + o.detail : (o.label ?? '') }}</option>
         }
       </datalist>
@@ -532,6 +532,7 @@
               [noun]="noun()"
               [listLabel]="n.title"
               [placeholder]="tagPlaceholder()"
+              [list]="datalistId()"
               [describedBy]="describedBy"
               [invalid]="!!error"
               (touch)="f.touch(n)"
