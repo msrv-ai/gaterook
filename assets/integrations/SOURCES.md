@@ -745,9 +745,10 @@ Downloaded on 2026-11-12 for the vector database and search engine cards of the 
 terms as above: intact vendor-provided artwork, not GateRook artwork, not covered by a blanket open-source licence,
 identifying the services being connected without indicating sponsorship or endorsement. The notes record each vendor's
 conditions; this record does not assert that any permission has been granted. Each vendor's cloud card (Qdrant Cloud,
-Weaviate Cloud, Chroma Cloud, Meilisearch Cloud) shows the same vendor's mark. Weaviate, Chroma and Meilisearch publish
-no brand or press page: their marks are the symbol of each vendor's logo as the vendor publishes it on its own website or
-in its own GitHub organisation, recorded with the commit that last changed the file.
+Weaviate Cloud, Chroma Cloud, Meilisearch Cloud, Typesense Cloud) shows the same vendor's mark. Weaviate, Chroma and
+Meilisearch publish no brand or press page: their marks are the symbol of each vendor's logo as the vendor publishes it on
+its own website or in its own GitHub organisation, recorded with the commit that last changed the file. On 2026-11-12 the
+owner approved accepting Zilliz's brand-asset terms, which its download implies, and using Typesense's site icon.
 
 | File | Official source page | Exact downloaded asset |
 |---|---|---|
@@ -759,6 +760,8 @@ in its own GitHub organisation, recorded with the commit that last changed the f
 | `algolia.svg` | [Algolia newsroom](https://www.algolia.com/about/news) ("Looking for our logo?"), [Algolia brand guidelines](https://algolia.frontify.com/) | [Algolia logo pack ZIP](https://www.algolia.com/algolia-logo-pack.zip), member `algolia-logo-pack/SVG/Algolia-mark-blue.svg` |
 | `meilisearch.svg` | [Meilisearch repository, `assets/`](https://github.com/meilisearch/meilisearch/tree/main/assets) | [Meilisearch symbol SVG](https://raw.githubusercontent.com/meilisearch/meilisearch/HEAD/assets/logo.svg) |
 | `azure-ai-search.svg` | [Azure icons, Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/icons/) | Azure icons ZIP (as for SQL Server), member `Azure_Public_Service_Icons/Icons/ai + machine learning/10044-icon-service-Cognitive-Search.svg` |
+| `zilliz.png` | [Zilliz brand assets](https://zilliz.com/brand-assets) (a download accepts its Terms and Conditions) | [Zilliz logo ZIP](https://assets.zilliz.com/zilliz-logo.zip), member `Zilliz Logo/Zilliz Logo Mark White_No BG.png` |
+| `typesense.png` | [typesense.org](https://typesense.org/), whose pages declare this file as their icon; source in Typesense's [website repository](https://github.com/typesense/typesense-website) | [Typesense site icon PNG](https://typesense.org/favicon.png) |
 
 ### Checksums
 
@@ -771,18 +774,23 @@ in its own GitHub organisation, recorded with the commit that last changed the f
 | `milvus.svg` | 2369 | `1194acd695cdc8e7f713b0cf5f91d7e25f33922df6e01314f96ccd07d727a244` |
 | `pinecone.svg` | 1829 | `34755f91827edbfd409d8edb8a7209b8704cc39af69ac7518640b1016db15add` |
 | `qdrant.svg` | 1478 | `1642d28e5c93229b5f0d13546a4275e6120a8a6be159ac2ebaaf2f1a8feddaca` |
+| `typesense.png` | 34884 | `def1270692b868ae7bee17c2d9740a919c685de23ca7b9fcc91b9d0f49c1e902` |
 | `weaviate.svg` | 4216 | `8d6fa8dcfb40e749ae92921c25fb77a6f590ebec1d19f6c52711ff28dd78413b` |
+| `zilliz.png` | 40290 | `a2acc1c10bc2ac16675e8ce9f840ee1944147247f8dae8b0416e44c2971e1127` |
 
 ### Packages
 
 The Algolia member was extracted by exact name, with path-traversal and symlink checks; the archive's other members
 (SVG, PNG and EPS logos, an Illustrator EPS source, `.DS_Store` files and macOS resource forks under `__MACOSX/`) were
-not extracted into the kit. The Azure member comes from the copy of the Azure package downloaded on 2026-11-11, whose
-SHA-256 still matched the connector-card record above; it was not downloaded again.
+not extracted into the kit. The Zilliz member was extracted the same way; that archive holds no SVG, only PNG files of
+the logo (colour, black and white) and of the mark, Illustrator and EPS files, a `.DS_Store` file and macOS resource
+forks. The Azure member comes from the copy of the Azure package downloaded on 2026-11-11, whose SHA-256 still matched
+the connector-card record above; it was not downloaded again.
 
 | Package | Bytes | SHA-256 |
 |---|---:|---|
 | [Algolia logo pack](https://www.algolia.com/algolia-logo-pack.zip) | 4716275 | `ae126df090abba1f525e107b1e8a3af6a8aff4923a3522e6896232aab20507fd` |
+| [Zilliz logo](https://assets.zilliz.com/zilliz-logo.zip) | 941654 | `b95445d4473f61413d1754f54beecbe44991b5fefbc74929d6d107cf6726b8c8` |
 
 ### Asset notes
 
@@ -850,22 +858,29 @@ SHA-256 still matched the connector-card record above; it was not downloaded aga
   confirms that Azure Search, Azure Cognitive Search and Azure AI Search are the same product, renamed in October 2019
   and October 2023. Byte-identical copies are under `app services/` and `web/`; `03321-icon-service-Serverless-Search.svg`
   in the same folder adds a lightning bolt to the symbol and was not used.
-
-### Not included
-
-- **Zilliz Cloud:** Zilliz's [brand assets page](https://zilliz.com/brand-assets) offers the Zilliz logo
-  (`https://assets.zilliz.com/zilliz-logo.zip`) and Milvus logos under its Terms and Conditions, which a download
-  accepts: a limited, non-exclusive, non-transferable licence to use the assets solely to refer to, promote or create
-  content about Zilliz and its products; no modification; no use that could confuse the public about the relationship
-  with Zilliz; Zilliz may review uses and terminate the licence; questions to marketing@zilliz.com. Accepting those
-  terms is the owner's decision, so nothing was downloaded from that page, and the Zilliz Cloud card keeps the Milvus
-  type's icon.
+- **Zilliz Cloud:** Zilliz's [brand assets page](https://zilliz.com/brand-assets) offers the Zilliz logo and the Milvus
+  logos under its Terms and Conditions, which a download accepts; the owner approved accepting them on 2026-11-12 before
+  `zilliz-logo.zip` was downloaded. They grant a limited, non-exclusive, non-transferable licence to use the assets
+  solely to refer to, promote or create content about Zilliz and its products; forbid modifying the assets or using
+  them in a way that could confuse the public about the relationship with Zilliz; state that the use creates no
+  partnership, joint venture or endorsement; and let Zilliz review uses, request changes and terminate the licence.
+  Questions: marketing@zilliz.com. The pack has no SVG; its only symbol-only file in a web format is the colour mark,
+  a blue, violet and cyan starburst, on a transparent background (`Zilliz Logo Mark White_No BG.png`, 400 x 400). The
+  same mark on an opaque white square (`Zilliz Logo Mark White_White BG.png`) and the colour logo with the "zilliz"
+  wordmark (`Zilliz Logo - Official.png`, unreadable on the tile) are alternates; the Illustrator and EPS files were not
+  used. Zilliz develops Milvus, but Zilliz Cloud is its own product and brand, so its card shows Zilliz's mark rather
+  than the Milvus project's.
 - **Typesense:** typesense.org has no brand or press page (`/brand`, `/press`, `/media-kit`, `/brand-assets` and
   `/press-kit` return 404). Its only logo files, on the website and in its repositories, are the "typesense" wordmark
-  with a small symbol, unreadable on a 32 px tile. The site's declared icon (`https://typesense.org/favicon.png`,
-  620 x 620, a green bolt on a black rounded square) would be legible, but using a site icon needs the owner's
-  agreement, so the Typesense cards keep their icon. Typesense® is a registered trademark of Typesense, Inc.
+  with a small symbol (`typesense-logo.svg`, byte-identical to `assets/typesense_logo.svg` in the typesense repository;
+  alternate), unreadable on a 32 px tile. With the owner's agreement, the Typesense cards use the icon that
+  typesense.org's pages declare (`<link rel="icon" href="/favicon.png">`): a 620 x 620 PNG with transparent corners
+  showing a green bolt among dots on a black rounded square, byte-identical to `typesense.org-v3/public/favicon.png` in
+  the website repository (last changed in commit `b70f070e5a5fbe726858eae1d4501c1deb4d87e9`, "Update logos",
+  2025-08-20). No logo or trademark policy is published; the site footer states that Typesense® is a registered
+  trademark of Typesense, Inc.
 
-These SVGs retain their original geometry, colours, proportions and metadata, with no scripts, event handlers,
-embedded foreign content, embedded raster images or remote references. Cards show each one with the service's plain
-name on a light plate in every theme, never recoloured.
+The PNG files are the downloaded or extracted bytes, unmodified, and passed a decode check. The SVGs retain their
+original geometry, colours, proportions and metadata, with no scripts, event handlers, embedded foreign content,
+embedded raster images or remote references. Cards show each one with the service's plain name on a light plate in
+every theme, never recoloured.
