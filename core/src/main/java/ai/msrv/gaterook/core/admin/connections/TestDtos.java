@@ -48,10 +48,15 @@ public final class TestDtos {
    */
   public record Suggested(Map<String, SuggestedField> fields, List<String> notes) {}
 
-  /** {@code value}: what to fill in while the field is empty or holds its default; {@code complete}: nothing cut. */
-  public record SuggestedField(List<SuggestedOption> options, String value, String source, boolean complete) {}
+  /**
+   * {@code fill}: what to fill in while the field is empty or holds its default; {@code complete}: nothing cut. No
+   * property is named like a secret's value (AdminResponseTypesTest): a suggestion is never one, as the answer is
+   * masked and an option a mask would change is left out.
+   */
+  public record SuggestedField(List<SuggestedOption> options, String fill, String source, boolean complete) {}
 
-  public record SuggestedOption(String value, String label, String detail) {}
+  /** {@code option}: what picking it puts in the field. */
+  public record SuggestedOption(String option, String label, String detail) {}
 
   private TestDtos() {}
 

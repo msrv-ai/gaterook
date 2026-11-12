@@ -231,6 +231,36 @@ export interface Suggested {
   readonly notes: readonly string[];
 }
 
+/**
+ * The answer as the core sends it: an offered value is `option` and the value to fill in is `fill`, as no admin answer
+ * has a property named like a secret's value.
+ */
+export interface SuggestedWire {
+  readonly fields: {
+    readonly [pointer: string]: {
+      readonly options: readonly { readonly option: string; readonly label: string | null; readonly detail: string | null }[];
+      readonly fill: string | null;
+      readonly source: string | null;
+      readonly complete: boolean;
+    };
+  };
+  readonly notes: readonly string[];
+}
+
+/** The core's answer in the form's terms: each option and the value to fill in as `value`. */
+export function suggestedFromWire(wire: SuggestedWire): Suggested {
+  const fields: { [pointer: string]: SuggestedField } = {};
+  for (const [pointer, f] of Object.entries(wire.fields ?? {})) {
+    fields[pointer] = {
+      options: (f.options ?? []).map((o) => ({ value: o.option, label: o.label ?? null, detail: o.detail ?? null })),
+      value: f.fill ?? null,
+      source: f.source ?? null,
+      complete: f.complete !== false,
+    };
+  }
+  return { fields, notes: wire.notes ?? [] };
+}
+
 export interface CreateConnectionRequest extends WithReason {
   readonly name: string;
   readonly type: string;
@@ -312,8 +342,8 @@ export class ConnectionsApi {
   }
 
   /** Help for the setup form: values found on this computer or, with `service`, on the service; saves nothing. */
-  suggest(request: SuggestRequest): Promise<Suggested> {
-    return this.api.post('/api/connections/suggest', request);
+  async suggest(request: SuggestRequest): Promise<Suggested> {
+    return suggestedFromWire(await this.api.post<SuggestedWire>('/api/connections/suggest', request));
   }
 
   /** Read-only remote folder browsing for a draft; no connection is saved. */
