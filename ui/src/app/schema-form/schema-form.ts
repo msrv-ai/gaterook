@@ -736,6 +736,10 @@ export class SchemaForm {
       && this.typedSuggestion(node, o.value) !== null);
   }
 
+  /** Whether the person changed anything since the form opened: a value, or a secret typed. */
+  readonly changed = computed(() => !sameJson(this.model(), this.initial)
+    || Object.values(this.secrets()).some((typed) => typed.trim() !== ''));
+
   /** Whether the field holds what a suggestion filled in (its hint says so). */
   wasFilled(node: SchemaNode): boolean {
     const filled = this.autoFilled()[node.pointer];

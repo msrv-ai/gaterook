@@ -25,11 +25,12 @@ function spec(type: string): ConnectionFormSpec {
 
 @Component({
   imports: [GwConnectionForm],
-  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" helpers [spec]="spec()" name="dev-cluster" [config]="config()" (save)="saved.push($event)" (suggest)="asked.push($event)" (discoverDatabases)="databases.push($event)" (discoverProjects)="projects.push($event)"></form>`,
+  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" helpers [spec]="spec()" [mode]="mode()" name="dev-cluster" [config]="config()" (save)="saved.push($event)" (suggest)="asked.push($event)" (discoverDatabases)="databases.push($event)" (discoverProjects)="projects.push($event)"></form>`,
 })
 class Host {
   readonly spec = signal(spec('kubernetes'));
   readonly config = signal<JsonObject | null>(null);
+  readonly mode = signal<'create' | 'edit'>('create');
   readonly saved: ConnectionFormValue[] = [];
   readonly asked: SuggestionRequest[] = [];
   readonly databases: DatabaseDiscoveryRequest[] = [];
@@ -44,10 +45,11 @@ afterEach(() => (document.body.innerHTML = ''));
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function render(type = 'kubernetes', config: JsonObject | null = null) {
+async function render(type = 'kubernetes', config: JsonObject | null = null, mode: 'create' | 'edit' = 'create') {
   const fixture = TestBed.createComponent(Host);
   fixture.componentInstance.spec.set(spec(type));
   fixture.componentInstance.config.set(config);
+  fixture.componentInstance.mode.set(mode);
   document.body.appendChild(fixture.nativeElement);
   const el = fixture.nativeElement as HTMLElement;
   const settle = async () => {
@@ -178,6 +180,18 @@ describe('setup helpers: the Kubernetes form', () => {
     await v.answer(fresh, contexts);
     expect(v.el.querySelector<HTMLSelectElement>('#cf-context')!.value).toBe('kind-dev');
     expect(v.el.querySelector<HTMLInputElement>('#cf-namespace')!.value).toBe('mine');
+  });
+});
+
+describe('setup helpers: a saved connection', () => {
+  it('signs in for suggestions only once the person changed something', async () => {
+    const v = await render('kubernetes', { auth: 'kubeconfig-file', kubeconfigPath: '~/.kube/config', context: 'kind-dev',
+      namespace: 'app-dev' }, 'edit');
+    expect(await v.asked('local')).not.toBeNull();
+    expect(await v.asked('service', 200)).toBeNull();
+    await v.type('cf-namespace', 'payments');
+    const service = await v.asked('service');
+    expect(service?.value.config).toMatchObject({ context: 'kind-dev', namespace: 'payments' });
   });
 });
 

@@ -558,7 +558,8 @@ export class GwConnectionForm {
       if (!this.helpers()) return;
       const value = this.value();
       const key = this.suggestionKey('service', value);
-      const ready = this.state().ready();
+      // A saved connection signs in for suggestions only once the person changed something: opening it doesn't.
+      const ready = this.state().ready() && (this.mode() === 'create' || this.state().changed());
       // Findings of other settings stay until the next answer replaces them, unless the form can't sign in any more.
       if (!ready) untracked(() => this.dropStaleService(key));
       if (!ready || key === this.requested.service) return;
