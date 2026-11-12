@@ -88,6 +88,9 @@ final class RedisErrors {
       return new Problem("redis.error", ConnectorException.Kind.RESOURCE_ERROR, "Redis answered: " + firstLine(m));
     }
     for (Throwable c = e; c != null; c = c.getCause()) {
+      if (c instanceof AutoTls.UndetectedException u) {
+        return new Problem("redis.tls", ConnectorException.Kind.RESOURCE_UNAVAILABLE, "Auto: " + u.getMessage());
+      }
       if (c instanceof GuardedSocketFactory.AddressRefusedException r) {
         return new Problem("redis.address", ConnectorException.Kind.DENIED, r.getMessage());
       }

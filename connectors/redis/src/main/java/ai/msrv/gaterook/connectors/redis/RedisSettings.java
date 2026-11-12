@@ -18,16 +18,19 @@ import tools.jackson.databind.JsonNode;
  * A Redis connection's configuration ({@code config.schema.json}, report 05 §4), read once per call: everything an
  * agent can't change — the server, its database, TLS, the login's user and the keys it may access.
  *
+ * @param tls          TLS for every connection: the form's choice, on by default on prod; with {@link #autoTls} the
+ *                     detected transport replaces it ({@link #withTls}) before anything connects
+ * @param autoTls      Connection type Auto: {@link AutoTls} finds the transport before a credential is sent
  * @param verifyHost   {@code tlsVerify=full}: the certificate must name {@link #host}; {@code ca}: only its chain
  * @param caCertificates a private CA, or empty for the platform's trust store
  * @param maxValueBytes the longest string value read whole ({@code GETRANGE} beyond it)
  * @param chars         how the server compares the bytes of glob ranges, from the last Test connection
  *                      ({@code metadata.globChars}); unknown until one ran
  */
-record RedisSettings(String host, int port, int database, List<Integer> databases, boolean tls, boolean verifyHost,
-    List<X509Certificate> caCertificates, String user, List<RedisGlob> keyAllowlist, List<RedisGlob> keyDenylist,
-    int commandTimeoutMs, int connectTimeoutMs, int maxValueBytes, int poolSize, boolean noTouch,
-    RedisGlob.Chars chars) {
+record RedisSettings(String host, int port, int database, List<Integer> databases, boolean tls, boolean autoTls,
+    boolean verifyHost, List<X509Certificate> caCertificates, String user, List<RedisGlob> keyAllowlist,
+    List<RedisGlob> keyDenylist, int commandTimeoutMs, int connectTimeoutMs, int maxValueBytes, int poolSize,
+    boolean noTouch, RedisGlob.Chars chars) {
 
   /** The JSON pointer of the password; the user is a plain field next to it. */
   static final String PASSWORD = "/credentials/password";
@@ -92,9 +95,15 @@ record RedisSettings(String host, int port, int database, List<Integer> database
       }
       database = databases.getFirst();
     }
-    // x-env-default: on prod, TLS is on unless the form says otherwise (the core doesn't fill defaults in).
+    // x-env-default: on prod, TLS is on unless the form says otherwise (the core doesn't fill defaults in). A stored
+    // connection without the key keeps that; Auto is what new connections choose by default outside prod.
     JsonNode tlsNode = c.path("tls");
-    boolean tls = tlsNode.isBoolean() ? tlsNode.asBoolean() : cfg.env() == Env.PROD;
+    boolean autoTls = tlsNode.isString() && tlsNode.asString().equals("auto");
+    if (!tlsNode.isMissingNode() && !tlsNode.isNull() && !tlsNode.isBoolean() && !autoTls) {
+      throw new InvalidSettingsException("Connection type is Auto, Without TLS or TLS.");
+    }
+    // Auto is TLS until AutoTls finds otherwise: nothing connects before it resolved the transport.
+    boolean tls = autoTls || (tlsNode.isBoolean() ? tlsNode.asBoolean() : cfg.env() == Env.PROD);
     String verify = c.path("tlsVerify").asString("full");
     if (!verify.equals("full") && !verify.equals("ca")) {
       throw new InvalidSettingsException("TLS verification is full or ca.");
@@ -118,13 +127,20 @@ record RedisSettings(String host, int port, int database, List<Integer> database
     boolean noTouch = advanced.path("noTouch").asBoolean(true);
     RedisGlob.Chars chars = cfg.metadata() == null ? RedisGlob.Chars.UNKNOWN
         : RedisGlob.Chars.of(cfg.metadata().path(GLOB_CHARS).asString(""));
-    return new RedisSettings(host, port, database, databases, tls, verify.equals("full"), ca, user.isEmpty() ? null : user,
-        allow, deny, commandTimeout, connectTimeout, maxValueKb * 1024, poolSize, noTouch, chars);
+    return new RedisSettings(host, port, database, databases, tls, autoTls, verify.equals("full"), ca,
+        user.isEmpty() ? null : user, allow, deny, commandTimeout, connectTimeout, maxValueKb * 1024, poolSize, noTouch,
+        chars);
   }
 
   RedisSettings withDatabase(int selected) {
-    return new RedisSettings(host, port, selected, databases, tls, verifyHost, caCertificates, user, keyAllowlist,
-        keyDenylist, commandTimeoutMs, connectTimeoutMs, maxValueBytes, poolSize, noTouch, chars);
+    return new RedisSettings(host, port, selected, databases, tls, autoTls, verifyHost, caCertificates, user,
+        keyAllowlist, keyDenylist, commandTimeoutMs, connectTimeoutMs, maxValueBytes, poolSize, noTouch, chars);
+  }
+
+  /** The transport Auto found (or {@code enabled} for a test), without changing the saved choice. */
+  RedisSettings withTls(boolean enabled) {
+    return new RedisSettings(host, port, database, databases, enabled, false, verifyHost, caCertificates, user,
+        keyAllowlist, keyDenylist, commandTimeoutMs, connectTimeoutMs, maxValueBytes, poolSize, noTouch, chars);
   }
 
   /** A page belongs to both its saved connection and its database, including legacy single-database configs. */

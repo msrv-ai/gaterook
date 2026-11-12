@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
@@ -29,7 +30,8 @@ import redis.clients.jedis.exceptions.JedisConnectionException;
  *
  * <p>The connect timeout is the connection's, cut to what is left of the call when a call opens the socket
  * ({@link #DEADLINE}): a pooled connection is opened on the caller's thread. Only a failed TCP connect moves on to
- * the host's next address; once one answered, its TLS or timeout failure is the answer.
+ * the host's next address; once one answered, its TLS or timeout failure is the answer. Connection type Auto is
+ * resolved before a factory exists ({@link AutoTls}), which uses the same connect and handshake.
  */
 final class GuardedSocketFactory implements JedisSocketFactory {
 
@@ -42,6 +44,10 @@ final class GuardedSocketFactory implements JedisSocketFactory {
   private final SSLContext ssl;
 
   GuardedSocketFactory(RedisSettings settings) {
+    if (settings.autoTls()) {
+      // Every way to the server resolves Auto first: a connection never guesses its transport.
+      throw new IllegalStateException("Connection type Auto must be resolved before connecting");
+    }
     this.settings = settings;
     this.ssl = settings.tls()
         ? TrustStores.sslContext(settings.caCertificates().isEmpty() ? TrustStores.platform()
@@ -51,6 +57,25 @@ final class GuardedSocketFactory implements JedisSocketFactory {
 
   @Override
   public Socket createSocket() throws JedisConnectionException {
+    Socket socket = connect(() -> new Socket(Proxy.NO_PROXY));
+    try {
+      // Jedis takes the read timeout for the handshake (TLS, HELLO and AUTH) from the socket: cut to the call too.
+      socket.setSoTimeout(readTimeoutMs());
+      return ssl == null ? socket : tls(socket);
+    } catch (IOException e) {
+      closeQuietly(socket);
+      throw new JedisConnectionException(e);
+    } catch (RuntimeException e) {
+      closeQuietly(socket);
+      throw e;
+    }
+  }
+
+  /**
+   * A TCP connection to the first of the host's addresses that takes one, after every address was judged; {@code make}
+   * creates each socket, without a proxy.
+   */
+  Socket connect(Supplier<Socket> make) throws JedisConnectionException {
     InetAddress[] addresses;
     try {
       addresses = InetAddress.getAllByName(settings.host());
@@ -65,26 +90,15 @@ final class GuardedSocketFactory implements JedisSocketFactory {
     }
     IOException last = null;
     for (InetAddress a : addresses) {
-      Socket socket = new Socket(Proxy.NO_PROXY);
+      Socket socket = make.get();
       try {
         socket.setTcpNoDelay(true);
         socket.setKeepAlive(true);
         socket.connect(new InetSocketAddress(a, settings.port()), connectTimeoutMs());
+        return socket;
       } catch (IOException e) {
         closeQuietly(socket);
         last = e;
-        continue;
-      } catch (RuntimeException e) {
-        closeQuietly(socket);
-        throw e;
-      }
-      try {
-        // Jedis takes the read timeout for the handshake (TLS, HELLO … AUTH) from the socket: cut to the call too.
-        socket.setSoTimeout(readTimeoutMs());
-        return ssl == null ? socket : tls(socket);
-      } catch (IOException e) {
-        closeQuietly(socket);
-        throw new JedisConnectionException(e);
       } catch (RuntimeException e) {
         closeQuietly(socket);
         throw e;
@@ -93,7 +107,8 @@ final class GuardedSocketFactory implements JedisSocketFactory {
     throw new JedisConnectionException(last == null ? new IOException("No address for " + settings.host()) : last);
   }
 
-  private Socket tls(Socket plain) throws IOException {
+  /** TLS over {@code plain}, handshake done within the socket's read timeout; the connection's trust and name check. */
+  Socket tls(Socket plain) throws IOException {
     SSLSocket s = (SSLSocket) ssl.getSocketFactory().createSocket(plain, settings.host(), settings.port(), true);
     SSLParameters p = s.getSSLParameters();
     if (settings.verifyHost()) {
@@ -144,7 +159,7 @@ final class GuardedSocketFactory implements JedisSocketFactory {
     };
   }
 
-  private static void closeQuietly(Socket s) {
+  static void closeQuietly(Socket s) {
     try {
       s.close();
     } catch (IOException ignored) {

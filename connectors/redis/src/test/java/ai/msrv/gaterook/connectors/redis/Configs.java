@@ -74,6 +74,16 @@ final class Configs {
       return this;
     }
 
+    /** Connection type Auto, with a private CA or {@code null}. */
+    Cfg auto(String caPem) {
+      ObjectNode c = root.withObjectProperty("connection");
+      c.put("tls", "auto");
+      if (caPem != null) {
+        c.put("caCertificate", caPem);
+      }
+      return this;
+    }
+
     Cfg advanced(String field, Object value) {
       ObjectNode a = root.withObjectProperty("advanced");
       switch (value) {
