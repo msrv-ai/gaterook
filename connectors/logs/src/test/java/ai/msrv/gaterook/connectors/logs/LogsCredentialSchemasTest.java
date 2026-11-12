@@ -51,6 +51,47 @@ class LogsCredentialSchemasTest {
   }
 
   @Test
+  void azureMonitorNeedsATenantForAServicePrincipalOrADeviceSignInButNotForTheCli() {
+    String base = """
+        {"backend":"azure-monitor","workspaces":["5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"],"credentials":%s%s}""";
+    assertThat(SCHEMA.validate(JSON.readTree(base.formatted("{\"source\":\"cli\"}", "")))).isEmpty();
+    for (String credentials : new String[] {
+        "{\"source\":\"deviceCode\"}",
+        "{\"source\":\"clientSecret\",\"clientId\":\"0a1b2c3d-1111-4222-8333-444455556666\",\"clientSecret\":\"s\"}",
+        "{\"source\":\"clientCertificate\",\"clientId\":\"0a1b2c3d-1111-4222-8333-444455556666\","
+            + "\"certificate\":\"pem\"}"}) {
+      assertThat(SCHEMA.validate(JSON.readTree(base.formatted(credentials, "")))).as(credentials).isNotEmpty();
+      assertThat(SCHEMA.validate(JSON.readTree(base.formatted(credentials, ",\"tenantId\":\"contoso.onmicrosoft.com\""))))
+          .as(credentials).isEmpty();
+    }
+  }
+
+  @Test
+  void theFormsShowWhatTheConnectionNeedsAndMarkWhatSignedInHelpersList() {
+    try (var cloud = new ai.msrv.gaterook.connectors.cloudauth.CloudCredentials(
+        ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints.PRODUCTION, java.time.Clock.systemUTC())) {
+      var cloudWatch = new BackendConnector("cloudwatch", cloud).manifest().configSchema();
+      assertThat(cloudWatch.at("/properties/logGroups/x-suggest").asBoolean()).isTrue();
+      assertThat(cloudWatch.at("/properties/region/x-suggest").isMissingNode()).as("the API needs it").isTrue();
+      var gcp = new BackendConnector("gcp-logging", cloud).manifest().configSchema();
+      assertThat(gcp.at("/properties/resourceNames/x-suggest").asBoolean()).isTrue();
+      var loki = new BackendConnector("loki", cloud).manifest().configSchema();
+      assertThat(loki.at("/properties/tenant/x-advanced").asBoolean(true)).isFalse();
+      var azure = new BackendConnector("azure-monitor", cloud).manifest().configSchema();
+      for (String field : new String[] {"tenantId", "workspaces", "applicationInsights"}) {
+        assertThat(azure.at("/properties/" + field + "/x-advanced").asBoolean(true)).as(field).isFalse();
+      }
+    }
+    var legacy = SchemaResources.of(LogsConnector.class, "logs").load("config");
+    for (var branch : legacy.path("oneOf")) {
+      if (branch.at("/properties/backend/const").asString("").equals("opensearch")) {
+        assertThat(branch.at("/allOf/0/then/properties/indices/x-suggest").asBoolean())
+            .as("scoped log search requires index patterns").isTrue();
+      }
+    }
+  }
+
+  @Test
   void cloudWatchProfileDoesNotRequireAnAccessKey() {
     for (String credentials : new String[] {
         "{\"source\":\"profile\",\"profile\":\"dev-logs\"}",

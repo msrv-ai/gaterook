@@ -266,7 +266,7 @@ final class OpenSearchBackend implements Backend {
             "Permissions unknown: an API key can't ask the security plugin about itself."));
       }
     } catch (ConnectorException e) {
-      return probe.failure(e);
+      return probe.failure(e, "/caCertificate");
     }
     hints.addAll(Probe.transport(s.base(), s.auth(), call.cfg().env()));
     TestResult result = TestResult.success(dataMs, s.title() + " " + version, identity,
@@ -308,7 +308,7 @@ final class OpenSearchBackend implements Backend {
       }
       return result;
     } catch (ConnectorException e) {
-      return probe.failure(e);
+      return probe.failure(e, "/caCertificate");
     }
   }
 
@@ -324,6 +324,45 @@ final class OpenSearchBackend implements Backend {
     } catch (ConnectorException e) {
       return HealthResult.unreachable(e.getMessage());
     }
+  }
+
+  // ── Setup helpers: reads only, with the credentials of Test connection ───────────────────────────────────
+
+  /** {@code GET /}: the distribution, its version and the cluster's name. */
+  JsonNode cluster() throws ConnectorException {
+    return json(send("GET", "/", null, "the cluster info"), "the cluster");
+  }
+
+  /** {@code GET /_resolve/index/<pattern>}: the open indices, aliases and data streams the user may see. */
+  JsonNode resolve(String pattern) throws ConnectorException {
+    return json(send("GET", "/_resolve/index/" + pattern + "?expand_wildcards=open", null, "resolving the indices"),
+        "the indices");
+  }
+
+  /** Who the credentials sign in as, as the security plugin or Elasticsearch's security says; {@code null}: unknown. */
+  String user() {
+    boolean elastic = s.backend().equals("elasticsearch");
+    try {
+      Http.Response r = send("GET", elastic ? "/_security/_authenticate" : "/_plugins/_security/api/account", null,
+          "the security API");
+      if (!r.ok() || r.body().isBlank()) {
+        return null;
+      }
+      JsonNode account = JSON.readTree(r.body());
+      String name = account == null ? "" : account.path(elastic ? "username" : "user_name").asString("");
+      return name.isBlank() ? null : name;
+    } catch (ConnectorException | JacksonException e) {
+      return null;
+    }
+  }
+
+  /**
+   * {@code GET /<indices>/_field_caps}: each field of the indices with its types ({@code {"@timestamp": {"date":
+   * {"type": "date"}}}}), merged across them by the server.
+   */
+  JsonNode fieldCaps(List<String> indices) throws ConnectorException {
+    return json(send("GET", "/" + String.join(",", indices) + "/_field_caps?fields=*&ignore_unavailable=true"
+        + "&allow_no_indices=true&filter_path=fields.*.*.type", null, "reading the field types"), "the field types");
   }
 
   @Override

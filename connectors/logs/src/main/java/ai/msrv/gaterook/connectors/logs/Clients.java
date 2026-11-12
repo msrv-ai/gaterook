@@ -127,7 +127,8 @@ final class Clients implements AutoCloseable {
     awsHttp.close();
   }
 
-  private static javax.net.ssl.SSLContext sslContext(String pem) throws ConnectorException {
+  /** The trust of a connection's private CA (PEM) next to the platform's CAs; host names are still checked. */
+  static javax.net.ssl.SSLContext sslContext(String pem) throws ConnectorException {
     List<X509Certificate> certificates;
     try {
       certificates = Pem.certificates(pem);

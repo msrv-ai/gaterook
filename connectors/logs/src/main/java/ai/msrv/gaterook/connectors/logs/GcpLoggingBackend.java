@@ -386,7 +386,25 @@ final class GcpLoggingBackend implements Backend {
         b.header(h.getKey(), v);
       }
     }
-    Http.Response r = Http.send(call.clients().google(), b, call.ctx(), what);
+    return answer(Http.send(call.clients().google(), b, call.ctx(), what), what);
+  }
+
+  /**
+   * A read of the Logging API ({@code /v2/projects/<id>/locations/-/buckets}) with the connection's read token: the
+   * setup helpers' list of log buckets and views.
+   */
+  JsonNode get(String pathAndQuery, String what) throws ConnectorException {
+    URI uri = logging().resolve(pathAndQuery);
+    HttpRequest.Builder b = HttpRequest.newBuilder(uri).header("Accept", "application/json").GET();
+    for (Map.Entry<String, List<String>> h : headers(uri, List.of(LOGGING_READ)).entrySet()) {
+      for (String v : h.getValue()) {
+        b.header(h.getKey(), v);
+      }
+    }
+    return answer(Http.send(call.clients().google(), b, call.ctx(), what), what);
+  }
+
+  private JsonNode answer(Http.Response r, String what) throws ConnectorException {
     JsonNode tree;
     try {
       tree = JSON.readTree(r.body().isBlank() ? "{}" : r.body());

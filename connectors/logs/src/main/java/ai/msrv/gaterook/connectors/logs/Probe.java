@@ -76,6 +76,25 @@ final class Probe {
         + cause.getMessage()).withChecks(checks());
   }
 
+  /**
+   * The test's answer after a failed step of an HTTP backend: a certificate this computer doesn't trust points at the
+   * connection's CA field ({@code caField}), one for another name at its URL; a failed certificate is never a reason to
+   * drop encryption.
+   */
+  TestResult failure(ConnectorException e, String caField) {
+    TestResult result = failure(e);
+    Throwable cause = e.getCause();
+    if (cause != null && Tls.wrongName(cause)) {
+      result = result.withHint(new TestResult.Hint(TestResult.Severity.WARNING, "logs.certificate-name", "/url",
+          "Use the host name the server's certificate was issued for in the URL, then test again."));
+    } else if (cause != null && Tls.untrusted(cause)) {
+      result = result.withHint(new TestResult.Hint(TestResult.Severity.WARNING, "logs.untrusted-certificate", caField,
+          "Paste the CA certificate (PEM) that signed the server's certificate under Advanced settings, then test "
+              + "again. GateRook never connects to a server it can't verify."));
+    }
+    return result;
+  }
+
   ExecContext ctx() {
     return ctx;
   }
