@@ -4,7 +4,7 @@
 //   npm run dev -w ui            # or: node ui/scripts/dev.mjs [--port 4300] [--core-port 7465] [--keep] [--no-demo]
 //                                #     [--no-plugins]
 //
-// 1. app/target/app.jar is built once if it is missing (mvn -pl app -am -DskipTests package; under the shared
+// 1. app/target/app.jar is built once if it is missing (mvn -pl app -am -DskipTests -Pall-bundled package; under the shared
 //    heavy-build lock when `flock` exists).
 // 2. A fresh launch secret (32 random bytes, base64url) and free local ports.
 // 3. The core on the JVM in dev mode (-Dgateway.dev=true + GW_DEV_INTERNAL_SECRET), with GW_DEMO=1 on an empty home
@@ -60,8 +60,9 @@ function java() {
 }
 
 function buildJar() {
-  console.log('[dev] app/target/app.jar is missing: building it once (mvn -pl app -am -DskipTests package)');
-  const mvn = ['mvn', '-B', '-ntp', '-pl', 'app', '-am', '-DskipTests', 'package'];
+  // -Pall-bundled: the development core also holds the connectors that connectors/delivery.json delivers as modules.
+  console.log('[dev] app/target/app.jar is missing: building it once (mvn -pl app -am -DskipTests -Pall-bundled package)');
+  const mvn = ['mvn', '-B', '-ntp', '-pl', 'app', '-am', '-DskipTests', '-Pall-bundled', 'package'];
   const lock = join(homedir(), '.cache', 'mcp-gateway', 'heavy.lock');
   const hasFlock = spawnSync('flock', ['--version'], { stdio: 'ignore' }).status === 0;
   if (hasFlock) mkdirSync(dirname(lock), { recursive: true });

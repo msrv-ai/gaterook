@@ -13,6 +13,7 @@ import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.platform.LaunchSecret;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.boot.GatewayLauncher;
+import ai.msrv.gaterook.e2e.ConnectorDelivery;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -194,7 +195,8 @@ class ConnectorCatalogApiIT {
         assertThat(card.path("connections").asInt()).isZero();
       }
     }
-    assertThat(served).containsExactlyElementsOf(KIT);
+    // A connector that connectors/delivery.json delivers as a module has its card here only with -Pall-bundled.
+    assertThat(served).containsExactlyElementsOf(KIT.stream().filter(c -> ConnectorDelivery.has(c.type())).toList());
 
     JsonNode mcp = card(catalog, "mcp-server", null);
     assertThat(mcp.path("toolsFrom").asString()).as("\"Tools from the server\"").isEqualTo("server");
@@ -203,8 +205,8 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "pinecone", "qdrant", "milvus", "weaviate", "chroma", "opensearch", "elasticsearch", "algolia", "meilisearch", "typesense", "azure-ai-search", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
-        "gcp", "aws", "azure", "cloudflare", "s3", "http");
+    assertThat(installed).containsExactlyElementsOf(ConnectorDelivery.present(List.of("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "pinecone", "qdrant", "milvus", "weaviate", "chroma", "opensearch", "elasticsearch", "algolia", "meilisearch", "typesense", "azure-ai-search", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
+        "gcp", "aws", "azure", "cloudflare", "s3", "http")));
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");
       assertThat(row.path("kind").asString()).isEqualTo("built-in");

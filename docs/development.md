@@ -69,7 +69,7 @@ resources, bundled bridges, and Electron metadata carry this version. It appears
 
 ### Component outputs
 
-`npm run build` runs `mvn -B -ntp -DskipTests package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command.
+`npm run build` runs `mvn -B -ntp -DskipTests -Pall-bundled package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command. The `all-bundled` profile puts every connector into the development core, including those that are delivered as modules and are not compiled into the native core; see [connector delivery](connector-delivery.md).
 
 | Output | Purpose |
 | --- | --- |
@@ -255,12 +255,14 @@ The ID measures distinct installations that checked for updates within a rolling
 
 ## Native binaries and local packaging
 
-Use a compatible GraalVM JDK 25 with `native-image` on `PATH` and the platform's native compiler/linker toolchain. The native build can require substantial RAM. The research documents describe the original toolchain validation; check current manifests before selecting a release toolchain.
+Use a compatible GraalVM JDK 25 with `native-image` on `PATH` and the platform's native compiler/linker toolchain. The native build can require substantial RAM. Build it without the `all-bundled` profile: the native core holds only the connectors whose delivery is `bundled`, and `scripts/size-report.mjs` reports what each of them adds to it ([connector delivery](connector-delivery.md#measuring)). The research documents describe the original toolchain validation; check current manifests before selecting a release toolchain.
 
 ```bash
 mvn -B -ntp -pl app,bridge-cli -am -Pnative -DskipTests package
 npm start -- --core-binary app/target/gaterook-core
 ```
+
+The image builder optimizes for speed (`-O2`). `-Dnative.optimization=-Os` builds the core and the bridge for size instead: the core becomes about 68 MB smaller and its warm start about a third slower, while the bridge loses 6 MB and starts as fast. The measurements are recorded beside the property in `app/pom.xml` and `bridge-cli/pom.xml`; the default stays `-O2`.
 
 Windows outputs use `.exe`. Native runtime libraries must remain next to the executable or in its adjacent `native-libs/` directory. `scripts/aot-check.sh` validates the AOT context without a full native compilation; `scripts/native-smoke.sh` exercises a built native core.
 
