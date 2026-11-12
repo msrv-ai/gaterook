@@ -67,6 +67,28 @@ final class AlgoliaBackend extends SearchBackend {
         + "deletes wait for approval.";
   }
 
+  @Override
+  String listNoun() {
+    return "index";
+  }
+
+  @Override
+  String listNouns() {
+    return "indices";
+  }
+
+  @Override
+  String signedIn(ConnectionConfig cfg) {
+    String app = cfg.string("/applicationId");
+    return "Algolia" + (app == null || app.isBlank() ? "" : " application " + app.strip());
+  }
+
+  @Override
+  String cannotList(ConnectionConfig cfg) {
+    return "The key may not list indices (its ACL lacks listIndexes), so none can be offered: name the ones agents "
+        + "may use.";
+  }
+
   private static String app(ConnectionConfig cfg) throws ConnectorException {
     String app = cfg.string("/applicationId");
     if (app == null || !APP.matcher(app.strip()).matches()) {

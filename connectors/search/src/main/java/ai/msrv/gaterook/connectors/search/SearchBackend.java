@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.search;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -62,6 +63,15 @@ abstract class SearchBackend extends StoreBackend {
 
   /** The indexes the credentials see: {@code {name, documents?, …}}. */
   abstract List<ObjectNode> indexes(Call c) throws ConnectorException;
+
+  /**
+   * Service suggestions: the indexes the credentials see, for the connection's list. A key that may not list them
+   * (the connection's own names stood in, {@link #listed}) offers none.
+   */
+  @Override
+  void service(Call c, Suggestions.Builder out) throws ConnectorException {
+    StoreSuggestions.offerList(this, c.cfg(), indexes(c), out);
+  }
 
   /** One index: its fields or settings and its size. */
   abstract ObjectNode describe(Call c, String index) throws ConnectorException;

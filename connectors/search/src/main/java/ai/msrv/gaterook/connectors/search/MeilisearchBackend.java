@@ -54,6 +54,11 @@ final class MeilisearchBackend extends SearchBackend {
   }
 
   @Override
+  int localPort() {
+    return 7700;
+  }
+
+  @Override
   ServiceHttp.Endpoint endpoint(ConnectionConfig cfg) throws ConnectorException {
     return new ServiceHttp.Endpoint(ServiceHttp.base(cfg.string("/url"),
         "https://ms-0123456789ab-1234.lon.meilisearch.io", "/indexes"), ca(cfg));

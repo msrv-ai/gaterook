@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.search;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import java.util.ArrayList;
 import java.util.List;
 import tools.jackson.databind.JsonNode;
@@ -61,6 +62,12 @@ abstract class VectorBackend extends StoreBackend {
 
   /** The collections the credentials see: {@code {name, dimension?, metric?, records?}}. */
   abstract List<ObjectNode> collections(Call c) throws ConnectorException;
+
+  /** Service suggestions: the collections the credentials see, for the connection's list. */
+  @Override
+  void service(Call c, Suggestions.Builder out) throws ConnectorException {
+    StoreSuggestions.offerList(this, c.cfg(), collections(c), out);
+  }
 
   /** One collection: its vectors, fields and size. */
   abstract ObjectNode describe(Call c, String collection) throws ConnectorException;

@@ -52,6 +52,21 @@ final class TypesenseBackend extends SearchBackend {
   }
 
   @Override
+  int localPort() {
+    return 8108;
+  }
+
+  @Override
+  String listNoun() {
+    return "collection";
+  }
+
+  @Override
+  String listNouns() {
+    return "collections";
+  }
+
+  @Override
   ServiceHttp.Endpoint endpoint(ConnectionConfig cfg) throws ConnectorException {
     return new ServiceHttp.Endpoint(ServiceHttp.base(cfg.string("/url"), "https://xyz.a1.typesense.net",
         "/collections"), ca(cfg));

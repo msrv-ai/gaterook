@@ -48,8 +48,9 @@ class ConfigSchemaTest {
           "{\"endpoint\":\"https://cn-search.search.azure.cn\",\"auth\":\"entraId\",\"tenantId\":"
               + "\"contoso.partner.onmschina.cn\",\"credentials\":{\"source\":\"clientSecret\",\"clientId\":"
               + "\"0a1b2c3d-1111-4222-8333-444455556666\",\"clientSecret\":\"s\"},\"indexes\":[\"hotels\"]}",
-          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
-              + "{\"source\":\"deviceCode\"},\"apiKey\":\"left-from-the-key\"}"));
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"tenantId\":"
+              + "\"contoso.onmicrosoft.com\",\"credentials\":{\"source\":\"deviceCode\"},\"apiKey\":"
+              + "\"left-from-the-key\"}"));
 
   private static final Map<String, List<String>> BAD = Map.of(
       "qdrant", List.of("{\"auth\":{\"method\":\"none\"}}", "{\"url\":\"qdrant:6333\",\"auth\":{\"method\":\"none\"}}",
@@ -67,6 +68,12 @@ class ConfigSchemaTest {
           "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\"}",
           "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
               + "{\"source\":\"clientSecret\",\"clientSecret\":\"s\"}}",
+          // A device sign-in and a service principal sign in to one tenant: the connector refuses them without it.
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
+              + "{\"source\":\"deviceCode\"}}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
+              + "{\"source\":\"clientCertificate\",\"clientId\":\"0a1b2c3d-1111-4222-8333-444455556666\","
+              + "\"certificate\":\"s\"}}",
           "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"managedIdentity\",\"apiKey\":\"s\"}",
           "{\"endpoint\":\"https://contoso.search.windows.net\",\"apiKey\":\"s\",\"cloud\":\"AzureUSGovernment\"}"));
 

@@ -83,7 +83,8 @@
             "examples": [
               "contoso.onmicrosoft.com"
             ],
-            "description": "The directory ID or domain of the service's tenant. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+            "x-advanced": false,
+            "description": "The directory ID or domain of the service's tenant. Required for a device sign-in or a service principal; with the Azure CLI, empty uses its default tenant."
           },
           "credentials": {
             "type": "object",
@@ -188,7 +189,37 @@
             "pattern": "^[0-9a-f]{64}$",
             "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "credentials": {
+                  "properties": {
+                    "source": {
+                      "enum": [
+                        "deviceCode",
+                        "clientSecret",
+                        "clientCertificate"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                }
+              },
+              "required": [
+                "credentials"
+              ]
+            },
+            "then": {
+              "required": [
+                "tenantId"
+              ]
+            }
+          }
+        ]
       },
       "else": {
         "required": [

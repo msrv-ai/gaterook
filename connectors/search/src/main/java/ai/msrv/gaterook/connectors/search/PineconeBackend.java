@@ -83,6 +83,21 @@ final class PineconeBackend extends VectorBackend implements VectorConnector.Rec
   }
 
   @Override
+  String listNoun() {
+    return "index";
+  }
+
+  @Override
+  String listNouns() {
+    return "indexes";
+  }
+
+  @Override
+  String signedIn(ConnectionConfig cfg) {
+    return "Pinecone";
+  }
+
+  @Override
   ServiceHttp.Endpoint endpoint(ConnectionConfig cfg) {
     return new ServiceHttp.Endpoint(controlPlane, List.of());
   }

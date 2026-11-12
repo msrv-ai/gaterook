@@ -11,6 +11,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -651,6 +652,15 @@ final class VectorConnector implements Connector {
       return TestResult.failure(backend.type() + ".settings", e.getMessage(), null);
     }
     return backend.test(new Call(cfg, secrets, ctx));
+  }
+
+  /**
+   * Setup helpers: a store answering on its usual port of this computer, offered as its address; signed in, the
+   * collections the credentials see (Milvus's databases and Chroma's tenant and databases too).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return StoreSuggestions.suggest(backend, cfg, secrets, ctx, scope);
   }
 
   @Override

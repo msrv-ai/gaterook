@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.search;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connectors.support.Glob;
 import ai.msrv.gaterook.connectors.support.Pem;
@@ -65,6 +66,54 @@ abstract class StoreBackend implements AutoCloseable {
 
   /** What describe_connection says of the connection, without I/O. */
   abstract JsonNode describeConnection(ConnectionConfig cfg);
+
+  // ── Setup helpers ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /** What the connection's list names, one of them: {@code collection}, {@code index}. */
+  String listNoun() {
+    return listField().equals("indexes") ? "index" : "collection";
+  }
+
+  /** The same, several: {@code collections}, {@code indexes}. */
+  String listNouns() {
+    return listField();
+  }
+
+  /** The port a server of this type listens on by default, for the address offered when one runs here; 0: none. */
+  int localPort() {
+    return 0;
+  }
+
+  /** Who the credentials signed in to, for notes: {@code Qdrant at qdrant.example.com:6333}. */
+  String signedIn(ConnectionConfig cfg) {
+    try {
+      return name() + " at " + endpoint(cfg).target();
+    } catch (ConnectorException e) {
+      return name();
+    }
+  }
+
+  /** Why nothing can be offered for the connection's list when the credentials may not list it. */
+  String cannotList(ConnectionConfig cfg) {
+    return "These credentials may not list " + listNouns() + ", so none can be offered: name the ones agents may "
+        + "use.";
+  }
+
+  /**
+   * Local suggestions ({@code Suggestions.Scope.LOCAL}): a server of this type answering on its usual port of this
+   * computer, offered as its address and never filled in. A backend adds what this computer knows of its own.
+   */
+  void local(ConnectionConfig cfg, Suggestions.Builder out) {
+    if (localPort() > 0) {
+      StoreSuggestions.localUrl(out, name(), localPort());
+    }
+  }
+
+  /**
+   * Service suggestions, signed in as Test connection signs in: what the credentials see for the connection's list,
+   * and what else a backend lists. Reads only.
+   */
+  abstract void service(Call c, Suggestions.Builder out) throws ConnectorException;
 
   /** Drops what a backend keeps of a connection. */
   void forget(String connectionId) {}

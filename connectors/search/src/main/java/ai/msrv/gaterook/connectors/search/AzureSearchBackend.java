@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.search;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -13,6 +14,7 @@ import ai.msrv.gaterook.connectors.cloudauth.AzureSpec;
 import ai.msrv.gaterook.connectors.cloudauth.AzureTrust;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import java.net.URI;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -85,6 +87,7 @@ final class AzureSearchBackend extends SearchBackend {
   private final Object cloudLock = new Object();
   private CloudCredentials cloud;
   private boolean ownsCloud;
+  private volatile CloudLocal local;
 
   /** Without the core (tests of keys, tools): Entra ID tokens of the real endpoints, made on first use. */
   AzureSearchBackend() {
@@ -736,6 +739,92 @@ final class AzureSearchBackend extends SearchBackend {
       out.set("failed", failed);
     }
     return out;
+  }
+
+  // ── Setup helpers ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Tests: this computer's Azure CLI files elsewhere. */
+  AzureSearchBackend local(CloudLocal local) {
+    this.local = local;
+    return this;
+  }
+
+  private CloudLocal cloudLocal() {
+    CloudLocal own = local;
+    if (own != null) {
+      return own;
+    }
+    CloudCredentials current;
+    synchronized (cloudLock) {
+      current = cloud;
+    }
+    return new CloudLocal(current == null ? CloudEndpoints.PRODUCTION : current.endpoints());
+  }
+
+  @Override
+  String signedIn(ConnectionConfig cfg) {
+    try {
+      return configured(cfg).getHost();
+    } catch (ConnectorException e) {
+      return name();
+    }
+  }
+
+  @Override
+  String cannotList(ConnectionConfig cfg) {
+    return entra(cfg) ? "The identity may not list indexes (" + DEFINITIONS_ROLES + " may), so none can be offered: "
+        + "name the ones agents may use." : "A query key may not list indexes, so none can be offered: name the ones "
+        + "agents may use, or test an admin key to see them here.";
+  }
+
+  /**
+   * Local suggestions of an Entra ID sign-in: the tenants of the Azure CLI's subscriptions on this computer. The only
+   * one is filled in for a device sign-in or a service principal, which need one; the Azure CLI's own sign-in uses its
+   * default tenant when the field is empty, and a tenant would change the command the person allowed.
+   */
+  @Override
+  void local(ConnectionConfig cfg, Suggestions.Builder out) {
+    if (!entra(cfg)) {
+      return;
+    }
+    List<Suggestions.Option> tenants = cloudLocal().azureTenantOptions();
+    String source = cfg.string("/credentials/source");
+    boolean cli = source == null || source.equals(AzureSpec.Source.CLI.id());
+    out.value("/tenantId", "the Azure CLI's sign-in", !cli && tenants.size() == 1 ? tenants.getFirst().value() : null,
+        tenants);
+  }
+
+  /**
+   * Service suggestions: the indexes the credentials see. With Entra ID the token comes as for Test connection, but
+   * the Azure CLI runs only once the person allowed its command, and a device sign-in only once it happened: until
+   * then a note says so and nothing is listed.
+   */
+  @Override
+  void service(Call c, Suggestions.Builder out) throws ConnectorException {
+    if (entra(c.cfg())) {
+      AzureSpec spec = spec(c.cfg(), configured(c.cfg()));
+      if (spec.source() == AzureSpec.Source.CLI
+          && !cloud().azure().cliCommand(spec).fingerprint().equals(spec.trustedCli())) {
+        out.note("Indexes appear after Test connection: it asks you to allow the Azure CLI command first.");
+        return;
+      }
+      AzureCredentials.AccessToken token;
+      try {
+        token = token(c, spec);
+      } catch (ConnectorException e) {
+        if (spec.source() == AzureSpec.Source.DEVICE_CODE
+            && e.kind() == ConnectorException.Kind.RESOURCE_UNAVAILABLE) {
+          out.note("Indexes appear after Test connection signs you in with a code.");
+          return;
+        }
+        throw e;
+      }
+      if (token.account() != null) {
+        out.note("Signed in as " + token.account() + (token.tenantId() == null ? "" : " in tenant "
+            + token.tenantId()) + ".");
+      }
+    }
+    StoreSuggestions.offerList(this, c.cfg(), indexes(c), out);
   }
 
   // ── Test connection ─────────────────────────────────────────────────────────────────────────────────────────
