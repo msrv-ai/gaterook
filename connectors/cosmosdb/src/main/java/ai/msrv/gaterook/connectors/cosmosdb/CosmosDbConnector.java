@@ -13,11 +13,13 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.IntFunction;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
@@ -70,6 +73,8 @@ public final class CosmosDbConnector implements Connector {
   private final boolean plainLoopback;
   private final CosmosHttp http;
   private final ConnectorManifest manifest;
+  private final CloudLocal local;
+  private final IntFunction<CosmosSuggestions.Tls> emulator;
 
   /** A release build's connector: HTTPS only, to Azure's Cosmos DB hosts and the emulator. */
   public CosmosDbConnector() {
@@ -86,7 +91,15 @@ public final class CosmosDbConnector implements Connector {
    * setting: a person can't send a key or a token anywhere else.
    */
   CosmosDbConnector(boolean plainLoopback, URI testBase, URI testLogin) {
+    this(plainLoopback, testBase, testLogin, new CloudLocal(null), CosmosSuggestions::probe);
+  }
+
+  /** Tests: {@code local} reads another home folder, {@code emulator} stands in for the emulator's port. */
+  CosmosDbConnector(boolean plainLoopback, URI testBase, URI testLogin, CloudLocal local,
+      IntFunction<CosmosSuggestions.Tls> emulator) {
     this.plainLoopback = plainLoopback;
+    this.local = local;
+    this.emulator = emulator;
     this.http = new CosmosHttp(testBase, testLogin);
     SchemaResources schemas = SchemaResources.of(CosmosDbConnector.class, TYPE);
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -1268,6 +1281,25 @@ public final class CosmosDbConnector implements Connector {
       case "eventual" -> 1;
       default -> 0;
     };
+  }
+
+  /**
+   * The endpoint of a pasted connection string, the emulator and the Azure CLI's tenants on this computer; signed in,
+   * the databases and the containers of the allowed ones ({@link CosmosSuggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    if (scope != Suggestions.Scope.SERVICE) {
+      return CosmosSuggestions.local(cfg, secrets, plainLoopback, local, emulator);
+    }
+    try {
+      return CosmosSuggestions.service(cfg, secrets, ctx, http, plainLoopback);
+    } finally {
+      // A draft is asked about once: its token goes at once.
+      if (cfg.id().startsWith("draft-")) {
+        http.auth().evict(cfg.id());
+      }
+    }
   }
 
   @Override
