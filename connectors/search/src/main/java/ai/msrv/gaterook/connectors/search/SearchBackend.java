@@ -102,15 +102,24 @@ abstract class SearchBackend extends StoreBackend {
    */
   final List<ObjectNode> listed(ConnectionConfig cfg, ServiceHttp.Response response, ServiceHttp.Request r)
       throws ConnectorException {
+    return listed(cfg, response, r, "the key", "use a key that may list them");
+  }
+
+  /**
+   * {@link #listed}, worded for the credentials: {@code who} may not list indexes ({@code the key}), {@code fix} says
+   * how it could ({@code use a key that may list them}).
+   */
+  final List<ObjectNode> listed(ConnectionConfig cfg, ServiceHttp.Response response, ServiceHttp.Request r,
+      String who, String fix) throws ConnectorException {
     List<ObjectNode> out = new ArrayList<>();
     for (String name : cfg.strings("/indexes")) {
       if (!name.contains("*") && nameProblem(name) == null) {
-        out.add(F.objectNode().put("name", name).put("listedBy", "the connection: the key may not list indexes"));
+        out.add(F.objectNode().put("name", name).put("listedBy", "the connection: " + who + " may not list indexes"));
       }
     }
     if (out.isEmpty()) {
-      throw ConnectorException.denied(name() + " refused " + r.what() + " (" + response.status() + "): the key may "
-          + "not list indexes. Name the indexes agents may use under Indexes, or use a key that may list them.");
+      throw ConnectorException.denied(name() + " refused " + r.what() + " (" + response.status() + "): " + who
+          + " may not list indexes. Name the indexes agents may use under Indexes, or " + fix + ".");
     }
     return out;
   }

@@ -41,7 +41,15 @@ class ConfigSchemaTest {
       "typesense", List.of("{\"url\":\"https://xyz.a1.typesense.net\",\"apiKey\":\"s\"}"),
       "algolia", List.of("{\"applicationId\":\"ABCD1234EF\",\"apiKey\":\"s\",\"indexes\":[\"products\"]}"),
       "azure-ai-search", List.of("{\"endpoint\":\"https://contoso.search.windows.net\",\"apiKey\":\"s\"}",
-          "{\"endpoint\":\"https://gov-search.search.azure.us/\",\"apiKey\":\"s\",\"indexes\":[\"hotels\"]}"));
+          "{\"endpoint\":\"https://gov-search.search.azure.us/\",\"apiKey\":\"s\",\"indexes\":[\"hotels\"]}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"apiKey\",\"apiKey\":\"s\"}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
+              + "{\"source\":\"cli\"},\"trustedCli\":\"" + "ab".repeat(32) + "\"}",
+          "{\"endpoint\":\"https://cn-search.search.azure.cn\",\"auth\":\"entraId\",\"tenantId\":"
+              + "\"contoso.partner.onmschina.cn\",\"credentials\":{\"source\":\"clientSecret\",\"clientId\":"
+              + "\"0a1b2c3d-1111-4222-8333-444455556666\",\"clientSecret\":\"s\"},\"indexes\":[\"hotels\"]}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
+              + "{\"source\":\"deviceCode\"},\"apiKey\":\"left-from-the-key\"}"));
 
   private static final Map<String, List<String>> BAD = Map.of(
       "qdrant", List.of("{\"auth\":{\"method\":\"none\"}}", "{\"url\":\"qdrant:6333\",\"auth\":{\"method\":\"none\"}}",
@@ -54,7 +62,13 @@ class ConfigSchemaTest {
       "typesense", List.of("{\"url\":\"https://t.example.com\"}"),
       "algolia", List.of("{\"applicationId\":\"AB-CD\",\"apiKey\":\"s\"}"),
       "azure-ai-search", List.of("{\"endpoint\":\"https://contoso.example.com\",\"apiKey\":\"s\"}",
-          "{\"endpoint\":\"http://contoso.search.windows.net\",\"apiKey\":\"s\"}"));
+          "{\"endpoint\":\"http://contoso.search.windows.net\",\"apiKey\":\"s\"}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\"}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\"}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"entraId\",\"credentials\":"
+              + "{\"source\":\"clientSecret\",\"clientSecret\":\"s\"}}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"auth\":\"managedIdentity\",\"apiKey\":\"s\"}",
+          "{\"endpoint\":\"https://contoso.search.windows.net\",\"apiKey\":\"s\",\"cloud\":\"AzureUSGovernment\"}"));
 
   @Test
   void eachStoresSettingsPassAndIncompleteOnesDont() {

@@ -56,7 +56,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Entra ID access tokens for the Azure connectors, one per owner and audience ({@link Audience}): Resource Manager, Log
- * Analytics, Storage, Key Vault. Owned by {@link CloudCredentials#azure()}.
+ * Analytics, Storage, Key Vault, Service Bus, Azure AI Search. Owned by {@link CloudCredentials#azure()}.
  *
  * <ul>
  *   <li><b>Azure CLI</b>: {@code az account get-access-token --output json --resource <audience> [--tenant <t>]},
@@ -189,6 +189,7 @@ public final class AzureCredentials implements AutoCloseable {
       case STORAGE -> "azure.storage";
       case KEY_VAULT -> "azure.keyvault";
       case SERVICE_BUS -> "azure.servicebus";
+      case SEARCH -> "azure.search";
     };
   }
 

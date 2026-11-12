@@ -40,6 +40,17 @@ abstract class StoreBackend implements AutoCloseable {
   /** The headers that sign a request in, the secrets resolved and tainted; empty without credentials. */
   abstract Map<String, List<String>> auth(Call c) throws ConnectorException;
 
+  /**
+   * The headers that sign {@code r} in: {@link #auth(Call)}, the same for every request, unless a backend checks
+   * where each request goes first (Azure AI Search's Entra ID tokens).
+   */
+  Map<String, List<String>> auth(Call c, ServiceHttp.Request r) throws ConnectorException {
+    return auth(c);
+  }
+
+  /** What a backend does with an answer before it is read: Azure AI Search drops an Entra ID token refused with 401. */
+  void answered(Call c, ServiceHttp.Response r) {}
+
   /** The credential headers as an approver sees them: {@code api-key: ‹secret›}. */
   abstract List<String> authShown(ConnectionConfig cfg);
 
@@ -79,9 +90,11 @@ abstract class StoreBackend implements AutoCloseable {
     if (r.headers() != null) {
       headers.putAll(r.headers());
     }
-    headers.putAll(auth(c));
-    return ServiceHttp.send(c.ctx(), endpoint, new ServiceHttp.Request(r.method(), r.uri(), headers, r.body(),
-        r.what(), r.change()), maxBytes);
+    headers.putAll(auth(c, r));
+    ServiceHttp.Response response = ServiceHttp.send(c.ctx(), endpoint, new ServiceHttp.Request(r.method(), r.uri(),
+        headers, r.body(), r.what(), r.change()), maxBytes);
+    answered(c, response);
+    return response;
   }
 
   /** Sends {@code r} and returns its JSON answer; another status than 2xx is an error in the store's words. */
@@ -93,8 +106,11 @@ abstract class StoreBackend implements AutoCloseable {
     return ServiceHttp.json(response, r.what());
   }
 
-  /** An error answer as the exception the core counts, with the store's words. */
-  final ConnectorException failure(ConnectionConfig cfg, ServiceHttp.Request r, ServiceHttp.Response response) {
+  /**
+   * An error answer as the exception the core counts, with the store's words. Azure AI Search words 401 and 403 of an
+   * Entra ID sign-in itself: they name the roles the identity lacks.
+   */
+  ConnectorException failure(ConnectionConfig cfg, ServiceHttp.Request r, ServiceHttp.Response response) {
     String words = said(response);
     String text = name() + " refused " + r.what() + " (" + response.status() + ")"
         + (words == null ? "." : ": " + ServiceHttp.sentence(words));

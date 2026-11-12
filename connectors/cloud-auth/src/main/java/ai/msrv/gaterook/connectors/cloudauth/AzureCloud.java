@@ -11,16 +11,20 @@ import java.util.regex.Pattern;
  *
  * <p>Azure Government and Azure operated by 21Vianet (China) have their own sign-in authority, Resource Manager and
  * Log Analytics hosts; Storage and Service Bus tokens use one audience in every cloud, with the cloud's own host
- * suffix.
+ * suffix. Azure AI Search has an audience of its own in each cloud ({@code https://search.azure.com},
+ * {@code .azure.us}, {@code .azure.cn}) and its services under {@code search.windows.net}, {@code search.azure.us} and
+ * {@code search.azure.cn}.
  */
 public enum AzureCloud {
 
   AZURE_PUBLIC("AzureCloud", "login.microsoftonline.com", "management.azure.com", "api.loganalytics.io",
-      "core.windows.net", "vault.azure.net", "servicebus.windows.net"),
+      "core.windows.net", "vault.azure.net", "servicebus.windows.net", "search.windows.net", "search.azure.com"),
   AZURE_US_GOVERNMENT("AzureUSGovernment", "login.microsoftonline.us", "management.usgovcloudapi.net",
-      "api.loganalytics.us", "core.usgovcloudapi.net", "vault.usgovcloudapi.net", "servicebus.usgovcloudapi.net"),
+      "api.loganalytics.us", "core.usgovcloudapi.net", "vault.usgovcloudapi.net", "servicebus.usgovcloudapi.net",
+      "search.azure.us", "search.azure.us"),
   AZURE_CHINA("AzureChinaCloud", "login.chinacloudapi.cn", "management.chinacloudapi.cn",
-      "api.loganalytics.azure.cn", "core.chinacloudapi.cn", "vault.azure.cn", "servicebus.chinacloudapi.cn");
+      "api.loganalytics.azure.cn", "core.chinacloudapi.cn", "vault.azure.cn", "servicebus.chinacloudapi.cn",
+      "search.azure.cn", "search.azure.cn");
 
   /** What a token is for: its {@code aud}, the resource of {@code <audience>/.default}. */
   public enum Audience {
@@ -28,7 +32,8 @@ public enum AzureCloud {
     LOG_ANALYTICS("Log Analytics"),
     STORAGE("Azure Storage"),
     KEY_VAULT("Key Vault"),
-    SERVICE_BUS("Service Bus");
+    SERVICE_BUS("Service Bus"),
+    SEARCH("Azure AI Search");
 
     private final String title;
 
@@ -52,9 +57,11 @@ public enum AzureCloud {
   private final String storageSuffix;
   private final String keyVaultSuffix;
   private final String serviceBusSuffix;
+  private final String searchSuffix;
+  private final String searchResourceHost;
 
   AzureCloud(String id, String authorityHost, String armHost, String logAnalyticsHost, String storageSuffix,
-      String keyVaultSuffix, String serviceBusSuffix) {
+      String keyVaultSuffix, String serviceBusSuffix, String searchSuffix, String searchResourceHost) {
     this.id = id;
     this.authorityHost = authorityHost;
     this.armHost = armHost;
@@ -62,6 +69,8 @@ public enum AzureCloud {
     this.storageSuffix = storageSuffix;
     this.keyVaultSuffix = keyVaultSuffix;
     this.serviceBusSuffix = serviceBusSuffix;
+    this.searchSuffix = searchSuffix;
+    this.searchResourceHost = searchResourceHost;
   }
 
   /** {@code AzureCloud}, {@code AzureUSGovernment}, {@code AzureChinaCloud}: what the connection form stores. */
@@ -113,6 +122,28 @@ public enum AzureCloud {
     return serviceBusSuffix;
   }
 
+  /** {@code search.windows.net}: the Azure AI Search service suffix of the cloud. */
+  public String searchSuffix() {
+    return searchSuffix;
+  }
+
+  /**
+   * The cloud of an Azure AI Search service host ({@code contoso.search.windows.net}: one label under a cloud's
+   * {@link #searchSuffix}), or {@code null} for any other host.
+   */
+  public static AzureCloud ofSearchHost(String host) {
+    if (host == null) {
+      return null;
+    }
+    String h = host.toLowerCase(Locale.ROOT);
+    for (AzureCloud c : values()) {
+      if (oneLabelUnder(h, c.searchSuffix)) {
+        return c;
+      }
+    }
+    return null;
+  }
+
   /**
    * {@code <account>.blob.core.windows.net}: the host of one storage service of an account.
    *
@@ -145,7 +176,8 @@ public enum AzureCloud {
 
   /**
    * The resource a token is asked for ({@code <resource>/.default}). Resource Manager's ends in a slash, as Entra ID
-   * registers it; Storage and Service Bus use one resource in every cloud.
+   * registers it; Storage and Service Bus use one resource in every cloud; Azure AI Search's is the cloud's own
+   * ({@code https://search.azure.com}, {@code https://search.azure.us}, {@code https://search.azure.cn}).
    */
   public String resource(Audience audience) {
     return switch (audience) {
@@ -154,6 +186,7 @@ public enum AzureCloud {
       case STORAGE -> "https://storage.azure.com";
       case KEY_VAULT -> "https://" + keyVaultSuffix;
       case SERVICE_BUS -> "https://servicebus.azure.net";
+      case SEARCH -> "https://" + searchResourceHost;
     };
   }
 
@@ -166,9 +199,10 @@ public enum AzureCloud {
   /**
    * Whether a token for {@code audience} may be sent to {@code url}: HTTPS on port 443, no user info, and the host of
    * that audience in this cloud — Resource Manager and Log Analytics by exact name, a storage account
-   * ({@code <account>.blob.core.windows.net} and the other storage services), a vault ({@code <vault>.vault.azure.net})
-   * or a namespace ({@code <ns>.servicebus.windows.net}) by one label under the cloud's suffix. Code that other people deploy runs elsewhere ({@code azurewebsites.net},
-   * a custom domain), where a token would reach whoever deployed it.
+   * ({@code <account>.blob.core.windows.net} and the other storage services), a vault ({@code <vault>.vault.azure.net}),
+   * a namespace ({@code <ns>.servicebus.windows.net}) or a search service ({@code <service>.search.windows.net}) by one
+   * label under the cloud's suffix. Code that other people deploy runs elsewhere ({@code azurewebsites.net}, a custom
+   * domain), where a token would reach whoever deployed it.
    */
   public boolean accepts(Audience audience, URI url) {
     if (url == null || !"https".equalsIgnoreCase(url.getScheme()) || url.getRawUserInfo() != null) {
@@ -186,6 +220,7 @@ public enum AzureCloud {
       case STORAGE -> storageHost(h);
       case KEY_VAULT -> oneLabelUnder(h, keyVaultSuffix);
       case SERVICE_BUS -> oneLabelUnder(h, serviceBusSuffix);
+      case SEARCH -> oneLabelUnder(h, searchSuffix);
     };
   }
 

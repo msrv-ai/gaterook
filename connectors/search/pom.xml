@@ -3,7 +3,8 @@
   Vector databases and search engines (docs/vector-databases.md, docs/search-engines.md): Pinecone, Qdrant, Milvus and
   Zilliz Cloud, Weaviate and Chroma behind the vector_* tools; Algolia, Meilisearch, Typesense and Azure AI Search
   behind the search_* tools. Their REST APIs through the core's guarded egress, with no vendor SDK; reads run at once,
-  every write and delete waits for approval. Spring only in the .boot subpackage.
+  every write and delete waits for approval. Azure AI Search signs in with a key or with Microsoft Entra ID tokens of
+  the core's CloudCredentials. Spring only in the .boot subpackage.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -28,6 +29,12 @@
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
+    </dependency>
+    <!-- Entra ID tokens of Azure AI Search: AzureSpec, AzureCredentials, AzureTrust (Azure CLI, device code, service
+         principal). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-cloud-auth</artifactId>
     </dependency>
     <dependency>
       <groupId>tools.jackson.core</groupId>
