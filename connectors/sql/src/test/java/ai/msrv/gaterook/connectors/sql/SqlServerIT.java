@@ -109,6 +109,19 @@ class SqlServerIT {
   }
 
   @Test
+  void signedInTheUsersDefaultSchemaIsFilledInAndTheSchemasAreOffered() {
+    var s = connector.suggest(config(READER), secrets(READER), context(),
+        ai.msrv.gaterook.connector.api.Suggestions.Scope.SERVICE);
+
+    // Calls stop when Default schema differs from the user's, so it is filled in.
+    assertThat(s.fields().get("/advanced/defaultSchema").value()).isEqualTo("dbo");
+    assertThat(s.fields().get("/advanced/schemaAllowlist").options())
+        .extracting(ai.msrv.gaterook.connector.api.Suggestions.Option::value).contains("dbo");
+    assertThat(s.notes()).first().satisfies(n -> assertThat(n).startsWith("Signed in to " + DATABASE + " as "
+        + READER + " (SQL Server "));
+  }
+
+  @Test
   void connectsDiscoversAndInspectsReaderPermissions() {
     ConnectionConfig cfg = config(READER);
     var test = connector.test(cfg, secrets(READER), context());

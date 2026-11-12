@@ -56,19 +56,24 @@
           "type": "string",
           "title": "SSL mode",
           "enum": [
+            "auto",
             "disable",
             "require",
             "verify-ca",
             "verify-full"
           ],
-          "default": "verify-full",
+          "default": "auto",
+          "x-env-default": {
+            "prod": "verify-full"
+          },
           "x-enumTitles": [
+            "Auto (TLS when the server offers it, verified)",
             "Off (disable)",
             "Encrypt, don't verify (require)",
             "Verify the CA (verify-ca)",
             "Verify the CA and host name (verify-full)"
           ],
-          "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.",
+          "description": "Auto asks the server before signing in: when it offers TLS, the certificate and host name are verified as with verify-full; only a server without TLS gets an unencrypted connection. A certificate that fails verification is an error: add its CA below.",
           "x-section": "/advanced"
         },
         "caCertificate": {
@@ -76,7 +81,7 @@
           "title": "CA certificate (PEM)",
           "maxLength": 20000,
           "x-widget": "textarea",
-          "description": "Only for a private CA. Empty: the system trust store.",
+          "description": "Only for a private CA, with Auto, verify-ca or verify-full. Empty: the system trust store.",
           "x-section": "/advanced"
         }
       }
@@ -138,7 +143,8 @@
           "items": {
             "type": "string",
             "maxLength": 200
-          }
+          },
+          "description": "Only these schemas are available to agents. Empty: every schema the user may use."
         },
         "allowedFunctions": {
           "type": "array",
@@ -150,13 +156,14 @@
             "maxLength": 200,
             "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
           },
-          "description": "Your own functions that only read, as name or schema.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+          "description": "Your own functions that only read: a name for calls without a schema, schema.name for calls with one. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
         },
         "defaultSchema": {
           "type": "string",
           "title": "Default schema",
           "default": "public",
-          "maxLength": 63
+          "maxLength": 63,
+          "description": "Where table names without a schema resolve. Empty: public."
         },
         "connectTimeoutMs": {
           "type": "integer",
@@ -173,7 +180,7 @@
           "minLength": 1,
           "maxLength": 63,
           "pattern": "^[^\\u0000]+$",
-          "description": "Connect here to load the database list. Change this if your account cannot connect to postgres."
+          "description": "Connect here to load the database list. Change it when your account may not connect to postgres: template1 works on most servers."
         }
       }
     }

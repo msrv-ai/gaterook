@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PreparedAction;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
@@ -79,6 +80,19 @@ abstract class MysqlFamilyIT {
   ToolResult read(String user, String sql) throws ConnectorException {
     ConnectionConfig cfg = cfg(user, Env.DEV);
     return CONNECTOR.runRead(cfg, ConnectionSettings.of(cfg, true), secrets(user), ctx(), BoundSql.plain(sql), 100);
+  }
+
+  // ── Setup helpers ───────────────────────────────────────────────────────────────────────────────────────
+
+  @Test
+  void signedInTheDatabasesTheUserMayUseAreOfferedForTheAllowlist() {
+    Suggestions s = CONNECTOR.suggest(cfg("ro", Env.DEV), secrets("ro"), ctx(), Suggestions.Scope.SERVICE);
+
+    assertThat(s.fields().get("/advanced/schemaAllowlist").options()).extracting(Suggestions.Option::value)
+        .contains("app").doesNotContain("secret_stuff", "mysql", "information_schema");
+    // app.f_write declares MODIFIES SQL DATA: it isn't offered as a function reads may call.
+    assertThat(s.fields()).doesNotContainKey("/advanced/allowedFunctions");
+    assertThat(s.notes()).singleElement().satisfies(n -> assertThat(n).startsWith("Signed in as ro@"));
   }
 
   // ── The guarantee ───────────────────────────────────────────────────────────────────────────────────────

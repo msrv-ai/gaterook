@@ -14,6 +14,15 @@
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.sql.query-writes"}
     },
     {
+      "name": "postgres-auto-tls-refused",
+      "connection": {"type": "postgres", "env": "dev",
+        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "app", "sslMode": "auto"},
+                   "credentials": {"user": "gw_reader"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "sql.refused"}
+    },
+    {
       "name": "mysql-driver-refused",
       "connection": {"type": "mysql", "env": "dev",
         "config": {"connection": {"host": "127.0.0.1", "port": 1, "sslMode": "disable"},

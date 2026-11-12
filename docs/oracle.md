@@ -6,7 +6,7 @@ The built-in **Oracle Database** connector uses JDBC Thin to connect to Oracle D
 
 ## Connect
 
-Choose **Oracle Database** in **Connections → Add connection**. Enter the listener host and port, the service name and the database user and password. For example, use `oracle.example.test`, port `1521` and service `orders.example.test`. The service name is stored in `connection.database`; one connection reaches one service. SID connections, TNS aliases and Oracle wallets are not supported.
+Choose **Oracle Database** in **Connections → Add connection**. Enter the listener host and port, the service name and the database user and password; the password is required, because Oracle refuses a sign-in without one. For example, use `oracle.example.test`, port `1521` and service `orders.example.test`. The service name is stored in `connection.database`; one connection reaches one service. SID connections, TNS aliases and Oracle wallets are not supported. The form offers `localhost` for the host when a listener answers on port 1521 of this computer, and once the user signs in, it offers the schemas with tables the user may read for **Default schema** and the schema allowlist.
 
 Under **Advanced**, select the transport that matches the listener. The default, **Verify the CA and host name**, uses TCPS and requires a TLS listener on the chosen port. **Verify the CA** also uses TCPS. Supply a private CA certificate in PEM format when needed; otherwise the driver uses the system trust store. **Off** uses unencrypted TCP.
 
