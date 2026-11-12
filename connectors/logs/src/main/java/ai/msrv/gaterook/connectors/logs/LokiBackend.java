@@ -251,7 +251,7 @@ final class LokiBackend implements Backend {
             "This token can push logs. Use a read-only token (Grafana Cloud scope logs:read) for prod."));
       }
     } catch (ConnectorException e) {
-      return probe.failure(e);
+      return probe.failure(e, "/caCertificate");
     }
     hints.addAll(Probe.transport(s.base(), s.auth(), call.cfg().env()));
     TestResult result = TestResult.success(dataMs, "Loki " + version, s.tenant() == null ? "no tenant"
@@ -275,6 +275,21 @@ final class LokiBackend implements Backend {
       return HealthResult.healthy((System.nanoTime() - started) / 1_000_000);
     } catch (ConnectorException e) {
       return HealthResult.unreachable(e.getMessage());
+    }
+  }
+
+  /** The version {@code buildinfo} reports, or {@code null} when this Loki (or a gateway in front) doesn't say. */
+  String version() throws ConnectorException {
+    Http.Response r = get(s.base() + "/loki/api/v1/status/buildinfo");
+    if (!r.ok() || r.body().isBlank()) {
+      return null;
+    }
+    try {
+      JsonNode info = JSON.readTree(r.body());
+      String v = info == null ? "" : info.path("version").asString("");
+      return v.isBlank() ? null : v;
+    } catch (JacksonException e) {
+      return null;
     }
   }
 

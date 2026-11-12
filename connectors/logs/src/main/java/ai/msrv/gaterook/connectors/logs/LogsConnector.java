@@ -13,11 +13,13 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Clock;
@@ -50,6 +52,7 @@ public final class LogsConnector implements Connector {
 
   private final ConnectorManifest manifest;
   private final CloudCredentials cloud;
+  private final CloudLocal local;
   private final Clock clock;
   private final Clients clients = new Clients();
   /**
@@ -66,7 +69,13 @@ public final class LogsConnector implements Connector {
   }
 
   public LogsConnector(CloudCredentials cloud, Clock clock) {
+    this(cloud, clock, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** For tests: what the cloud CLIs of another home folder and environment know ({@link CloudLocal}). */
+  LogsConnector(CloudCredentials cloud, Clock clock, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.clock = Objects.requireNonNull(clock, "clock");
     SchemaResources schemas = SchemaResources.of(LogsConnector.class, "logs");
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -183,6 +192,15 @@ public final class LogsConnector implements Connector {
       return TestResult.failure("logs.config", e.getMessage(), null);
     }
     return backend(s, cfg, secrets, ctx).test();
+  }
+
+  /**
+   * Setup helpers for every backend ({@link LogsSuggestions}): local files and a server on this computer while the
+   * form is typed, and once it signs in what the account may read (log groups, indices, log views, workspaces).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return LogsSuggestions.suggest(cfg, secrets, ctx, scope, cloud, local);
   }
 
   @Override

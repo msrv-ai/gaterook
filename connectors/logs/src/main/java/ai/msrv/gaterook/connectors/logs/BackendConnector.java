@@ -10,15 +10,18 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Clock;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -36,11 +39,16 @@ public final class BackendConnector implements Connector {
   }
 
   public BackendConnector(String type, CloudCredentials cloud, Clock clock) {
+    this(type, cloud, clock, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** For tests: what the cloud CLIs of another home folder and environment know ({@link CloudLocal}). */
+  BackendConnector(String type, CloudCredentials cloud, Clock clock, CloudLocal local) {
     if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch", "elasticsearch", "azure-monitor").contains(type)) {
       throw new IllegalArgumentException("Unknown log or search service: " + type);
     }
     this.type = type;
-    this.delegate = new LogsConnector(cloud, clock);
+    this.delegate = new LogsConnector(cloud, clock, local);
     ConnectorManifest shared = delegate.manifest();
     String name = switch (type) {
       case "gcp-logging" -> "GCP Cloud Logging";
@@ -125,6 +133,13 @@ public final class BackendConnector implements Connector {
     } catch (ConnectorException e) {
       return TestResult.failure("config", e.getMessage(), null);
     }
+  }
+
+  /** The shared setup helpers, by this service's backend ({@link LogsSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope)
+      throws ConnectorException {
+    return delegate.suggest(configuration(cfg), secrets, ctx, scope);
   }
 
   @Override

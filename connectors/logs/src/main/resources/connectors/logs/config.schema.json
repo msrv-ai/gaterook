@@ -103,14 +103,15 @@
           "examples": [
             "http://loki.dev.internal:3100"
           ],
-          "description": "Base URL; Grafana Cloud: https://logs-prod-XXX.grafana.net"
+          "description": "Loki's base URL with http:// or https://; Grafana Cloud: https://logs-prod-XXX.grafana.net."
         },
         "tenant": {
           "type": "string",
           "maxLength": 150,
           "pattern": "^[A-Za-z0-9!._*'()|-]*$",
           "title": "Tenant (X-Scope-OrgID)",
-          "description": "Empty for single-tenant Loki. Several: team-a|team-b"
+          "description": "The X-Scope-OrgID your log shippers send; several: team-a|team-b. Empty for single-tenant Loki and Grafana Cloud.",
+          "x-advanced": false
         },
         "auth": {
           "type": "object",
@@ -203,7 +204,7 @@
           "maxLength": 20000,
           "x-widget": "textarea",
           "title": "CA certificate (PEM)",
-          "description": "Only for a private CA."
+          "description": "PEM of the CA that signed Loki's certificate. Empty: the CAs this computer trusts."
         }
       }
     },
@@ -245,7 +246,8 @@
               "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
               "examples": [
                 "gw-reader@acme-prod.iam.gserviceaccount.com"
-              ]
+              ],
+              "description": "A service account whose short-lived token GateRook uses. Empty: the sign-in or key itself."
             },
             "delegates": {
               "type": "array",
@@ -310,7 +312,8 @@
             ],
             "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
           },
-          "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope."
+          "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope.",
+          "x-suggest": true
         },
         "scopeFilter": {
           "type": "string",
@@ -318,7 +321,8 @@
           "title": "Always add this filter",
           "examples": [
             "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"app\""
-          ]
+          ],
+          "description": "A Logging query filter every search and tail adds with AND. Empty: all entries of the scopes above."
         },
         "quotaPerMinute": {
           "type": "integer",
@@ -348,7 +352,8 @@
           "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
           "examples": [
             "eu-central-1"
-          ]
+          ],
+          "description": "The region of the log groups, like eu-central-1."
         },
         "logGroups": {
           "type": "array",
@@ -356,6 +361,8 @@
           "minItems": 1,
           "maxItems": 50,
           "uniqueItems": true,
+          "description": "Names or ARNs of the log groups agents may read.",
+          "x-suggest": true,
           "items": {
             "type": "string",
             "maxLength": 2048,
@@ -541,7 +548,8 @@
                     "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
                     "examples": [
                       "eu-central-1"
-                    ]
+                    ],
+                    "description": "The region of the domain or collection; its address names it."
                   },
                   "awsService": {
                     "title": "AWS service",
@@ -622,7 +630,7 @@
           "maxLength": 20000,
           "x-widget": "textarea",
           "title": "CA certificate (PEM)",
-          "description": "Only for a private CA.",
+          "description": "PEM of the CA that signed the server's certificate, such as a demo setup's root-ca.pem. Empty: the CAs this computer trusts.",
           "x-section": "/advanced"
         },
         "advanced": {
@@ -652,6 +660,7 @@
             "properties": {
               "indices": {
                 "$ref": "#/$defs/openSearchLogIndices",
+                "x-suggest": true,
                 "items": {
                   "type": "string",
                   "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
@@ -701,7 +710,8 @@
           "examples": [
             "contoso.onmicrosoft.com"
           ],
-          "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+          "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant.",
+          "x-advanced": false
         },
         "credentials": {
           "type": "object",
@@ -821,7 +831,8 @@
               "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
             ]
           ],
-          "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query."
+          "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query. Name at least one workspace or component.",
+          "x-advanced": false
         },
         "applicationInsights": {
           "type": "array",
@@ -839,9 +850,40 @@
               "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
             ]
           ],
-          "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+          "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Name at least one workspace or component.",
+          "x-advanced": false
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "credentials"
+            ],
+            "properties": {
+              "credentials": {
+                "required": [
+                  "source"
+                ],
+                "properties": {
+                  "source": {
+                    "enum": [
+                      "deviceCode",
+                      "clientSecret",
+                      "clientCertificate"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "tenantId"
+            ]
+          }
+        }
+      ]
     }
   ],
   "$defs": {
@@ -889,12 +931,14 @@
           "examples": [
             "arn:aws:iam::123456789012:role/gw-readonly"
           ],
-          "title": "Assume role ARN"
+          "title": "Assume role ARN",
+          "description": "A role GateRook assumes for short sessions. Empty: the access key or profile signs requests itself."
         },
         "externalId": {
           "type": "string",
           "maxLength": 1224,
-          "title": "External ID"
+          "title": "External ID",
+          "description": "The external ID the role's trust policy asks for, if any."
         },
         "sessionSeconds": {
           "type": "integer",
