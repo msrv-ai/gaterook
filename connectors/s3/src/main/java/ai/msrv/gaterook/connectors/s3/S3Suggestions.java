@@ -103,6 +103,9 @@ final class S3Suggestions {
     boolean fromProfile = "profile".equals(text(cfg, "/credentials/source"));
     String profile = fromProfile ? text(cfg, PROFILE) : null;
     local.aws(out, fromProfile ? PROFILE : null, profile, false, REGION);
+    if (!fromProfile) {
+      local.preferAwsProfile(out, "/credentials/source", text(cfg, "/credentials/accessKeyId") != null);
+    }
     if (fromProfile) {
       if (local.awsProfiles().isEmpty()) {
         out.note("There are no AWS profiles on this computer: run aws configure, or choose Access key.");

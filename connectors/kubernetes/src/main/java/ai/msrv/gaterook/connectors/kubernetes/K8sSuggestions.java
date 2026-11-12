@@ -36,6 +36,12 @@ final class K8sSuggestions {
 
   static Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx,
       Suggestions.Scope scope, K8sClients clients) {
+    return suggest(cfg, secrets, ctx, scope, clients, defaultFile());
+  }
+
+  /** {@code homeConfig}: the kubeconfig this computer uses by default ({@code ~/.kube/config}). */
+  static Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx,
+      Suggestions.Scope scope, K8sClients clients, Path homeConfig) {
     Suggestions.Builder out = Suggestions.builder();
     String auth = text(cfg, "/auth");
     String chosen = text(cfg, "/context");
@@ -63,7 +69,10 @@ final class K8sSuggestions {
           }
         }
       }
-      default -> servers(out);
+      default -> {
+        servers(homeConfig, out);
+        signInWithFile(cfg, secrets, homeConfig, out);
+      }
     }
     if (kc != null) {
       contexts(cfg, kc, "kubeconfig-file".equals(auth), chosen, source, out);
@@ -107,8 +116,7 @@ final class K8sSuggestions {
   }
 
   /** For a token: the API servers the kubeconfig of this computer knows, with the contexts that use them. */
-  private static void servers(Suggestions.Builder out) {
-    Path path = defaultFile();
+  private static void servers(Path path, Suggestions.Builder out) {
     if (!Files.isRegularFile(path)) {
       return;
     }
@@ -119,6 +127,26 @@ final class K8sSuggestions {
       out.options("/server", KUBECONFIG_SOURCE, options);
     } catch (ConnectorException e) {
       // No suggestion from a kubeconfig that doesn't parse: the person types the server.
+    }
+  }
+
+  /**
+   * A draft with nothing of a token yet (no API server, no token typed) signs in with the kubeconfig of this computer
+   * when it has contexts: Sign in with takes the kubeconfig file, as the form fills in a field still at its default
+   * and keeps a mode the person chose, and the next suggestion fills in the file's current context.
+   */
+  private static void signInWithFile(ConnectionConfig cfg, SecretResolver secrets, Path path,
+      Suggestions.Builder out) {
+    if (text(cfg, "/server") != null || (secrets != null && secrets.isSet(K8sSettings.TOKEN))
+        || !Files.isRegularFile(path)) {
+      return;
+    }
+    try {
+      if (!Kubeconfig.file(path).contexts().isEmpty()) {
+        out.value("/auth", KUBECONFIG_SOURCE, "kubeconfig-file", List.of());
+      }
+    } catch (ConnectorException e) {
+      // A kubeconfig that doesn't parse: the person chooses how to sign in.
     }
   }
 

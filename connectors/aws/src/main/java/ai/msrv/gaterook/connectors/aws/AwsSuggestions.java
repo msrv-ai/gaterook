@@ -75,6 +75,9 @@ final class AwsSuggestions {
     boolean fromProfile = "profile".equals(text(cfg, "/credentials/source"));
     String profile = fromProfile ? text(cfg, PROFILE) : null;
     local.aws(out, fromProfile ? PROFILE : null, profile, true, REGIONS);
+    if (!fromProfile) {
+      local.preferAwsProfile(out, "/credentials/source", text(cfg, "/credentials/accessKeyId") != null);
+    }
     if (fromProfile) {
       profileNotes(local, cloud, profile, out);
     }

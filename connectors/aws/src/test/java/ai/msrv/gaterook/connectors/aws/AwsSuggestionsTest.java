@@ -137,10 +137,16 @@ class AwsSuggestionsTest {
   @Test
   void theProfilesAreOfferedAndThePreferredOneFilledInOnlyForAProfileSource() {
     Suggestions key = local("{\"regions\":[],\"credentials\":{\"source\":\"accessKey\"}}");
-    // An access key: the profile isn't the form's business, the CLI's default region still is.
+    // The default source with no key typed: this computer's profiles sign in, the source takes them.
     assertThat(key.fields()).doesNotContainKey(AwsSuggestions.PROFILE);
+    assertThat(key.fields().get("/credentials/source").value()).isEqualTo("profile");
+    assertThat(key.fields().get("/credentials/source").source()).isEqualTo("~/.aws/config");
     assertThat(key.fields().get("/regions").value()).isEqualTo("eu-central-1");
     assertThat(key.fields().get("/regions").source()).isEqualTo("~/.aws/config");
+    // An access key ID typed: the person signs in with a key, the source stays.
+    Suggestions typed = local("{\"regions\":[],\"credentials\":{\"source\":\"accessKey\","
+        + "\"accessKeyId\":\"AKIAIOSFODNN7EXAMPLE\"}}");
+    assertThat(typed.fields()).doesNotContainKey("/credentials/source").doesNotContainKey(AwsSuggestions.PROFILE);
 
     Suggestions profile = local("{\"regions\":[],\"credentials\":{\"source\":\"profile\"}}");
     Suggestions.Field p = profile.fields().get(AwsSuggestions.PROFILE);

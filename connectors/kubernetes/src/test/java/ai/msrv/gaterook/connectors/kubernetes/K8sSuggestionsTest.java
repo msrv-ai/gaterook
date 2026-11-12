@@ -120,6 +120,29 @@ class K8sSuggestionsTest {
   }
 
   @Test
+  void aNewDraftSignsInWithThisComputersKubeconfigWhileNothingOfATokenIsTyped() throws Exception {
+    Path home = kubeconfig("kind-dev");
+
+    // The default mode with nothing typed: Sign in with takes the kubeconfig file, beside the servers it knows.
+    Suggestions fresh = K8sSuggestions.suggest(draft("{\"auth\":\"token\"}"), secrets(Map.of()), ctx(Env.DEV),
+        Suggestions.Scope.LOCAL, null, home);
+    assertThat(fresh.fields().get("/auth").value()).isEqualTo("kubeconfig-file");
+    assertThat(fresh.fields().get("/auth").source()).isEqualTo(K8sSuggestions.KUBECONFIG_SOURCE);
+    assertThat(fresh.fields().get("/server").options()).extracting(Option::value)
+        .contains("https://k8s.prod.example.test:6443");
+
+    // An API server or a token typed says the person signs in with a token: no switch.
+    assertThat(K8sSuggestions.suggest(draft("{\"auth\":\"token\",\"server\":\"https://k8s.example.test\"}"),
+        secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.LOCAL, null, home).fields()).doesNotContainKey("/auth");
+    assertThat(K8sSuggestions.suggest(draft("{\"auth\":\"token\"}"), secrets(Map.of(K8sSettings.TOKEN, TOKEN)),
+        ctx(Env.DEV), Suggestions.Scope.LOCAL, null, home).fields()).doesNotContainKey("/auth");
+    // No kubeconfig on this computer: nothing to switch to.
+    assertThat(K8sSuggestions.suggest(draft("{\"auth\":\"token\"}"), secrets(Map.of()), ctx(Env.DEV),
+        Suggestions.Scope.LOCAL, null, dir.resolve("none")).fields()).isEmpty();
+    assertThat(api.requests).isEmpty();
+  }
+
+  @Test
   void aMissingFileIsANoteNotAnError() {
     Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\""
         + dir.resolve("nope") + "\"}"), secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.LOCAL);

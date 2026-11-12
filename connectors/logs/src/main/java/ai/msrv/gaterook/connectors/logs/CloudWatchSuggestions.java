@@ -31,10 +31,8 @@ final class CloudWatchSuggestions {
     String source = Optional.ofNullable(LogsSuggestions.text(c, "/credentials/source")).orElse("accessKey");
     String profile = LogsSuggestions.text(c, "/credentials/profile");
     local.aws(out, "/credentials/profile", profile, false, "/region");
-    int profiles = local.awsProfiles().size();
-    if (!source.equals("profile") && LogsSuggestions.text(c, "/credentials/accessKeyId") == null && profiles > 0) {
-      out.note("Found " + LogsSuggestions.count(profiles, "profile", "profiles") + " in ~/.aws/config: choose AWS "
-          + "profile under Credential source to sign in with one.");
+    if (!source.equals("profile")) {
+      local.preferAwsProfile(out, "/credentials/source", LogsSuggestions.text(c, "/credentials/accessKeyId") != null);
     }
     if (source.equals("profile") && profile != null) {
       // Only the profile is read; a valid region is all the spec needs to say what's wrong with it.

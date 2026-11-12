@@ -120,8 +120,9 @@ class CloudWatchSuggestionsTest {
     assertThat(withKey.fields().get("/credentials/profile").value()).isEqualTo("default");
     assertThat(withKey.fields().get("/credentials/profile").options()).extracting(Option::value)
         .containsExactlyInAnyOrder("default", "logs-dev", "sso-dev", "tool").first().isEqualTo("default");
-    assertThat(withKey.notes()).containsExactly("Found 4 profiles in ~/.aws/config: choose AWS profile under "
-        + "Credential source to sign in with one.");
+    // No access key ID typed yet: the credential source takes this computer's profiles.
+    assertThat(withKey.fields().get("/credentials/source").value()).isEqualTo("profile");
+    assertThat(withKey.notes()).isEmpty();
     assertThat(withProfile.fields().get("/region").value()).isEqualTo("eu-central-1");
     assertThat(withProfile.notes()).isEmpty();
     assertThat(requests).isEmpty();

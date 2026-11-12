@@ -74,6 +74,20 @@ class CloudLocalTest {
   }
 
   @Test
+  void aNewAwsDraftWithoutAKeyTakesThisComputersProfiles() throws IOException {
+    CloudLocal local = local(Map.of());
+    Suggestions.Field source = local.preferAwsProfile(Suggestions.builder(), "/credentials/source", false).build()
+        .fields().get("/credentials/source");
+    assertThat(source.value()).isEqualTo("profile");
+    assertThat(source.source()).isEqualTo("~/.aws/config");
+    // An access key ID typed, or no profile on this computer: the source stays as it is.
+    assertThat(local.preferAwsProfile(Suggestions.builder(), "/credentials/source", true).build().fields()).isEmpty();
+    CloudLocal none = new CloudLocal(new CloudEndpoints(null, null, home.resolve("none.json"), null,
+        home.resolve("none-config"), home.resolve("none-credentials")), Map.<String, String>of()::get, home);
+    assertThat(none.preferAwsProfile(Suggestions.builder(), "/credentials/source", false).build().fields()).isEmpty();
+  }
+
+  @Test
   void anEnvironmentRegionStandsInForAProfileWithout() throws IOException {
     CloudLocal local = local(Map.of("AWS_REGION", "ap-south-1"));
     assertThat(local.awsRegion("noregion")).isEqualTo("ap-south-1");

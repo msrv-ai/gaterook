@@ -145,6 +145,18 @@ public final class CloudLocal {
     return out;
   }
 
+  /**
+   * A new AWS draft with no access key ID typed signs in with a profile of this computer when there is one: its
+   * credential source takes {@code profile} (the form switches a source still at its default and keeps one the person
+   * chose), and the next suggestion fills in the profile the AWS CLI would use.
+   */
+  public Suggestions.Builder preferAwsProfile(Suggestions.Builder out, String sourcePointer, boolean keyTyped) {
+    if (!keyTyped && !awsProfiles().isEmpty()) {
+      out.value(sourcePointer, "~/.aws/config", "profile", List.of());
+    }
+    return out;
+  }
+
   private ProfileFile awsFile() {
     if (endpoints.awsConfigFile() == null && endpoints.awsCredentialsFile() == null) {
       return ProfileFile.defaultProfileFile();

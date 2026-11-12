@@ -55,6 +55,9 @@ final class DynamoSuggestions {
     String profile = fromProfile ? text(cfg, PROFILE) : null;
     local.aws(out, fromProfile ? PROFILE : null, profile, false, REGION);
     if (!fromProfile) {
+      local.preferAwsProfile(out, "/credentials/source", text(cfg, "/credentials/accessKeyId") != null);
+    }
+    if (!fromProfile) {
       return;
     }
     if (local.awsProfiles().isEmpty()) {
