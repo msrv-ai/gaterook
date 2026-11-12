@@ -37,6 +37,7 @@ class AccessSuggestionsTest {
       assertThat(file.value()).as(scope.name()).isNull();
       assertThat(file.options()).singleElement().satisfies(o -> {
         assertThat(o.value()).isEqualTo(AccessSuggestions.shown(orders));
+        assertThat(o.label()).isEqualTo(orders.getFileName().toString());
         assertThat(o.detail()).isEqualTo("ACE (.accdb)");
       });
       assertThat(s.notes()).singleElement().satisfies(n -> assertThat(n).endsWith("doesn't exist on this "

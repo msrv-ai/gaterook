@@ -559,7 +559,7 @@ describe('setup helpers', () => {
     expect(core.suggestRequests[0]).toMatchObject({ type: 'postgres', env: 'dev', scope: 'local' });
     expect(core.suggestRequests[0].existing).toBeUndefined();
     const line = p.q('#cf-connection-host-found-line')!;
-    expect(text(line)).toContain('Found in this computer:');
+    expect(text(line)).toContain('Found on this computer:');
     p.button('localhost', line).click();
     await p.settle();
     expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('localhost');

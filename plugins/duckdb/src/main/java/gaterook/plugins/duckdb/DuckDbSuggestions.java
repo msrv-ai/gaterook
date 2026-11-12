@@ -65,7 +65,7 @@ final class DuckDbSuggestions {
     for (Path p : entries) {
       if (databases.size() < MAX_OPTIONS && Files.isRegularFile(p) && DATABASES.contains(extension(p))
           && duckDb(p) && !gaterooks(p, home)) {
-        databases.add(new Option(shown(p), null, p.equals(path) ? "chosen" : null));
+        databases.add(new Option(shown(p), p.getFileName().toString(), p.equals(path) ? "chosen" : null));
       }
     }
     out.options(FILE, "this computer", databases);
@@ -93,7 +93,7 @@ final class DuckDbSuggestions {
         looked++;
         String files = dataFiles(entries(p, MAX_FOLDER_ENTRIES));
         if (files != null) {
-          folders.add(new Option(shown(p), null, files));
+          folders.add(new Option(shown(p), p.getFileName() + "/", files));
         }
       }
     }

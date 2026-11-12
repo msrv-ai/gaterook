@@ -148,19 +148,30 @@ export class GwSchemaField {
     return this.node().kind === 'tags' ? this.form().offered(this.node()) : (this.suggestion()?.options ?? []);
   }
 
-  /** "Found in your kubeconfig:" before the values; "Filled in from …" when one was put into the field. */
+  /**
+   * "Found in your kubeconfig:" ("Found on this computer:") before the values; "Filled in from …" when one was put
+   * into the field.
+   */
   protected suggestLead(): string {
     const source = this.suggestion()?.source ?? 'what GateRook found';
+    const where = /^(this computer|the server)\b/.test(source) ? `on ${source}` : `in ${source}`;
     const others = this.chips().length > 0;
     if (this.form().wasFilled(this.node())) {
       const from = this.form().filledFrom(this.node()) ?? source;
-      return others ? `Filled in from ${from}. Also found in ${source}:` : `Filled in from ${from}.`;
+      return others ? `Filled in from ${from}. Also found ${where}:` : `Filled in from ${from}.`;
     }
-    return this.node().kind === 'tags' ? `Add from ${source}:` : `Found in ${source}:`;
+    return this.node().kind === 'tags' ? `Add from ${source}:` : `Found ${where}:`;
   }
 
   protected showSuggestLine(): boolean {
     return this.chips().length > 0 || this.form().wasFilled(this.node());
+  }
+
+  /** The tooltip: the detail, and the whole value when the chip shows a label or may cut a long value short. */
+  protected chipTitle(option: { readonly value: string; readonly label: string | null; readonly detail: string | null }):
+    string | null {
+    const whole = option.label != null || option.value.length > 40 ? option.value : null;
+    return [whole, option.detail].filter((s) => !!s).join(' · ') || null;
   }
 
   protected chipLabel(option: { readonly value: string; readonly label: string | null }): string {

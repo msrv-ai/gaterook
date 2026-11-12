@@ -797,12 +797,24 @@ export function cleanValue(form: CompiledForm, model: JsonObject, filled: Readon
   return isObject(cleaned) ? cleaned : {};
 }
 
-/** "Schema allowlist" → "schema": the noun the tag buttons name ("Remove schema public", "Add schema"). */
+/**
+ * The noun the tag buttons, placeholder and messages name ("Remove schema public", "Add a data folder"): the items'
+ * own title, else the list's title up to its first plural word, made singular ("Data folders" → "data folder", "Base
+ * URLs" → "base URL", "Keys the agent may access" → "key"), else its first word ("Schema allowlist" → "schema").
+ */
 export function tagNoun(node: SchemaNode): string {
   const items = node.schema['items'];
   const title = isObject(items) ? str(items['title']) : null;
   if (title) return title.toLowerCase();
-  return (node.title.split(/\s+/)[0] ?? 'value').toLowerCase().replace(/s$/, '');
+  const words = node.title.split(/\s+/).filter((w) => w.length > 0);
+  const plural = words.findIndex((w) => /^[A-Za-z]+s$/.test(w) && !/(ss|us|is)$/i.test(w));
+  const phrase = (plural >= 0 ? words.slice(0, plural + 1) : words.slice(0, 1)).map((w, i) => {
+    const word = /^[A-Z0-9]{2,}s?$/.test(w) ? w : w.toLowerCase(); // URLs, GET, IPs keep their capitals
+    if (i !== plural) return word;
+    if (/ies$/.test(word)) return `${word.slice(0, -3)}y`;
+    return /(ss|ch|sh|x|z|us)es$/.test(word) ? word.slice(0, -2) : word.slice(0, -1);
+  });
+  return phrase.join(' ') || 'value';
 }
 
 /** The example a number error offers ("Enter a whole number, for example 5432"). */

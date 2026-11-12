@@ -49,10 +49,13 @@ class DuckDbSuggestionsTest {
       assertThat(file.value()).as(scope.name()).isNull();
       assertThat(file.options()).extracting(Option::value).containsExactly(
           DuckDbSuggestions.shown(project.resolve("archive.duckdb")), DuckDbSuggestions.shown(warehouse));
+      // The chips name the files of the typed folder; the whole path is what the field gets.
+      assertThat(file.options()).extracting(Option::label).containsExactly("archive.duckdb", "warehouse.duckdb");
       Suggestions.Field folders = s.fields().get(DuckDbSuggestions.FOLDERS);
       assertThat(folders.value()).isNull();
       assertThat(folders.options()).singleElement().satisfies(o -> {
         assertThat(o.value()).isEqualTo(DuckDbSuggestions.shown(data));
+        assertThat(o.label()).isEqualTo(data.getFileName() + "/");
         assertThat(o.detail()).isEqualTo("1 Parquet file, 2 CSV files");
       });
       assertThat(s.notes()).containsExactly("Data files next to warehouse.duckdb (1 CSV file) can't be read from its "

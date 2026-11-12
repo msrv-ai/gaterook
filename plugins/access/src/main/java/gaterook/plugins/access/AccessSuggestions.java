@@ -70,7 +70,7 @@ final class AccessSuggestions {
       }
       try {
         Path real = AccessFiles.database(p.toString(), home);
-        options.add(new Option(shown(p), null, AccessFiles.format(real)));
+        options.add(new Option(shown(p), p.getFileName().toString(), AccessFiles.format(real)));
       } catch (ConnectorException e) {
         // Not an Access database, too large, or GateRook's own: not offered.
       }

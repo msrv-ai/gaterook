@@ -21,7 +21,7 @@
   <ng-template #suggestLine>
     @if (showSuggestLine()) {
       <p class="gw-field__hint" [id]="id + '-found-line'">{{ suggestLead() }}@for (o of chips(); track o.value; let last = $last) {
-        <button class="gw-btn gw-btn--link gw-mono" type="button" [attr.aria-label]="chipLabel(o)" [attr.title]="o.detail" (click)="pick(o.value)">{{ o.label ?? o.value }}</button>@if (!last) {<span>,</span>}
+        <button class="gw-btn gw-btn--link gw-mono gw-truncate" type="button" [attr.aria-label]="chipLabel(o)" [attr.title]="chipTitle(o)" (click)="pick(o.value)"><span class="gw-truncate">{{ o.label ?? o.value }}</span></button>@if (!last) {<span>,</span>}
       }@if (moreChips() > 0) {<span> and more: type to search.</span>}</p>
     }
     @if (datalistId(); as listId) {

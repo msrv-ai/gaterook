@@ -75,6 +75,7 @@
           "title": "Delegation chain",
           "maxItems": 5,
           "items": {
+            "title": "Service account",
             "type": "string"
           },
           "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
