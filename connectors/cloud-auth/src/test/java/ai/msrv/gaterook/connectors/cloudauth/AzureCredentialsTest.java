@@ -125,6 +125,26 @@ class AzureCredentialsTest {
   }
 
   @Test
+  void aSearchTokenAsksForTheSearchAudienceOfItsCloud() throws Exception {
+    token.set(r -> json(200, "{\"expires_in\":3600,\"access_token\":\"" + jwt(Map.of("tid", TENANT, "appid", CLIENT,
+        "idtyp", "app")) + "\"}"));
+    FakeSecrets secrets = new FakeSecrets().with("/credentials/clientSecret", "x");
+    AzureSpec gov = new AzureSpec(AzureCloud.AZURE_US_GOVERNMENT, AzureSpec.Source.CLIENT_SECRET, TENANT, CLIENT,
+        "/credentials/clientSecret", null);
+    AzureSpec china = new AzureSpec(AzureCloud.AZURE_CHINA, AzureSpec.Source.CLIENT_SECRET, TENANT, CLIENT,
+        "/credentials/clientSecret", null);
+
+    cloud.azure().token(OWNER, spec(AzureSpec.Source.CLIENT_SECRET), Audience.SEARCH, secrets, BUDGET);
+    cloud.azure().token(OWNER, gov, Audience.SEARCH, secrets, BUDGET);
+    cloud.azure().token(OWNER, china, Audience.SEARCH, secrets, BUDGET);
+
+    assertThat(requests).extracting(r -> form(r).get("scope")).containsExactly("https://search.azure.com/.default",
+        "https://search.azure.us/.default", "https://search.azure.cn/.default");
+    assertThat(cloud.issued()).extracting(IssuedCredential::mechanism)
+        .contains("Azure service principal · Azure AI Search");
+  }
+
+  @Test
   void aTokenCloseToItsExpiryIsReplaced() throws Exception {
     AtomicInteger issued = new AtomicInteger();
     token.set(r -> json(200, "{\"expires_in\":120,\"access_token\":\"" + jwt(Map.of("tid", TENANT)) + "-"
@@ -391,12 +411,45 @@ class AzureCredentialsTest {
   }
 
   @Test
+  void searchTokensGoOnlyToSearchServicesOfTheirCloud() {
+    AzureCloud pub = AzureCloud.AZURE_PUBLIC;
+    assertThat(pub.accepts(Audience.SEARCH, URI.create("https://contoso.search.windows.net/indexes"))).isTrue();
+    assertThat(pub.accepts(Audience.SEARCH, URI.create("https://search.windows.net/indexes"))).isFalse();
+    assertThat(pub.accepts(Audience.SEARCH, URI.create("https://a.b.search.windows.net/"))).isFalse();
+    assertThat(pub.accepts(Audience.SEARCH, URI.create("https://contoso.search.windows.net.evil.example/"))).isFalse();
+    assertThat(pub.accepts(Audience.SEARCH, URI.create("http://contoso.search.windows.net/"))).isFalse();
+    assertThat(pub.accepts(Audience.SEARCH, URI.create("https://contoso.search.azure.us/"))).isFalse();
+    assertThat(pub.accepts(Audience.ARM, URI.create("https://contoso.search.windows.net/"))).isFalse();
+    assertThat(pub.scope(Audience.SEARCH)).isEqualTo("https://search.azure.com/.default");
+    AzureCloud gov = AzureCloud.AZURE_US_GOVERNMENT;
+    assertThat(gov.accepts(Audience.SEARCH, URI.create("https://contoso.search.azure.us/indexes"))).isTrue();
+    assertThat(gov.accepts(Audience.SEARCH, URI.create("https://contoso.search.windows.net/"))).isFalse();
+    assertThat(gov.scope(Audience.SEARCH)).isEqualTo("https://search.azure.us/.default");
+    AzureCloud china = AzureCloud.AZURE_CHINA;
+    assertThat(china.accepts(Audience.SEARCH, URI.create("https://contoso.search.azure.cn/indexes"))).isTrue();
+    assertThat(china.scope(Audience.SEARCH)).isEqualTo("https://search.azure.cn/.default");
+
+    assertThat(AzureCloud.ofSearchHost("Contoso.Search.Windows.Net")).isEqualTo(pub);
+    assertThat(AzureCloud.ofSearchHost("contoso.search.azure.us")).isEqualTo(gov);
+    assertThat(AzureCloud.ofSearchHost("contoso.search.azure.cn")).isEqualTo(china);
+    assertThat(AzureCloud.ofSearchHost("search.windows.net")).isNull();
+    assertThat(AzureCloud.ofSearchHost("contoso.search.example.com")).isNull();
+    assertThat(AzureCloud.ofSearchHost(null)).isNull();
+  }
+
+  @Test
   void aTestAuthoritysTokensGoOnlyToTestApis() {
     try (CloudCredentials test = new CloudCredentials(new CloudEndpoints(null, null, null, null, null, null,
-        Map.of("azure.login", URI.create("http://127.0.0.1:1/"), "azure.arm", URI.create("http://127.0.0.1:2/"))),
-        Clock.systemUTC());
+        Map.of("azure.login", URI.create("http://127.0.0.1:1/"), "azure.arm", URI.create("http://127.0.0.1:2/"),
+            "azure.search", URI.create("http://127.0.0.1:4/"))), Clock.systemUTC());
         CloudCredentials real = new CloudCredentials(CloudEndpoints.PRODUCTION, Clock.systemUTC())) {
       AzureCloud c = AzureCloud.AZURE_PUBLIC;
+      assertThat(test.azure().sendsTokensTo(c, Audience.SEARCH, URI.create("http://127.0.0.1:4/indexes"))).isTrue();
+      assertThat(test.azure().sendsTokensTo(c, Audience.SEARCH, URI.create("https://contoso.search.windows.net/")))
+          .isFalse();
+      assertThat(real.azure().sendsTokensTo(c, Audience.SEARCH, URI.create("https://contoso.search.windows.net/")))
+          .isTrue();
+      assertThat(real.azure().sendsTokensTo(c, Audience.SEARCH, URI.create("http://127.0.0.1:4/indexes"))).isFalse();
       assertThat(test.azure().sendsTokensTo(c, Audience.ARM, URI.create("http://127.0.0.1:2/subscriptions"))).isTrue();
       assertThat(test.azure().sendsTokensTo(c, Audience.ARM, URI.create("https://management.azure.com/x"))).isFalse();
       assertThat(test.azure().sendsTokensTo(c, Audience.ARM, URI.create("http://127.0.0.1:3/x"))).isFalse();

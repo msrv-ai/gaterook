@@ -22,9 +22,9 @@ import java.util.regex.Pattern;
  * @param awsCredentialsFile  {@code ~/.aws/credentials}; {@code null}: the SDK's default location
  * @param services            base URLs of the cloud APIs that connectors call with these credentials, by key
  *                            ({@code gcp.logging}, {@code aws.logs}, {@code azure.login}, {@code azure.arm},
- *                            {@code azure.logs}; property {@code gateway.cloud.endpoints}). They travel with the
- *                            credential overrides: a token from a fake token endpoint is only good for a fake API, and
- *                            a release never sends a token anywhere but Google, AWS and Azure
+ *                            {@code azure.logs}, {@code azure.search}; property {@code gateway.cloud.endpoints}). They
+ *                            travel with the credential overrides: a token from a fake token endpoint is only good
+ *                            for a fake API, and a release never sends a token anywhere but Google, AWS and Azure
  * @param azureCli            the {@code az} program of Azure CLI sign-ins in tests; {@code null}: {@code PATH} and
  *                            the installers' locations
  */

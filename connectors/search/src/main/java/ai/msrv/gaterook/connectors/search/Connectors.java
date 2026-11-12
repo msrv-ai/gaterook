@@ -1,7 +1,9 @@
 package ai.msrv.gaterook.connectors.search;
 
 import ai.msrv.gaterook.connector.api.Connector;
+import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import java.util.List;
+import java.util.Objects;
 
 /** The connectors of this module, one per type: what the {@code .boot} configuration registers. */
 public final class Connectors {
@@ -40,8 +42,14 @@ public final class Connectors {
     return new SearchConnector(new TypesenseBackend());
   }
 
+  /** Azure AI Search without the core (tests, tools): Entra ID tokens of the real endpoints, made on first use. */
   public static Connector azureAiSearch() {
     return new SearchConnector(new AzureSearchBackend());
+  }
+
+  /** Azure AI Search with the core's {@link CloudCredentials} for its Entra ID sign-ins. */
+  public static Connector azureAiSearch(CloudCredentials cloud) {
+    return new SearchConnector(new AzureSearchBackend(Objects.requireNonNull(cloud, "cloud")));
   }
 
   /** Every search engine type, for tests and tools. */

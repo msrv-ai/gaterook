@@ -9320,8 +9320,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     },
     "additionalProperties": false,
     "required": [
-      "endpoint",
-      "apiKey"
+      "endpoint"
     ],
     "properties": {
       "endpoint": {
@@ -9334,17 +9333,20 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "https://contoso-search.search.windows.net"
         ],
-        "description": "The service's URL: https://<service>.search.windows.net (or .search.azure.us, .search.azure.cn)."
+        "description": "The service's URL: https://<service>.search.windows.net (or .search.azure.us for Azure Government, .search.azure.cn for Azure China)."
       },
-      "apiKey": {
-        "type": "string",
-        "title": "API key",
-        "minLength": 1,
-        "maxLength": 4096,
-        "writeOnly": true,
-        "x-gateway-secret": "value",
-        "format": "password",
-        "description": "Stored encrypted by GateRook. A query key searches and reads documents only; listing and describing indexes and writes need an admin key."
+      "auth": {
+        "title": "Sign in with",
+        "enum": [
+          "apiKey",
+          "entraId"
+        ],
+        "default": "apiKey",
+        "x-enumTitles": [
+          "API key",
+          "Microsoft Entra ID"
+        ],
+        "description": "Entra ID needs role-based access on the service (Keys: Role-based access control, or Both) and roles for the identity: Search Index Data Reader to search, Search Index Data Contributor to write too."
       },
       "indexes": {
         "type": "array",
@@ -9365,7 +9367,161 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         ],
         "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
       }
-    }
+    },
+    "patternProperties": {
+      "^(apiKey|tenantId|credentials|trustedCli)$": {}
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "auth": {
+              "const": "entraId"
+            }
+          },
+          "required": [
+            "auth"
+          ]
+        },
+        "then": {
+          "required": [
+            "credentials"
+          ],
+          "properties": {
+            "tenantId": {
+              "type": "string",
+              "title": "Tenant (directory) ID",
+              "maxLength": 253,
+              "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+              "examples": [
+                "contoso.onmicrosoft.com"
+              ],
+              "description": "The directory ID or domain of the service's tenant. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+            },
+            "credentials": {
+              "type": "object",
+              "title": "Credentials",
+              "required": [
+                "source"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "title": "Sign in with",
+                  "enum": [
+                    "cli",
+                    "deviceCode",
+                    "clientSecret",
+                    "clientCertificate"
+                  ],
+                  "default": "cli",
+                  "x-enumTitles": [
+                    "Azure CLI sign-in on this computer (az login)",
+                    "Sign in with a code in the browser",
+                    "Service principal with a client secret",
+                    "Service principal with a certificate"
+                  ]
+                },
+                "clientId": {
+                  "type": "string",
+                  "title": "Application (client) ID",
+                  "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+                  "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+                }
+              },
+              "patternProperties": {
+                "^(clientSecret|certificate)$": {}
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "clientSecret"
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "clientId",
+                      "clientSecret"
+                    ],
+                    "properties": {
+                      "clientSecret": {
+                        "type": "string",
+                        "writeOnly": true,
+                        "x-gateway-secret": "value",
+                        "format": "password",
+                        "title": "Client secret",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "clientCertificate"
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "clientId",
+                      "certificate"
+                    ],
+                    "properties": {
+                      "certificate": {
+                        "type": "string",
+                        "writeOnly": true,
+                        "x-gateway-secret": "value",
+                        "x-widget": "textarea",
+                        "maxLength": 20000,
+                        "minLength": 1,
+                        "title": "Certificate and private key (PEM)",
+                        "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "trustedCli": {
+              "type": "string",
+              "title": "Allowed Azure CLI command",
+              "readOnly": true,
+              "x-person-only": true,
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "apiKey"
+          ],
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "title": "API key",
+              "minLength": 1,
+              "maxLength": 4096,
+              "writeOnly": true,
+              "x-gateway-secret": "value",
+              "format": "password",
+              "description": "Stored encrypted by GateRook. A query key searches and reads documents only; listing and describing indexes and writes need an admin key."
+            }
+          }
+        }
+      }
+    ]
   }
 };
 
@@ -17014,13 +17170,33 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     }
   },
   "azure-ai-search": {
-    "sections": [],
+    "sections": [
+      "/credentials"
+    ],
     "loose": [
       "/endpoint",
+      "/auth",
+      "/tenantId",
+      "/trustedCli",
       "/apiKey",
       "/indexes"
     ],
-    "rows": {},
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/clientSecret"
+        ],
+        [
+          "/credentials/certificate"
+        ],
+        [
+          "/credentials/clientId"
+        ]
+      ]
+    },
     "fields": [
       {
         "pointer": "/endpoint",
@@ -17039,6 +17215,61 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/auth",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "apiKey",
+          "entraId"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenantId",
+        "kind": "text",
+        "title": "Tenant (directory) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth in [\"entraId\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/trustedCli",
+        "kind": "text",
+        "title": "Allowed Azure CLI command",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth in [\"entraId\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/apiKey",
         "kind": "secret",
         "title": "API key",
@@ -17047,7 +17278,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "not auth in [\"entraId\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -17069,10 +17302,111 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth in [\"entraId\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "cli",
+          "deviceCode",
+          "clientSecret",
+          "clientCertificate"
+        ],
+        "when": [
+          "auth in [\"entraId\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth in [\"entraId\"]",
+          "credentials.source in [\"clientSecret\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/certificate",
+        "kind": "secret",
+        "title": "Certificate and private key (PEM)",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth in [\"entraId\"]",
+          "credentials.source in [\"clientCertificate\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientId",
+        "kind": "text",
+        "title": "Application (client) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth in [\"entraId\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
       }
     ],
-    "defaults": {},
-    "prodDefaults": {}
+    "defaults": {
+      "auth": "apiKey"
+    },
+    "prodDefaults": {
+      "auth": "apiKey"
+    }
   },
   "ssh": {
     "sections": [

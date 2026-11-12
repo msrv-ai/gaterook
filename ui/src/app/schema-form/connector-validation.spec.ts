@@ -113,6 +113,12 @@ const cases: readonly ConnectionCase[] = [
   { name: 'Azure AI Search: a query key and listed indexes', type: 'azure-ai-search',
     config: { endpoint: 'https://contoso.search.windows.net', indexes: ['hotels'] },
     secrets: { '/apiKey': 'test-only-api-key' } },
+  { name: 'Azure AI Search: Microsoft Entra ID with a service principal in Azure Government', type: 'azure-ai-search',
+    config: { endpoint: 'https://contoso.search.azure.us', auth: 'entraId', tenantId: 'contoso.onmicrosoft.com',
+      indexes: ['hotels'], credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+    secrets: { '/credentials/clientSecret': 'test-only-client-secret' } },
+  { name: 'Azure AI Search: Azure CLI sign-in without a key', type: 'azure-ai-search',
+    config: { endpoint: 'https://contoso.search.windows.net', auth: 'entraId', credentials: { source: 'cli' } } },
   { name: 'Amazon Redshift: a provisioned cluster with a role and a database user', type: 'redshift',
     config: { region: 'eu-central-1', target: { kind: 'cluster', cluster: 'acme-analytics' }, database: 'dev',
       databaseAuth: { method: 'dbUser', dbUser: 'gw_reader' },
@@ -498,6 +504,27 @@ describe('schema-form: minimal active connector configurations', () => {
     expect(stdio.value()).not.toHaveProperty('auth');
   });
 
+  it('Azure AI Search sends either the API key or the Entra ID sign-in', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['azure-ai-search'], {
+      idPrefix: 'azure-search', current: { endpoint: 'https://contoso.search.windows.net' }, injector: TestBed.inject(Injector),
+    });
+    const active = (pointer: string) => form.compiled.all.find((node) => node.pointer === pointer && form.visible(node));
+    expect(active('/apiKey')).toBeDefined();
+    expect(active('/credentials/source')).toBeUndefined();
+
+    form.set(active('/auth')!, 'entraId');
+    expect(active('/apiKey')).toBeUndefined();
+    expect(active('/credentials/source')).toBeDefined();
+    expect(form.submit()).toBe(true);
+    expect(form.value()).toMatchObject({ auth: 'entraId', credentials: { source: 'cli' } });
+    expect(form.secretInputs()).toEqual({});
+
+    form.set(active('/auth')!, 'apiKey');
+    expect(form.submit()).toBe(false);
+    expect(form.invalidNodes().map((node) => node.pointer)).toEqual(['/apiKey']);
+    expect(form.value()).not.toHaveProperty('credentials');
+  });
+
   it('Redis keeps database zero when the user only enters the host', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
       idPrefix: 'redis', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
@@ -557,6 +584,12 @@ describe('schema-form: minimal active connector configurations', () => {
       pointer: '/auth/username' },
     { name: 'Algolia application ID', type: 'algolia', config: {}, pointer: '/applicationId' },
     { name: 'Azure AI Search endpoint', type: 'azure-ai-search', config: {}, pointer: '/endpoint' },
+    { name: 'Azure AI Search API key', type: 'azure-ai-search', config: { endpoint: 'https://contoso.search.windows.net' },
+      pointer: '/apiKey' },
+    { name: 'Azure AI Search Entra ID client secret', type: 'azure-ai-search',
+      config: { endpoint: 'https://contoso.search.windows.net', auth: 'entraId', tenantId: 'contoso.onmicrosoft.com',
+        credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+      pointer: '/credentials/clientSecret' },
     { name: 'Redshift database', type: 'redshift', config: { region: 'eu-central-1', target: { kind: 'serverless', workgroup: 'acme-wg' }, credentials: { source: 'accessKey', accessKeyId } },
       pointer: '/database' },
     { name: 'Databricks workspace', type: 'databricks', config: { warehouseId: '1a2b3c4d5e6f7a8b', auth: { method: 'token' } }, pointer: '/host' },
