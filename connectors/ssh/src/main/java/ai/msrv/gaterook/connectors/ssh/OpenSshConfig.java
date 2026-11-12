@@ -200,8 +200,10 @@ final class OpenSshConfig {
 
   /** A host name or address as the connection's Host field takes it. */
   static boolean validHost(String host) {
+    // A pattern (HostName *.compute.amazonaws.com) or a token ssh expands (%h) names no address to connect to.
     return host != null && !host.isEmpty() && host.length() <= 253
-        && host.chars().noneMatch(c -> c <= ' ' || c == '/' || c == '@' || c == 0x7f);
+        && host.chars().noneMatch(c -> c <= ' ' || c == '/' || c == '@' || c == 0x7f || c == '*' || c == '?'
+            || c == '%' || c == '!');
   }
 
   /** The settings of one name as the blocks that match it give them, the first value of each. */

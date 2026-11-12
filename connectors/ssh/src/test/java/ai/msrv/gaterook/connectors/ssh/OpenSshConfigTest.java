@@ -187,4 +187,13 @@ class OpenSshConfigTest {
     assertThat(OpenSshConfig.glob("web-1.example.test", "web-??.*.test")).isFalse();
     assertThat(OpenSshConfig.glob("anything", "*")).isTrue();
   }
+
+  @Test
+  void aHostNameThatIsAPatternOrATokenIsNoAddress() {
+    assertThat(OpenSshConfig.validHost("*.us-east-2.compute.amazonaws.com")).isFalse();
+    assertThat(OpenSshConfig.validHost("web-?")).isFalse();
+    assertThat(OpenSshConfig.validHost("%h.internal")).isFalse();
+    assertThat(OpenSshConfig.validHost("10.0.0.5")).isTrue();
+    assertThat(OpenSshConfig.validHost("bastion.example.test")).isTrue();
+  }
 }
