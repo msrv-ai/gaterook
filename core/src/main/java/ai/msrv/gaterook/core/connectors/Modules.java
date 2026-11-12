@@ -22,15 +22,17 @@ public class Modules {
   /**
    * A connector module.
    *
-   * @param state     {@code ready}, {@code installing}, {@code missing}, {@code available}, {@code failed} or
-   *                  {@code disabled}
+   * @param state     {@code ready}, {@code installing}, {@code missing}, {@code available}, {@code failed},
+   *                  {@code revoked} or {@code disabled}
    * @param step      the step of a running installation ({@code runtime}, {@code downloading}, {@code verifying},
    *                  {@code installing}), or {@code null}
    * @param sizeBytes the size of its package
    * @param message   why the last installation failed, or {@code null}
+   * @param previousVersion the version kept for Roll back, or {@code null}
+   * @param listedVersion   a higher version the list has for an installed module (it is on its way), or {@code null}
    */
   public record Module(String id, String name, String version, String state, String step, long sizeBytes,
-      String message, List<Type> types, boolean installed) {
+      String message, List<Type> types, boolean installed, String previousVersion, String listedVersion) {
 
     public boolean ready() {
       return "ready".equals(state);
@@ -93,8 +95,16 @@ public class Modules {
     return channel(service.channel().configured() ? service.channel().state() : service.channel().cached());
   }
 
+  /** Checks the list again now and starts the updates it calls for. */
   public Channel refreshChannel() {
-    return channel(service.channel().refresh());
+    Channel channel = channel(service.channel().refresh());
+    service.updateInstalled();
+    return channel;
+  }
+
+  /** Returns an installed module to the version it had before; that version isn't updated away from by itself. */
+  public Module rollback(String moduleId, String reason) {
+    return module(service.rollback(moduleId, reason));
   }
 
   private Channel channel(PluginCatalog.State state) {
@@ -105,7 +115,7 @@ public class Modules {
   private static Module module(ModuleService.Status s) {
     List<Type> types = s.types().stream().map(Modules::type).toList();
     return new Module(s.id(), s.name(), s.version(), s.state(), s.step(), s.sizeBytes(), s.message(), types,
-        s.installed());
+        s.installed(), s.previousVersion(), s.listedVersion());
   }
 
   private static Type type(ModuleChannel.TypeInfo t) {

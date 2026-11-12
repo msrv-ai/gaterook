@@ -7,4 +7,18 @@ package ai.msrv.gaterook.core.connectors;
  * updated to {@code to}, ask again"). Public API of the module: the event carries what a listener needs, the
  * plugin's id being the id of its connector type.
  */
-public record PluginGenerationSwitched(String pluginId, String fromVersion, String toVersion) {}
+public record PluginGenerationSwitched(String pluginId, String fromVersion, String toVersion, boolean module) {
+
+  /** A plugin's switch. */
+  public PluginGenerationSwitched(String pluginId, String fromVersion, String toVersion) {
+    this(pluginId, fromVersion, toVersion, false);
+  }
+
+  /**
+   * One connector type of a connector module switched with its module: {@code pluginId} is the type's id, as it is a
+   * plugin's.
+   */
+  public static PluginGenerationSwitched ofModuleType(String typeId, String fromVersion, String toVersion) {
+    return new PluginGenerationSwitched(typeId, fromVersion, toVersion, true);
+  }
+}

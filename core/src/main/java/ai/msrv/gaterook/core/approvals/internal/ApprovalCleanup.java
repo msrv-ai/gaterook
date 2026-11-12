@@ -105,7 +105,7 @@ class ApprovalCleanup implements ConnectionRemovalParticipant, EndpointRemovalPa
     for (ConnectionConfigs.Stored c : connections.all()) {
       if (c.config().type().equals(switched.pluginId())) {
         reject(approvals.findByConnectionIdAndStatus(c.id(), ApprovalStatus.PENDING),
-            "Plugin updated to " + switched.toVersion() + ", ask again");
+            (switched.module() ? "Connector" : "Plugin") + " updated to " + switched.toVersion() + ", ask again");
       }
     }
   }

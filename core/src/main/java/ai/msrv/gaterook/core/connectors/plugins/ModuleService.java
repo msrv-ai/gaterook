@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.connectors.plugins;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorTypesInUse;
+import ai.msrv.gaterook.core.connectors.PluginGenerationSwitched;
 import ai.msrv.gaterook.core.connectors.Plugins.RuntimeStatus;
 import ai.msrv.gaterook.core.connectors.internal.persistence.ConnectorTypeRepository;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginEntity;
@@ -10,13 +11,16 @@ import ai.msrv.gaterook.core.connectors.internal.persistence.PluginRepository;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginSource;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginState;
 import ai.msrv.gaterook.core.platform.EventBus;
+import ai.msrv.gaterook.core.platform.Ids;
 import ai.msrv.gaterook.core.platform.MasterKeyChanged;
 import ai.msrv.gaterook.core.platform.MasterKeyLock;
 import ai.msrv.gaterook.core.platform.ProblemException;
+import ai.msrv.gaterook.core.platform.SettingStore;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import ai.msrv.gaterook.plugin.protocol.PluginManifest;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -32,12 +36,19 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.ZipFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Async;
@@ -60,12 +71,18 @@ import tools.jackson.databind.node.ObjectNode;
  * pinned bytes, the manifest, the versions it needs, the connector types the index promised), a first load in a
  * fresh host, and the signed row. Then its types register like built-in ones and endpoints rebuild.
  *
+ * <p>An installed module follows the list: when the list has a higher version that this build can run, the module
+ * updates by itself, the new host beside the old one, and what waited for approval on its connections is rejected,
+ * because it was reviewed against the old code. The version before stays for a week and {@link #rollback} returns to
+ * it; an update then installs only a version past the one rolled back from. A package the list revokes is switched
+ * off and replaced by the best one that isn't.
+ *
  * <p>A module's row can be here without its files: a backup restored on another computer brings the database, not
  * the packages. The start notices and downloads them again, and so does a call that comes first ({@link #awaitFiles}):
  * the same version the row names when the channel still lists it, else the best one this build can run.
  */
 @Service
-public class ModuleService implements ConnectorRegistry.MissingTypes {
+public class ModuleService implements ConnectorRegistry.MissingTypes, DisposableBean {
 
   /** A type nothing could deliver isn't looked up again sooner than this. */
   static final Duration ASK_AGAIN = Duration.ofMinutes(2);
@@ -73,6 +90,16 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
   static final Duration BACKGROUND_RETRY = Duration.ofMinutes(30);
   /** After a failed download of a missing package, calls don't start another one sooner than this. */
   static final Duration CALL_RETRY = Duration.ofMinutes(1);
+  /** How often the installed modules are checked against the list, and how soon after the start. */
+  static final Duration UPDATE_CHECK = Duration.ofHours(6);
+  static final Duration FIRST_UPDATE_CHECK = Duration.ofMinutes(2);
+  /** A version whose update failed isn't tried again sooner than this. */
+  static final Duration UPDATE_RETRY = Duration.ofHours(6);
+  /**
+   * {@code {"<module>": "<version>"}}: the highest version a person rolled each module back from. An update installs
+   * only a version past it.
+   */
+  static final String HELD = "modules.held";
 
   /** How long a call waits for a module's files before it says they are on their way. */
   static final Duration CALL_WAIT = Duration.ofSeconds(20);
@@ -89,12 +116,16 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
    *
    * @param state     {@code ready} (installed, its files here), {@code installing}, {@code missing} (installed, its
    *                  files not here and not on their way), {@code available} (listed, not installed),
-   *                  {@code failed} (the last installation failed: {@code message}) or {@code disabled}
+   *                  {@code failed} (the last installation failed: {@code message}), {@code revoked} (the list
+   *                  revoked its package: switched off) or {@code disabled}
    * @param step      the running installation's step, lower case, or {@code null}
    * @param sizeBytes the package's size as the channel lists it, or as installed
+   * @param previousVersion the version kept for Roll back, or {@code null}
+   * @param listedVersion   a higher version the list has for an installed module, or {@code null}
    */
   public record Status(String id, String name, String version, String state, String step, long sizeBytes,
-      String message, List<ModuleChannel.TypeInfo> types, boolean installed) {
+      String message, List<ModuleChannel.TypeInfo> types, boolean installed, String previousVersion,
+      String listedVersion) {
 
     public boolean ready() {
       return "ready".equals(state);
@@ -141,6 +172,10 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
   private final MasterKeyLock lock;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
   private final ObjectProvider<ConnectorTypesInUse> typesInUse;
+  private final SettingStore settings;
+  private final ApplicationEventPublisher publisher;
+  private final boolean autoUpdate;
+  private ScheduledExecutorService updates;
   private final EventBus events;
   private final TransactionTemplate writeTx;
   private final Clock clock;
@@ -152,7 +187,12 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
       PluginConnectorSource source, ModuleChannel channel, PluginPaths paths, HostRuntimeLocator runtime,
       AotCacheManager aot, ConnectorRegistry registry, MasterKeyLock lock,
       ObjectProvider<SetupChangeRecorder> setupChanges, ObjectProvider<ConnectorTypesInUse> typesInUse,
-      EventBus events, PlatformTransactionManager transactions, Clock clock) {
+      SettingStore settings, ApplicationEventPublisher publisher,
+      @Value("${gateway.modules.auto-update:true}") boolean autoUpdate, EventBus events,
+      PlatformTransactionManager transactions, Clock clock) {
+    this.settings = settings;
+    this.publisher = publisher;
+    this.autoUpdate = autoUpdate;
     this.typesInUse = typesInUse;
     this.store = store;
     this.repository = store.repository();
@@ -241,6 +281,30 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
   public void onReady() {
     if (!lock.locked()) {
       loadInstalled();
+    }
+    startUpdateChecks();
+  }
+
+  /** The installed modules are checked against the list soon after the start and then every {@link #UPDATE_CHECK}. */
+  private synchronized void startUpdateChecks() {
+    if (updates != null || !autoUpdate || !channel.configured()) {
+      return;
+    }
+    updates = Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("module-updates").factory());
+    updates.scheduleWithFixedDelay(() -> {
+      try {
+        updateInstalled();
+      } catch (RuntimeException e) {
+        log.info("The connector modules couldn't be checked for updates: {}", e.getMessage());
+      }
+    }, FIRST_UPDATE_CHECK.toSeconds(), UPDATE_CHECK.toSeconds(), TimeUnit.SECONDS);
+  }
+
+  @Override
+  public synchronized void destroy() {
+    if (updates != null) {
+      updates.shutdownNow();
+      updates = null;
     }
   }
 
@@ -453,8 +517,9 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
       }
       step(run, Step.INSTALLING);
       PluginInstaller.Staged placed = installer.install(staged.stagingId(), true);
-      record(placed, existing);
+      record(placed, existing, "GateRook installed its own connector module");
       registry.synchronize();
+      store.find(entry.id()).ifPresent(this::pruneVersions);
       aot.trainInBackground();
       run.finishedAt = clock.instant();
       step(run, Step.READY);
@@ -497,7 +562,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
   }
 
   /** Writes the module's signed row and registers its types: a first installation, the same version again, or another. */
-  private void record(PluginInstaller.Staged placed, PluginEntity existing) {
+  private void record(PluginInstaller.Staged placed, PluginEntity existing, String reason) {
     PluginManifest module = placed.manifest();
     String id = module.id();
     HostLauncher.Spec spec = HostLauncher.Spec.of(module, placed.jar(), placed.sha256());
@@ -518,6 +583,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
             + " couldn't load (" + e.phase() + "): " + e.getMessage(), "/module");
       }
     }
+    AtomicBoolean unrevoked = new AtomicBoolean();
     try {
       writeTx.executeWithoutResult(s -> {
         PluginEntity entity = repository.findById(id).orElse(null);
@@ -526,18 +592,25 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
           entity = PluginEntity.module(id, module.version(), PluginSource.CATALOG, placed.sha256(),
               placed.sizeBytes(), store.map(module), clock.instant());
         } else {
+          // What waits for approval on the module's connections was reviewed against the old code.
+          java.util.Set<String> types = new java.util.TreeSet<>();
+          store.moduleManifest(entity).types().forEach(t -> types.add(t.id()));
+          module.types().forEach(t -> types.add(t.id()));
           entity.upgrade(module.version(), true, PluginSource.CATALOG, placed.sha256(), placed.sizeBytes(),
               store.map(module), clock.instant().plus(PluginService.ROLLBACK_WINDOW), clock.instant());
           if (entity.getState() == PluginState.REVOKED) {
             entity.setState(PluginState.INSTALLED, clock.instant());
+            unrevoked.set(true);
           }
+          types.forEach(type -> publisher.publishEvent(PluginGenerationSwitched.ofModuleType(type, from,
+              module.version())));
         }
         entity.setCatalogEntry(placed.catalogEntry());
         entity = repository.saveAndFlush(entity);
         store.sign(entity);
         setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.PLUGIN, "Connector "
-            + module.name(), from, (from == null ? "Installed " : "") + module.version(),
-            "GateRook installed its own connector module", null, null, null, null));
+            + module.name(), from, (from == null ? "Installed " : "") + module.version(), reason, null, null, null,
+            null));
       });
     } catch (RuntimeException e) {
       if (next != null) {
@@ -548,6 +621,199 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
     source.registerModule(module, spec, true, deadline -> awaitFiles(id, deadline));
     if (next != null) {
       supervisor.switchTo(next, spec);
+    }
+    if (unrevoked.get()) {
+      registry.synchronize();
+      for (PluginManifest.Type type : module.types()) {
+        try {
+          registry.setEnabled(type.id(), true, "Replaced the revoked build with " + module.version());
+        } catch (ProblemException e) {
+          log.warn("The type {} of {} couldn't be switched on again: {}", type.id(), id, e.getMessage());
+        }
+      }
+    }
+  }
+
+  // ── Updates, roll back, revocation ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Brings the installed modules to what the list says: a revoked package is switched off, and every module moves to
+   * the best listed version this build can run that is past the one a person rolled it back from. Checks the
+   * list first when the last check is old. Nothing asks the person anything.
+   *
+   * @return the modules whose update started
+   */
+  public List<String> updateInstalled() {
+    if (!channel.configured() || lock.locked()) {
+      return List.of();
+    }
+    channel.state();
+    if (channel.installProblem().isPresent()) {
+      return List.of();
+    }
+    applyRevocations();
+    Map<String, String> held = held();
+    List<String> started = new ArrayList<>();
+    Instant now = clock.instant();
+    for (PluginEntity row : modules()) {
+      if (row.getState() == PluginState.DISABLED) {
+        continue;
+      }
+      boolean revoked = row.getState() == PluginState.REVOKED;
+      // The best version that isn't revoked and that is past the one a person rolled this module back from.
+      String floor = held.get(row.getId());
+      Optional<ModuleChannel.Entry> best = channel.versions(row.getId()).stream()
+          .filter(e -> !channel.revoked(e.sha256()) && (floor == null || ModuleChannel.newer(e.version(), floor)
+              || (revoked && !e.version().equals(floor)))).findFirst();
+      if (best.isEmpty() || (!revoked && !ModuleChannel.newer(best.get().version(), row.getCurrentVersion()))) {
+        continue;
+      }
+      Run last = runs.get(row.getId());
+      if (last != null && (!last.done.isDone() || (last.version.equals(best.get().version())
+          && last.failedRecently(now, UPDATE_RETRY)))) {
+        continue;
+      }
+      try {
+        log.info("Connector module {} {} updates to {}", row.getId(), row.getCurrentVersion(), best.get().version());
+        start(best.get(), row);
+        started.add(row.getId());
+      } catch (ProblemException e) {
+        log.info("Connector module {} couldn't be updated: {}", row.getId(), e.getMessage());
+      }
+    }
+    return List.copyOf(started);
+  }
+
+  /**
+   * Returns an installed module to the version it had before, which is kept for a week. An update then installs only
+   * a version past the one it was rolled back from.
+   */
+  public Status rollback(String moduleId, String reason) {
+    PluginEntity row = store.find(moduleId).filter(PluginEntity::isModule).orElseThrow(() ->
+        ProblemException.notFound("No such connector", "There is no connector module " + moduleId + "."));
+    String previous = row.getPreviousVersion();
+    Path jar = previous == null ? null : paths.jar(moduleId, previous);
+    if (jar == null || !Files.isRegularFile(jar)) {
+      throw ProblemException.conflict("Nothing to roll back to", "The previous version of " + moduleId
+          + " is no longer kept.");
+    }
+    String sha = PluginInstaller.sha256(jar);
+    // The kept file must be the one that was installed, as every load is checked against the row.
+    if (row.getPreviousSha256() == null || !row.getPreviousSha256().equalsIgnoreCase(sha)) {
+      throw ProblemException.conflict("Package changed on disk", "The kept " + previous + " of " + moduleId
+          + " isn't the package that was installed.");
+    }
+    if (channel.revoked(sha)) {
+      throw ProblemException.conflict("Revoked", moduleId + " " + previous + " was revoked: "
+          + channel.revocationReason(sha).orElse("no reason given") + ".");
+    }
+    PluginManifest manifest;
+    try (ZipFile zip = new ZipFile(jar.toFile()); InputStream in = zip.getInputStream(zip.getEntry(
+        PluginManifest.FILE))) {
+      manifest = PluginManifest.read(in.readAllBytes());
+    } catch (IOException | PluginManifest.InvalidManifest | RuntimeException e) {
+      throw ProblemException.conflict("Can't read the package", e.getMessage());
+    }
+    if (!manifest.module() || !manifest.id().equals(moduleId) || !manifest.version().equals(previous)) {
+      throw ProblemException.conflict("Package changed on disk", "The kept package isn't " + moduleId + " "
+          + previous + ".");
+    }
+    String from = row.getCurrentVersion();
+    long size;
+    try {
+      size = Files.size(jar);
+    } catch (IOException e) {
+      size = 0;
+    }
+    PluginInstaller.Staged staged = new PluginInstaller.Staged(Ids.next("stg_"), jar, sha, size, manifest, true,
+        PluginSource.CATALOG, moduleId + "@" + previous, moduleId + "-" + previous + ".jar", null);
+    record(staged, row, reason == null || reason.isBlank() ? "Rolled back" : reason);
+    hold(moduleId, from);
+    registry.synchronize();
+    log.info("Connector module {} rolled back {} -> {}", moduleId, from, previous);
+    return statusOf(moduleId).orElseThrow();
+  }
+
+  /**
+   * An installed module whose package the list revoked is switched off: its host stops and its types leave the
+   * endpoints until {@link #updateInstalled} replaces it with a package that isn't revoked.
+   */
+  void applyRevocations() {
+    for (PluginEntity row : modules()) {
+      if (row.getState() == PluginState.REVOKED || !channel.revoked(row.getSha256())) {
+        continue;
+      }
+      String why = channel.revocationReason(row.getSha256()).orElse("no reason given");
+      PluginManifest module = store.moduleManifest(row);
+      writeTx.executeWithoutResult(s -> {
+        PluginEntity entity = repository.findById(row.getId()).orElseThrow();
+        if (!store.verify(entity)) {
+          return;
+        }
+        entity.setState(PluginState.REVOKED, clock.instant());
+        entity = repository.saveAndFlush(entity);
+        store.sign(entity);
+        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.PLUGIN, "Connector "
+            + module.name(), row.getCurrentVersion(), "Revoked: " + why, null, null, null, null, null));
+      });
+      PluginSupervisor supervisor = source.supervisor(row.getId());
+      if (supervisor != null) {
+        supervisor.disable();
+      }
+      for (PluginManifest.Type type : module.types()) {
+        try {
+          registry.setEnabled(type.id(), false, "Revoked: " + why);
+        } catch (ProblemException e) {
+          log.warn("The type {} of revoked module {} couldn't be switched off: {}", type.id(), row.getId(),
+              e.getMessage());
+        }
+      }
+      log.warn("Connector module {} {} was revoked ({}): it is switched off", row.getId(), row.getCurrentVersion(),
+          why);
+    }
+  }
+
+  /** The version each module was rolled back from. */
+  private Map<String, String> held() {
+    Map<String, String> out = new LinkedHashMap<>();
+    settings.find(HELD).ifPresent(s -> s.value().properties().forEach(e -> out.put(e.getKey(),
+        e.getValue().asString(""))));
+    return out;
+  }
+
+  private void hold(String moduleId, String version) {
+    Map<String, String> held = held();
+    String before = held.get(moduleId);
+    if (before != null && !ModuleChannel.newer(version, before)) {
+      return;
+    }
+    ObjectNode value = JsonNodeFactory.instance.objectNode();
+    held.forEach(value::put);
+    value.put(moduleId, version);
+    settings.put(HELD, value, null);
+  }
+
+  /**
+   * Keeps a module's folder to the current version and, for its week, the previous one: every other version an update
+   * or a roll back left is deleted.
+   */
+  private void pruneVersions(PluginEntity row) {
+    Path dir = paths.pluginDir(row.getId());
+    if (!Files.isDirectory(dir)) {
+      return;
+    }
+    boolean keepPrevious = row.getPreviousVersion() != null && (row.getPreviousKeptUntil() == null
+        || clock.instant().isBefore(row.getPreviousKeptUntil()));
+    try (var versions = Files.list(dir)) {
+      for (Path v : versions.toList()) {
+        String name = v.getFileName().toString();
+        boolean keep = name.equals(row.getCurrentVersion()) || (keepPrevious && name.equals(row.getPreviousVersion()));
+        if (!keep && Files.isDirectory(v)) {
+          deleteDir(v);
+        }
+      }
+    } catch (IOException e) {
+      log.debug("Couldn't prune the versions of module {}: {}", row.getId(), e.toString());
     }
   }
 
@@ -643,13 +909,13 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
 
   private Status status(Run run) {
     return statusOf(run.id).orElseGet(() -> new Status(run.id, run.name, run.version, state(run, "available"),
-        step(run), run.sizeBytes, run.message, run.types, false));
+        step(run), run.sizeBytes, run.message, run.types, false, null, null));
   }
 
   private Status status(ModuleChannel.Entry entry) {
     Run run = runs.get(entry.id());
     return new Status(entry.id(), entry.name(), entry.version(), state(run, "available"), step(run), entry.size(),
-        run == null ? null : run.message, entry.types(), false);
+        run == null ? null : run.message, entry.types(), false, null, null);
   }
 
   private Status status(PluginEntity row) {
@@ -658,9 +924,16 @@ public class ModuleService implements ConnectorRegistry.MissingTypes {
         t.name(), t.icon(), t.group(), t.description(), t.tools().stream().map(d -> d.name()).toList())).toList();
     Run run = runs.get(row.getId());
     boolean here = Files.isRegularFile(paths.jar(row.getId(), row.getCurrentVersion()));
-    String settled = row.getState() != PluginState.INSTALLED ? "disabled" : here ? "ready" : "missing";
+    String settled = row.getState() == PluginState.REVOKED ? "revoked"
+        : row.getState() != PluginState.INSTALLED ? "disabled" : here ? "ready" : "missing";
+    boolean keepsPrevious = row.getPreviousVersion() != null && (row.getPreviousKeptUntil() == null
+        || clock.instant().isBefore(row.getPreviousKeptUntil()))
+        && Files.isRegularFile(paths.jar(row.getId(), row.getPreviousVersion()));
+    String listed = channel.module(row.getId()).map(ModuleChannel.Entry::version)
+        .filter(v -> ModuleChannel.newer(v, row.getCurrentVersion())).orElse(null);
     return new Status(row.getId(), module.name(), row.getCurrentVersion(), state(run, settled), step(run),
-        row.getSizeBytes(), run == null ? null : run.message, types, true);
+        row.getSizeBytes(), run == null ? null : run.message, types, true,
+        keepsPrevious ? row.getPreviousVersion() : null, listed);
   }
 
   /** A run under way is {@code installing}, a failed one {@code failed} unless what it was for is here anyway. */

@@ -12,7 +12,7 @@ export type ConnectorKind = 'built-in' | 'plugin' | 'mcp-server' | 'template' | 
 export interface ConnectorModuleRef {
   readonly id: string;
   readonly version: string;
-  /** `ready`, `installing`, `missing`, `available`, `failed` or `disabled`. */
+  /** `ready`, `installing`, `missing`, `available`, `failed`, `revoked` or `disabled`. */
   readonly state: string;
   /** The step of a running installation (`runtime`, `downloading`, `verifying`, `installing`), else null. */
   readonly step: string | null;

@@ -111,6 +111,17 @@ public final class ModuleChannel {
     return modules().stream().filter(e -> e.id().equals(id)).findFirst();
   }
 
+  /** Every listed version of module {@code id} that this build can run, the highest first. */
+  public List<Entry> versions(String id) {
+    return entries().stream().filter(e -> e.id().equals(id))
+        .sorted((a, b) -> compare(b.version(), a.version())).toList();
+  }
+
+  /** Whether {@code a} is a higher version than {@code b}. */
+  public static boolean newer(String a, String b) {
+    return compare(a, b) > 0;
+  }
+
   /** The listed module that adds the connector type {@code typeId}, at the best version this build can run. */
   public Optional<Entry> ofType(String typeId) {
     return modules().stream().filter(e -> e.types().stream().anyMatch(t -> t.id().equals(typeId))).findFirst();
