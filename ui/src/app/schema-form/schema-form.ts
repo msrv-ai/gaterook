@@ -243,9 +243,14 @@ export class SchemaForm {
     return isRequired(node, this.model()) && node.within.every((path) => inUse(this.compiled, path, this.model(), this.filled()));
   }
 
-  /** "Optional" after the label: nothing is filled in for the person and the field isn't required right now. */
+  /**
+   * "Optional" after the label: nothing is filled in for the person and the field isn't required right now. Not
+   * inside a collapsed section such as Advanced settings, where every field is.
+   */
   optionalNow(node: SchemaNode): boolean {
-    return node.optional && !this.needed(node);
+    return node.optional && !this.needed(node)
+      && !this.displaySections().some((section) => section.collapsed && containsNode(section, node))
+      && !this.compiled.all.some((section) => section.kind === 'object' && section.collapsed && containsNode(section, node));
   }
 
   loginUsername(node: SchemaNode): boolean {
@@ -833,8 +838,18 @@ export class SchemaForm {
    * Whether the form holds everything it needs to sign in: every required field that shows is filled in and valid,
    * and every required secret is typed, stored or referenced. Shows no message: sign-in helpers wait for it.
    */
-  readonly ready = computed(() => {
-    if (!this.tree().valid()) return false;
+  readonly ready = computed(() => this.readyExcept([]));
+
+  /** {@link ready}, leaving out the fields at `pointers` (the choice a lookup is about to offer). */
+  readyExcept(pointers: readonly string[]): boolean {
+    if (!pointers.length) {
+      if (!this.tree().valid()) return false;
+    } else {
+      for (const node of this.compiled.all) {
+        if (node.kind === 'object' || node.kind === 'secret' || pointers.includes(node.pointer) || !this.visible(node)) continue;
+        if (!this.field(node)().valid()) return false;
+      }
+    }
     for (const node of this.compiled.all) {
       if (node.kind !== 'secret' || !this.visible(node) || !this.needed(node)) continue;
       const state = this.secretState(node);
@@ -843,7 +858,7 @@ export class SchemaForm {
       if (!typed.trim() || (referenceKind(typed) && !this.fieldReference(node))) return false;
     }
     return true;
-  });
+  }
 
   // ─── Submit ───
 

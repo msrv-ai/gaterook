@@ -79,7 +79,7 @@
 @if (projectNode(); as node) {
   @if (show('connection')) {
     <gw-cloud-projects [form]="s" [node]="node" [value]="value()" [type]="spec().type" [stored]="stored()" [idPrefix]="p"
-      [title]="projectTitle()" (discover)="discoverProjects.emit($event)" />
+      [title]="projectTitle()" [auto]="helpers() && mode() === 'create'" (discover)="discoverProjects.emit($event)" />
   }
 }
 
@@ -106,7 +106,10 @@
           @else {Enter the server and credentials, then load databases. Reload after changing connection settings.}
         </p>
       </div>
-      @if (discovery?.state === 'error') {
+      @if (discovery?.state === 'error' && discovery!.auto) {
+        <!-- The form tried by itself: the credentials may still be half typed, so no alarm. -->
+        <p class="gw-field__hint">Couldn't load databases yet: {{ discovery!.message }} Check the settings and credentials, then load them again.</p>
+      } @else if (discovery?.state === 'error') {
         <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
           <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
           <div class="gw-alert__content"><p class="gw-alert__title">Couldn't load databases</p><p class="gw-alert__body">{{ discovery!.message }}</p></div>

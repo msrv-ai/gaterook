@@ -7,7 +7,8 @@ import { Suggested } from '../../../core/api/connections.api';
 import { JsonObject } from '../../../core/api/types';
 import { compileSchema, isAdvanced, isRequired } from '../../../schema-form/compile';
 import { provideKitIcons } from '../../icons';
-import { ConnectionFormValue, GwConnectionForm, SuggestionRequest } from './connection-form';
+import { ProjectDiscoveryRequest } from './cloud-projects';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, SuggestionRequest } from './connection-form';
 
 /**
  * The setup helpers of the connection form: optional settings gathered under a collapsed Advanced, a field required
@@ -24,13 +25,15 @@ function spec(type: string): ConnectionFormSpec {
 
 @Component({
   imports: [GwConnectionForm],
-  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" helpers [spec]="spec()" name="dev-cluster" [config]="config()" (save)="saved.push($event)" (suggest)="asked.push($event)"></form>`,
+  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" helpers [spec]="spec()" name="dev-cluster" [config]="config()" (save)="saved.push($event)" (suggest)="asked.push($event)" (discoverDatabases)="databases.push($event)" (discoverProjects)="projects.push($event)"></form>`,
 })
 class Host {
   readonly spec = signal(spec('kubernetes'));
   readonly config = signal<JsonObject | null>(null);
   readonly saved: ConnectionFormValue[] = [];
   readonly asked: SuggestionRequest[] = [];
+  readonly databases: DatabaseDiscoveryRequest[] = [];
+  readonly projects: ProjectDiscoveryRequest[] = [];
   readonly form = viewChild.required(GwConnectionForm);
 }
 
@@ -200,5 +203,35 @@ describe('setup helpers: the Name', () => {
     const legends = [...v.el.querySelectorAll('.gw-form__legend')].map((e) => e.textContent?.trim());
     expect(legends[0]).toBe('Connection');
     expect(v.el.querySelector('#cf-name')).not.toBeNull();
+  });
+});
+
+describe('setup helpers: lookups the form starts by itself', () => {
+  it('loads the databases once a new connection can sign in, and a failure is a quiet hint', async () => {
+    const v = await render('postgres');
+    await v.type('cf-connection-host', 'db.dev.internal');
+    await v.type('cf-credentials-user', 'app');
+    await wait(1700);
+    await v.settle();
+    // No password typed yet: PostgreSQL accepts a user without one, so the form may sign in already.
+    expect(v.host.databases).toHaveLength(1);
+    expect(v.host.databases[0].value.config).toMatchObject({ connection: { host: 'db.dev.internal' }, credentials: { user: 'app' } });
+
+    v.host.form().completeDatabaseDiscovery(v.host.databases[0].key, null, 'password authentication failed for user "app"');
+    await v.settle();
+    expect(v.el.querySelector('[role="alert"]')?.textContent ?? '').not.toContain('password authentication failed');
+    expect(v.el.textContent).toContain("Couldn't load databases yet: password authentication failed");
+    // The same settings are not tried again by themselves.
+    await wait(1700);
+    await v.settle();
+    expect(v.host.databases).toHaveLength(1);
+  });
+
+  it('loads the projects a Google sign-in on this computer can see', async () => {
+    const v = await render('gcp');
+    await wait(1700);
+    await v.settle();
+    expect(v.host.projects).toHaveLength(1);
+    expect(v.host.projects[0].value.config).toMatchObject({ credentials: { source: 'adc' } });
   });
 });

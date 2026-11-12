@@ -60,6 +60,8 @@ export interface DatabaseDiscoveryRequest {
 
 interface DatabaseDiscovery {
   readonly key: string;
+  /** Started by the form itself once it could sign in: a failure is a quiet hint, not an alert. */
+  readonly auto?: boolean;
   readonly state: 'loading' | 'ready' | 'error';
   readonly names: readonly DatabaseName[];
   readonly complete: boolean;
@@ -78,6 +80,8 @@ export interface SuggestionRequest {
 /** How long the helpers wait after the last keystroke: local lookups read files, service lookups sign in. */
 const LOCAL_DELAY_MS = 350;
 const SERVICE_DELAY_MS = 900;
+/** Databases and projects load by themselves after a longer pause: a half-typed password would only fail. */
+const DISCOVERY_DELAY_MS = 1500;
 
 /** The parts of the form a view shows (the kit's partial views show one section each). */
 export type ConnectionFormPart = 'connection' | 'credentials' | 'safety' | 'advanced' | 'test' | 'actions';
@@ -466,11 +470,21 @@ export class GwConnectionForm {
     this.discoverDatabases.emit({ key, value: this.value() });
   }
 
-  startDatabaseDiscovery(key: string): boolean {
+  startDatabaseDiscovery(key: string, auto = false): boolean {
     if (key !== this.databaseKey()) return false;
     this.databaseSearch.set('');
-    this.databaseDiscovery.set({ key, state: 'loading', names: [], complete: true, message: null, hints: [] });
+    this.databaseDiscovery.set({ key, auto, state: 'loading', names: [], complete: true, message: null, hints: [] });
     return true;
+  }
+
+  /** The settings the form last loaded databases for by itself: once per settings. */
+  private autoDatabaseKey: string | null = null;
+
+  /** A new connection loads its databases as soon as it can sign in, without the person asking. */
+  private autoLoadDatabases(key: string): void {
+    if (key !== this.databaseKey() || this.databaseDiscovery() || !this.startDatabaseDiscovery(key, true)) return;
+    this.autoDatabaseKey = key;
+    this.discoverDatabases.emit({ key, value: this.value() });
   }
 
   completeDatabaseDiscovery(key: string, outcome: TestOutcome | null, error: string | null = null): boolean {
@@ -479,7 +493,7 @@ export class GwConnectionForm {
     const found = details && typeof details === 'object' && !Array.isArray(details) ? details['databases'] : null;
     const ok = outcome?.ok === true && Array.isArray(found);
     this.databaseDiscovery.set({
-      key, state: ok ? 'ready' : 'error', names: databaseNames(found ?? null),
+      key, auto: this.databaseDiscovery()?.auto, state: ok ? 'ready' : 'error', names: databaseNames(found ?? null),
       complete: !!details && typeof details === 'object' && !Array.isArray(details) && details['discoveryComplete'] !== false,
       message: error ?? outcome?.error?.message ?? outcome?.needsConfirmation?.text ?? (ok ? null : "The server didn't return a database list."),
       hints: (outcome?.hints ?? []).map((hint) => hint.text),
@@ -514,6 +528,16 @@ export class GwConnectionForm {
     effect(() => {
       const metadata = this.metadata();
       untracked(this.state).metadata.set(metadata);
+    });
+    // Databases load by themselves once a new connection can sign in and nothing is chosen yet.
+    effect((onCleanup) => {
+      const selection = this.databaseSelection();
+      if (!this.helpers() || !selection || this.mode() !== 'create') return;
+      const key = this.databaseKey();
+      const ready = this.state().readyExcept([selection.pointer, ...(selection.legacyPointer ? [selection.legacyPointer] : [])]);
+      if (!ready || this.databaseDiscovery() || this.selectedDatabases().length || this.autoDatabaseKey === key) return;
+      const timer = setTimeout(() => this.autoLoadDatabases(key), DISCOVERY_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
     });
     // Save opens the gathered Advanced settings when one of their fields holds an error.
     effect(() => {

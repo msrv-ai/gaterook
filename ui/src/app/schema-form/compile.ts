@@ -659,9 +659,11 @@ export function isAdvanced(node: SchemaNode, form: CompiledForm): boolean {
   if (node.advanced !== null) return node.advanced;
   if (node.readOnly) return true;
   if (node.required || node.requiredWhen.length || node.kind === 'secret' || node.secret === 'login') return false;
-  if (LOGIN_KEY.test(node.key) && form.all.some((n) => n.kind === 'secret' && samePath(n.path.slice(0, -1), node.path.slice(0, -1)))) {
-    return false;
-  }
+  const siblings = (test: (n: SchemaNode) => boolean) => form.all.some((n) => n !== node && test(n)
+    && samePath(n.path.slice(0, -1), node.path.slice(0, -1)));
+  if (LOGIN_KEY.test(node.key) && siblings((n) => n.kind === 'secret')) return false;
+  // A port belongs next to its host (Host · Port), even when it has a default.
+  if (node.key === 'port' && siblings((n) => n.key === 'host')) return false;
   return !decides(node, form);
 }
 
