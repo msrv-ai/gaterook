@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ConnectorCard, ConnectorGroup, ConnectorKind } from '../../../core/api/connector-types.api';
+import { formatBytes } from '../../../core/time/time-format';
 import { GwAriaDisabled } from '../../aria-disabled';
 import { GwDialog, GwDialogClose, GwDialogOpen } from '../../dialog';
 import { GwEnableWhen } from '../../enable-when';
@@ -199,12 +200,16 @@ export class GwConnectorPicker {
 
   /**
    * "Built-in · 4 tools", "Built-in Logs · 2 tools", "PostgreSQL connector · 4 tools", "v1.2.0 · 5 tools",
-   * "Installs v1.0.0 from the catalog · 6 tools", "Tools from the file".
+   * "Installs v1.0.0 from the catalog · 6 tools", "Built-in · 3 tools · 9.4 MB download", "Tools from the file".
    */
   protected meta(c: ConnectorCard, group: ConnectorGroup): string {
     const tools = c.tools !== null ? `${c.tools} ${c.tools === 1 ? 'tool' : 'tools'}` : `Tools from the ${c.toolsFrom ?? 'server'}`;
     if (c.compatibleWith) return `${c.compatibleWith} connector · ${tools}`;
     if (!c.available && c.catalogRef) return `Installs ${c.version?.startsWith('v') ? c.version : `v${c.version}`} from the catalog · ${tools}`;
+    // One of GateRook's own connectors that isn't part of the installer: it downloads when it is chosen, once.
+    if (c.kind === 'built-in' && c.module && !c.module.installed) {
+      return `Built-in · ${tools} · ${formatBytes(c.module.sizeBytes)} download`;
+    }
     if (c.kind === 'built-in') return c.tools !== null ? `Built-in${c.variant ? ` ${group.name}` : ''} · ${tools}` : tools;
     if (c.kind === 'plugin' && c.version && c.available) return `${c.version.startsWith('v') ? c.version : `v${c.version}`} · ${tools}`;
     return tools;

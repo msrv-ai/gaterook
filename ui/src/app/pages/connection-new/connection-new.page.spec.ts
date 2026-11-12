@@ -11,6 +11,7 @@ import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetai
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
+import { ConnectorModules, ModulesApi } from '../../core/api/modules.api';
 import { McpProfile, McpRegistryServer, McpServerReview, McpServerSource, McpServerStarted, McpServersApi, PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { JsonObject, ToolMode } from '../../core/api/types';
@@ -240,6 +241,10 @@ class FakeCore {
   catalog: ConnectorCatalog | ApiError = structuredClone(CATALOG);
   pluginChecks: string[] = [];
   formTypes: string[] = [];
+  /** A form that hasn't arrived yet: the request that installs a connector module and waits for it. */
+  pendingForm: Promise<ConnectionFormSpec> | null = null;
+  /** What `GET /api/modules` answers. */
+  modules: ConnectorModules = { channel: { configured: true, checkedAt: null, offline: false, problem: null }, modules: [] };
   nextPluginCheck: PluginCheck | ApiError = clickhouseCheck(true);
   pluginInstalls: { stagingId: string; acknowledgeUnsigned: boolean }[] = [];
   replaced: { id: string; value: string; reason: string | null | undefined }[] = [];
@@ -337,6 +342,9 @@ beforeEach(() => {
       return structuredClone(core.nextMcpStart);
     }),
   };
+  const modules: Partial<ModulesApi> = {
+    list: vi.fn(async () => structuredClone(core.modules)),
+  };
   const types: Partial<ConnectorTypesApi> = {
     catalog: vi.fn(async () => {
       if (core.catalog instanceof ApiError) throw core.catalog;
@@ -344,6 +352,7 @@ beforeEach(() => {
     }),
     form: vi.fn(async (type: string) => {
       core.formTypes.push(type);
+      if (core.pendingForm) return core.pendingForm;
       return structuredClone(core.spec);
     }),
     get: vi.fn(async () => structuredClone(TYPE)),
@@ -482,6 +491,7 @@ beforeEach(() => {
       { provide: MasterKeyApi, useValue: masterKey },
       { provide: InsightsApi, useValue: insights },
       { provide: PluginsApi, useValue: plugins },
+      { provide: ModulesApi, useValue: modules },
       { provide: McpServersApi, useValue: mcp },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
@@ -1457,6 +1467,75 @@ describe('Add connection: wizard', () => {
     expect(review.open).toBe(false);
     expect(p.visible()).toEqual(['step-2']);
     expect(core.formTypes.at(-1)).toBe('clickhouse');
+  });
+
+  /** A type of a connector module that isn't installed: a built-in card that downloads when it is chosen. */
+  function cassandraModule(state = 'available'): void {
+    const module = { id: 'cassandra', version: '1.0.0', state, step: null, sizeBytes: 9_871_234, installed: false, message: null };
+    core.catalog = { groups: [{ name: 'Databases', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+      type: 'cassandra', name: 'Cassandra', kind: 'built-in', version: '1.0.0', tools: 3, connections: 0, module,
+    }] }], installed: [] };
+    core.spec = { ...structuredClone(SPEC), type: 'cassandra', name: 'Cassandra' };
+  }
+
+  it('a type of a connector module downloads on Continue with no question, and says which step it is at', async () => {
+    cassandraModule();
+    let arrive!: (spec: ConnectionFormSpec) => void;
+    core.pendingForm = new Promise((done) => { arrive = done; });
+    const p = await open();
+    const card = p.q<HTMLInputElement>('#step-1 input[value="cassandra"]')!;
+    expect(text(card.closest('.gw-choice-card'))).toContain('Built-in · 3 tools · 9.4 MB download');
+    card.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+
+    expect(document.querySelector('dialog.gw-dialog[open]'), 'nothing to review or confirm').toBeNull();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.formTypes.at(-1)).toBe('cassandra');
+    const notice = p.q('#module-download')!;
+    expect(notice.getAttribute('role')).toBe('status');
+    expect(text(notice)).toBe('Getting Cassandra ready Downloading Cassandra (9.4 MB). This happens once.');
+
+    TestBed.inject(EventStream).emit('module.state', { id: 'other', version: '1.0.0', step: 'installing', sizeBytes: 1 });
+    TestBed.inject(EventStream).emit('module.state', { id: 'cassandra', version: '1.0.0', step: 'verifying', sizeBytes: 9_871_234 });
+    await p.settle();
+    expect(text(p.q('#module-download'))).toBe('Getting Cassandra ready Checking the download of Cassandra.');
+    TestBed.inject(EventStream).emit('module.state', { id: 'cassandra', version: '1.0.0', step: 'runtime', sizeBytes: 9_871_234 });
+    await p.settle();
+    expect(text(p.q('#module-download'))).toContain('Preparing the Java runtime that Cassandra runs on. This happens once.');
+
+    core.pendingForm = null;
+    arrive(structuredClone(core.spec));
+    await p.settle();
+    expect(p.q('#module-download')).toBeNull();
+    expect(text(p.q('#step-2-title'))).toBe('Configure Cassandra');
+    expect(document.getElementById('cf-connection-host')).not.toBeNull();
+  });
+
+  it('a connector module that doesn’t arrive says why in the core’s words, and Try again asks for it again', async () => {
+    cassandraModule();
+    core.pendingForm = Promise.reject(new ApiError('not-found', 404, { title: 'Connector not found', detail: 'There is no connector type cassandra.' }));
+    core.pendingForm.catch(() => undefined);
+    core.modules = { ...core.modules, modules: [{ id: 'cassandra', name: 'Cassandra', version: '1.0.0', state: 'failed', step: null,
+      sizeBytes: 9_871_234, message: 'Cassandra can’t be downloaded from github.com: no route to host', types: [], installed: false }] };
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="cassandra"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+
+    const alert = p.q('#step-2 .gw-alert--danger')!;
+    expect(text(alert.querySelector('.gw-alert__title'))).toBe("Cassandra didn't download");
+    expect(text(alert.querySelector('.gw-alert__body'))).toBe('Cassandra can’t be downloaded from github.com: no route to host');
+    expect(p.q('#module-download')).toBeNull();
+
+    core.pendingForm = null;
+    p.button('Try again', alert).click();
+    await p.settle();
+    expect(core.formTypes.filter((t) => t === 'cassandra')).toHaveLength(2);
+    expect(p.q('#step-2 .gw-alert--danger')).toBeNull();
+    expect(text(p.q('#step-2-title'))).toBe('Configure Cassandra');
   });
 
   it('Continue opens Configure: the form from the schema, focus on the step title, "Step 2 of 4: Configure"', async () => {
