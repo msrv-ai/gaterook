@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.kubernetes;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connectors.support.LocalPrograms;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,7 +33,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Only when the connection says so ({@code allowExecPlugin}) and only the exact command the person allowed in
  * Test connection ({@link #fingerprint}): an argv without a shell, the program found by an absolute path, an
- * environment of {@code PATH}, {@code HOME}, the kubeconfig's own variables and {@code KUBERNETES_EXEC_INFO}
+ * environment of {@code PATH} (the program's own folder first, as {@code gke-gcloud-auth-plugin} runs {@code gcloud}
+ * from there), {@code HOME}, the kubeconfig's own variables and {@code KUBERNETES_EXEC_INFO}
  * ({@code interactive: false}), stdin closed, 20 s. The token it prints is cached until its
  * {@code expirationTimestamp} (or 10 minutes) and tainted in every call that uses it.
  */
@@ -48,11 +50,24 @@ final class ExecCredentials {
   record Spec(String apiVersion, Path command, List<String> args, Map<String, String> env, ObjectNode cluster,
       Path workDir) {
 
+    /** The program by its file name with its arguments: what a sentence names (the path is shown on its own). */
+    String programLine() {
+      List<String> argv = new ArrayList<>();
+      argv.add(command.getFileName().toString());
+      argv.addAll(args);
+      return quoted(argv);
+    }
+
     /** The argv a person reads in the confirmation and in Setup changes. */
     String commandLine() {
       List<String> argv = new ArrayList<>();
       argv.add(command.toString());
       argv.addAll(args);
+      return quoted(argv);
+    }
+
+    /** Words joined by spaces, each one a shell would split or expand in single quotes. */
+    private static String quoted(List<String> argv) {
       StringBuilder out = new StringBuilder();
       for (String a : argv) {
         if (!out.isEmpty()) {
@@ -134,7 +149,8 @@ final class ExecCredentials {
 
   /**
    * An absolute path as it is; a relative one with a slash against the kubeconfig's folder (as kubectl does); a bare
-   * name in {@code PATH}, then where installers put these plugins — a desktop app doesn't inherit the shell's PATH.
+   * name in {@code PATH}, then where installers put these plugins, then in the login shell's {@code PATH}
+   * ({@link LocalPrograms}): a desktop app doesn't inherit the shell's PATH.
    */
   static Path resolve(String command, Path kubeconfigDir) throws ConnectorException {
     Path p = Path.of(command);
@@ -145,28 +161,34 @@ final class ExecCredentials {
       Path base = kubeconfigDir == null ? Path.of(System.getProperty("user.home")) : kubeconfigDir;
       return executable(base.resolve(p).normalize(), command);
     }
-    List<Path> dirs = new ArrayList<>();
-    String path = System.getenv("PATH");
-    if (path != null) {
-      for (String d : path.split(java.io.File.pathSeparator)) {
-        if (!d.isBlank()) {
-          dirs.add(Path.of(d));
-        }
-      }
-    }
+    return LocalPrograms.find(command, usualFolders()).orElseThrow(() -> notInstalled(command));
+  }
+
+  /** Where installers put credential plugins, after {@code PATH}. */
+  static List<Path> usualFolders() {
     String home = System.getProperty("user.home");
+    List<Path> dirs = new ArrayList<>();
     for (String d : new String[] {"/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", home + "/google-cloud-sdk/bin",
-        home + "/.local/bin", home + "/bin"}) {
+        "/opt/homebrew/share/google-cloud-sdk/bin", "/usr/local/share/google-cloud-sdk/bin",
+        "/usr/lib/google-cloud-sdk/bin", home + "/.local/bin", home + "/bin"}) {
       dirs.add(Path.of(d));
     }
-    for (Path d : dirs) {
-      Path candidate = d.resolve(command);
-      if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) {
-        return candidate.toAbsolutePath().normalize();
-      }
-    }
-    throw ConnectorException.unavailable("The credential command " + command + " of the kubeconfig isn't installed "
-        + "on this computer (not found in PATH, /usr/local/bin or /opt/homebrew/bin).", null);
+    return dirs;
+  }
+
+  /** The command isn't on this computer: where GateRook looked, and how the usual plugins are installed. */
+  static ConnectorException notInstalled(String command) {
+    String install = switch (command) {
+      case "gke-gcloud-auth-plugin", "gke-gcloud-auth-plugin.exe" ->
+          "Install it with gcloud components install gke-gcloud-auth-plugin, then test again.";
+      case "aws", "aws.exe" -> "Install the AWS CLI, then test again.";
+      case "kubelogin", "kubelogin.exe" ->
+          "Install it with az aks install-cli or brew install Azure/kubelogin/kubelogin, then test again.";
+      default -> "Install it, then test again.";
+    };
+    return ConnectorException.unavailable("The credential command " + command + " of the kubeconfig isn't installed "
+        + "on this computer: it isn't in PATH, the usual install folders or your login shell's PATH. " + install,
+        null);
   }
 
   private static Path executable(Path p, String command) throws ConnectorException {
@@ -203,11 +225,8 @@ final class ExecCredentials {
     argv.addAll(spec.args());
     ProcessBuilder pb = new ProcessBuilder(argv).directory(spec.workDir().toFile());
     Map<String, String> env = pb.environment();
-    String path = System.getenv("PATH");
     env.clear();
-    if (path != null) {
-      env.put("PATH", path);
-    }
+    env.put("PATH", LocalPrograms.pathFor(spec.command()));
     env.put("HOME", System.getProperty("user.home"));
     env.putAll(spec.env());
     ObjectNode info = JsonNodeFactory.instance.objectNode();

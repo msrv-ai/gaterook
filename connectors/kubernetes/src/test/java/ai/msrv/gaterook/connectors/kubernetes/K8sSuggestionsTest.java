@@ -103,15 +103,15 @@ class K8sSuggestionsTest {
   }
 
   @Test
-  void aContextThatRunsACredentialCommandSaysWhatToTurnOn() throws Exception {
+  void aContextThatRunsACredentialCommandSaysThatTestConnectionAsksToAllowIt() throws Exception {
     Path file = kubeconfig("gke-prod");
 
     Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + file
         + "\",\"context\":\"gke-prod\"}"), secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.SERVICE);
 
     assertThat(s.fields().get("/context").value()).isEqualTo("gke-prod");
-    assertThat(s.notes()).anyMatch(n -> n.contains("gke-gcloud-auth-plugin")
-        && n.contains("Run the credential command from kubeconfig"));
+    assertThat(s.notes()).anyMatch(n -> n.equals("Context gke-prod signs in with gke-gcloud-auth-plugin: Test "
+        + "connection shows the command for you to allow."));
     // The command is never run for a suggestion: the namespaces wait for Test connection.
     assertThat(s.notes()).anyMatch(n -> n.startsWith("Namespaces appear after Test connection"));
     assertThat(s.fields()).doesNotContainKey("/namespace");

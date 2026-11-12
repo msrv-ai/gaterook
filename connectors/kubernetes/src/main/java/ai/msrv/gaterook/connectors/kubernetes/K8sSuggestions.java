@@ -110,8 +110,8 @@ final class K8sSuggestions {
     }
     String command = kc.execCommandOf(effective);
     if (command != null && !cfg.bool("/allowExecPlugin", false)) {
-      out.note("Context " + effective + " signs in with " + command + ". Turn on \"Run the credential command from "
-          + "kubeconfig\": Test connection then shows the command for you to allow.");
+      out.note("Context " + effective + " signs in with " + command + ": Test connection shows the command for you "
+          + "to allow.");
     }
   }
 

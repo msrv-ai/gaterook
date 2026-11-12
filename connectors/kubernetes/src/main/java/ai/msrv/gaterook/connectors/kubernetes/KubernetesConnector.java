@@ -243,12 +243,12 @@ public final class KubernetesConnector implements Connector {
       return TestResult.confirm(pinConfirmation(s, access), List.of()).withMetadata(contexts);
     }
     if (access.exec() != null) {
-      if (!s.allowExecPlugin()) {
-        return TestResult.failure("k8s.exec-not-allowed", execOff(access), null).withMetadata(contexts);
-      }
+      // The person allows this exact command. While "Run the credential command from kubeconfig" is off, allowing it
+      // turns that on too: one decision, with the command in front of them, instead of a checkbox and then this.
       String fp = ExecCredentials.fingerprint(access.exec());
-      if (!fp.equals(s.trustedExec())) {
-        return TestResult.confirm(execConfirmation(cfg, access, fp), List.of()).withMetadata(contexts);
+      if (!s.allowExecPlugin() || !fp.equals(s.trustedExec())) {
+        return TestResult.confirm(execConfirmation(cfg, access, fp, !s.allowExecPlugin()), List.of())
+            .withMetadata(contexts);
       }
     }
     K8sClients.Client client;
@@ -373,8 +373,8 @@ public final class KubernetesConnector implements Connector {
   }
 
   private static String execOff(ClusterAccess access) {
-    return "This kubeconfig signs in with the command " + access.exec().command().getFileName() + ". Turn on \"Run "
-        + "the credential command from kubeconfig\" to use it.";
+    return "This kubeconfig signs in with the command " + access.exec().command().getFileName() + ", which this "
+        + "connection doesn't run yet: test the connection to allow it.";
   }
 
   private static TestResult.Confirmation pinConfirmation(K8sSettings s, ClusterAccess access) {
@@ -394,10 +394,15 @@ public final class KubernetesConnector implements Connector {
     return new TestResult.Confirmation("kubeconfig-cluster", text, data, patch);
   }
 
-  private static TestResult.Confirmation execConfirmation(ConnectionConfig cfg, ClusterAccess access, String fp) {
+  /** @param turnOn whether allowing the command also turns on "Run the credential command from kubeconfig" */
+  private static TestResult.Confirmation execConfirmation(ConnectionConfig cfg, ClusterAccess access, String fp,
+      boolean turnOn) {
     ExecCredentials.Spec spec = access.exec();
-    String text = "Run this command on this computer, with your user rights, whenever " + cfg.name() + " needs a "
-        + "new token: " + spec.commandLine();
+    // The program by name, before the word token: its whole path is the Command fact, a long path reads like a random
+    // token to the masker, and "token: <value>" reads like a secret. A draft is "draft" to the core: it has no name.
+    String who = cfg.id().startsWith("draft-") ? "this connection" : cfg.name();
+    String text = "Run " + spec.programLine() + " on this computer, with your user rights, whenever " + who
+        + " needs a new token.";
     ObjectNode data = JsonNodeFactory.instance.objectNode();
     data.put("command", spec.command().toString());
     ArrayNode args = data.putArray("args");
@@ -405,7 +410,11 @@ public final class KubernetesConnector implements Connector {
     ArrayNode env = data.putArray("env");
     spec.env().keySet().stream().sorted().forEach(env::add);
     data.put("fingerprint", fp);
-    ObjectNode patch = JsonNodeFactory.instance.objectNode().put("trustedExec", fp);
+    ObjectNode patch = JsonNodeFactory.instance.objectNode();
+    if (turnOn) {
+      patch.put("allowExecPlugin", true);
+    }
+    patch.put("trustedExec", fp);
     return new TestResult.Confirmation("exec-plugin", text, data, patch);
   }
 

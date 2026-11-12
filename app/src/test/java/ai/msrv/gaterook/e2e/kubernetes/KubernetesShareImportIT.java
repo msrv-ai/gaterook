@@ -3,7 +3,6 @@ package ai.msrv.gaterook.e2e.kubernetes;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.Env;
-import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.core.GatewayApplication;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionTester;
@@ -127,12 +126,15 @@ class KubernetesShareImportIT {
     assertThat(core.getBean(HealthMonitor.class).checkAll()).as("a draft is not checked").isZero();
     assertThat(marker).as("the credential command started during the import").doesNotExist();
 
-    // The person tests the draft in its editor with the stored kubeconfig: the connector asks them to opt in first.
-    TestResult tested = tester.testDraft("kubernetes", Env.DEV, signIn, Map.of(), "shared-cluster-dev", null)
-        .result();
-    assertThat(tested.ok()).isFalse();
-    assertThat(tested.error().code()).isEqualTo("k8s.exec-not-allowed");
-    // They opt in: Test connection shows the command and its fingerprint, the one the file carried, to trust.
+    // The person tests the draft in its editor with the stored kubeconfig: the connector asks them to allow the
+    // command, which opts in too; the file's own opt-in and fingerprint were never taken.
+    ConnectionTester.Outcome offered = tester.testDraft("kubernetes", Env.DEV, signIn, Map.of(), "shared-cluster-dev",
+        null);
+    assertThat(offered.result().ok()).isFalse();
+    assertThat(offered.result().needsConfirmation().configPatch().path("allowExecPlugin").asBoolean()).isTrue();
+    assertThat(offered.result().needsConfirmation().configPatch().path("trustedExec").asString())
+        .isEqualTo(fingerprint);
+    // Opted in already, Test connection shows the same command and fingerprint, the one the file carried, to trust.
     ConnectionTester.Outcome asked = tester.testDraft("kubernetes", Env.DEV, optedIn, Map.of(), "shared-cluster-dev",
         null);
     assertThat(asked.result().needsConfirmation().configPatch().path("trustedExec").asString())

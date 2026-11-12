@@ -52,9 +52,13 @@ class ImportPersonOnlySettingsTest {
   private static final String PIN = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
   private static final String FINGERPRINT = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-  /** What the schemas say Test connection fills in, or that runs a command with the person's rights. */
+  /**
+   * What the schemas say Test connection, or the form once it can sign in, fills in, or that runs a command with the
+   * person's rights.
+   */
   private static final Pattern DOCUMENTED = Pattern.compile(
-      "(?i)\\b(?:filled|set) by test connection\\b|runs on this computer with your user rights");
+      "(?i)\\b(?:filled|set) by test connection\\b|filled in once the form can sign in"
+          + "|runs on this computer with your user rights");
 
   private static Map<String, ConnectorManifest> manifests;
 
@@ -196,7 +200,7 @@ class ImportPersonOnlySettingsTest {
     // The scan finds the settings (a rewritten description would otherwise make this test pass for nothing).
     assertThat(found).contains("kubernetes /pinnedCluster", "kubernetes /trustedExec", "kubernetes /allowExecPlugin",
         "ssh /hostKeys/pinned", "ssh-logs /hostKeys/pinned", "http /tls/caCertificates", "aws /accountId",
-        "azure /trustedCli", "azure-monitor /trustedCli");
+        "azure /trustedCli", "azure-monitor /trustedCli", "azure-ai-search /trustedCli");
   }
 
   @Test
@@ -207,7 +211,7 @@ class ImportPersonOnlySettingsTest {
       if (!templates.isEmpty()) marked.put(m.id(), templates);
     });
     assertThat(marked).containsOnlyKeys("kubernetes", "ssh", "ssh-logs", "http", "aws", "azure", "azure-monitor", "logs",
-        "sqlite");
+        "sqlite", "azure-ai-search");
     assertThat(marked.get("sqlite")).containsExactly("/connection/file");
     assertThat(marked.get("ssh")).containsExactly("/hostKeys/knownHosts", "/hostKeys/pinned",
         "/jump/hostKeys/knownHosts", "/jump/hostKeys/pinned");
@@ -233,6 +237,8 @@ class ImportPersonOnlySettingsTest {
               assertThat(error.getMessage()).contains("Leave " + template + " out of config");
             });
         assertThat(service.get(session.id()).status()).as(connector.id() + " " + template).isEqualTo("awaiting");
+        // One session at a time: there are more settings than the service keeps imports open.
+        service.cancel(session.id());
         checked.add(connector.id() + " " + template);
       }
     }

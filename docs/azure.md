@@ -66,7 +66,7 @@ The approval of a common action names its effect: a restart fails the requests i
 GateRook never fetches a cluster's kubeconfig. Read the cluster's workloads through a Kubernetes connection:
 
 1. Run `az aks get-credentials --resource-group <group> --name <cluster> --file aks.kubeconfig` on your computer, then `kubelogin convert-kubeconfig --login azurecli --kubeconfig aks.kubeconfig`.
-2. Add a Kubernetes connection from that kubeconfig and turn on **Run the credential command from kubeconfig**. Its user runs `kubelogin get-token` as an exec credential; Test connection shows the exact command and runs it only after you allow it, as for the Azure CLI here.
+2. Add a Kubernetes connection from that kubeconfig. Its user runs `kubelogin get-token` as an exec credential: Test connection shows the exact command and runs it only after you allow it, as for the Azure CLI here, and allowing it turns on **Run the credential command from kubeconfig**.
 3. Give the identity a Kubernetes RBAC or Azure RBAC role on the cluster (such as Azure Kubernetes Service RBAC Reader).
 
 ## Storage data

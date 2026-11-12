@@ -91,12 +91,16 @@ class ImportSummaryDefaultsTest {
   void redisTlsIsListedWhenItIsNotTheDefaultOfTheCandidatesEnvironment() {
     String off = "{\"connection\":{\"host\":\"cache.example.test\",\"tls\":false}}";
     String on = "{\"connection\":{\"host\":\"cache.example.test\",\"tls\":true}}";
+    String auto = "{\"connection\":{\"host\":\"cache.example.test\",\"tls\":\"auto\"}}";
 
     assertThat(rows("redis", "prod", off)).containsExactly("connection.host=cache.example.test",
         "connection.tls=false");
     assertThat(rows("redis", "prod", on)).containsExactly("connection.host=cache.example.test");
+    // Dev's default is Auto: a transport fixed either way is listed.
     assertThat(rows("redis", "dev", on)).containsExactly("connection.host=cache.example.test", "connection.tls=true");
-    assertThat(rows("redis", "dev", off)).containsExactly("connection.host=cache.example.test");
+    assertThat(rows("redis", "dev", off)).containsExactly("connection.host=cache.example.test",
+        "connection.tls=false");
+    assertThat(rows("redis", "dev", auto)).containsExactly("connection.host=cache.example.test");
   }
 
   @Test
@@ -104,10 +108,13 @@ class ImportSummaryDefaultsTest {
     String off = "{\"connection\":{\"host\":\"mongo.example.test\",\"tls\":false}}";
     String on = "{\"connection\":{\"host\":\"mongo.example.test\",\"tls\":true}}";
 
+    String auto = "{\"connection\":{\"host\":\"mongo.example.test\",\"tls\":\"auto\"}}";
     assertThat(rows("mongodb", "prod", off)).contains("connection.tls=false");
     assertThat(rows("mongodb", "prod", on)).noneMatch(row -> row.startsWith("connection.tls="));
+    // Dev's default is Auto: a transport fixed either way is listed.
     assertThat(rows("mongodb", "dev", on)).contains("connection.tls=true");
-    assertThat(rows("mongodb", "dev", off)).noneMatch(row -> row.startsWith("connection.tls="));
+    assertThat(rows("mongodb", "dev", off)).contains("connection.tls=false");
+    assertThat(rows("mongodb", "dev", auto)).noneMatch(row -> row.startsWith("connection.tls="));
 
     String primary = "{\"connection\":{\"host\":\"mongo.example.test\",\"readPreference\":\"primary\"}}";
     String secondary = "{\"connection\":{\"host\":\"mongo.example.test\",\"readPreference\":\"secondaryPreferred\"}}";
