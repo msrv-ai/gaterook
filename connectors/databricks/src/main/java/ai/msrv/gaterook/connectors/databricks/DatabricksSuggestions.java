@@ -36,8 +36,9 @@ import tools.jackson.databind.JsonNode;
  */
 final class DatabricksSuggestions {
 
-  private static final Pattern WAREHOUSE_PATH = Pattern.compile("/sql/1\\.0/(?:warehouses|endpoints)/([A-Za-z0-9-]{1,64})"
-      + "/?");
+  /** {@code http_path} of a SQL warehouse: {@code /sql/1.0/warehouses/<id>}, or the older {@code endpoints}. */
+  private static final Pattern WAREHOUSE_PATH = Pattern.compile(
+      "/sql/1\\.0/(?:warehouses|endpoints)/([A-Za-z0-9-]{1,64})/?");
   private static final long MAX_FILE = 1 << 20;
   private static final int MAX_LISTED = Suggestions.MAX_OPTIONS;
 

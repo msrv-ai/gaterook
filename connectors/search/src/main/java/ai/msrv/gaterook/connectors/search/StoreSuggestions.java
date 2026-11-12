@@ -16,11 +16,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Help for the forms of the vector databases and search engines ({@link ai.msrv.gaterook.connector.api.Connector#suggest}).
- * On this computer: a server of the type answering on its usual loopback port, offered as its address
- * ({@code http://localhost:6333}) and never filled in, and what a backend reads itself (the Azure CLI's tenants).
- * Signed in as Test connection signs in: the collections or indexes the credentials see, offered for the connection's
- * list, and what a backend lists besides (Milvus's databases, Chroma's tenant and databases). Reads only.
+ * Help for the forms of the vector databases and search engines
+ * ({@link ai.msrv.gaterook.connector.api.Connector#suggest}). On this computer: a server of the type answering on its
+ * usual loopback port, offered as its address ({@code http://localhost:6333}) and never filled in, and what a backend
+ * reads itself (the Algolia CLI's application IDs, the Azure CLI's tenants). Signed in as Test connection signs in:
+ * the collections or indexes the credentials see, offered for the connection's list, and what a backend lists besides
+ * (Milvus's databases, Chroma's tenant and databases). Reads only.
  */
 final class StoreSuggestions {
 
