@@ -49,6 +49,9 @@ record RedshiftSettings(String region, Kind kind, String cluster, String workgro
   static final Pattern SECRET_ARN = Pattern.compile("arn:aws[a-z-]*:secretsmanager:[a-z0-9-]+:\\d{12}:secret:"
       + "[A-Za-z0-9/_+=.@-]{1,512}");
   private static final JsonMapper JSON = JsonMapper.builder().build();
+  /** Why a database user's sign-in doesn't take a Serverless workgroup: Test connection's and the form's words. */
+  static final String DB_USER_ON_SERVERLESS = "A database user with temporary credentials works on provisioned "
+      + "clusters only. On Serverless, sign in as the AWS identity or with a Secrets Manager secret.";
 
   static RedshiftSettings of(ConnectionConfig cfg) throws ConnectorException {
     String region = cfg.string("/region");
@@ -84,8 +87,7 @@ record RedshiftSettings(String region, Kind kind, String cluster, String workgro
     String secretArn = null;
     if (auth == Auth.DB_USER) {
       if (kind == Kind.SERVERLESS) {
-        throw ConnectorException.badInput("A database user with temporary credentials works on provisioned clusters "
-            + "only. On Serverless, sign in as the AWS identity or with a Secrets Manager secret.");
+        throw ConnectorException.badInput(DB_USER_ON_SERVERLESS);
       }
       dbUser = cfg.string("/databaseAuth/dbUser");
       if (dbUser == null || !DB_USER_NAME.matcher(dbUser).matches()) {
@@ -184,6 +186,29 @@ record RedshiftSettings(String region, Kind kind, String cluster, String workgro
     return generatedPolicy ? policy(CHANGE_ACTIONS) : null;
   }
 
+  /** What the setup helpers list for the form besides the databases: warehouses and secrets, by name only. */
+  static final List<String> LIST_ACTIONS = List.of("redshift:DescribeClusters", "redshift-serverless:ListWorkgroups",
+      "redshift-serverless:ListNamespaces", "secretsmanager:ListSecrets");
+
+  /**
+   * The session policy of the setup helpers' listings, or {@code null} without one: the account's clusters,
+   * Serverless workgroups and namespaces and the secrets' names ({@code ListSecrets} returns no value), and the Data
+   * API's {@code ListDatabases} on this warehouse with this one way of signing in.
+   */
+  String suggestPolicy() {
+    if (!generatedPolicy) {
+      return null;
+    }
+    ObjectNode policy = policyNode(List.of("redshift-data:ListDatabases"));
+    ((ArrayNode) policy.get("Statement")).add(statement(LIST_ACTIONS, List.of("*")));
+    return json(policy);
+  }
+
+  /** The session policy of the listings alone, while the form doesn't name its warehouse, database or secret yet. */
+  static String listPolicy() {
+    return AwsSessionPolicy.builder().allow(LIST_ACTIONS, List.of("*")).toJson();
+  }
+
   /**
    * A session policy: {@code actions} on this warehouse only; describing, fetching and cancelling only the statements
    * this role session ran ({@code redshift-data:statement-owner-iam-userid}); and the one way of signing in to the
@@ -191,6 +216,10 @@ record RedshiftSettings(String region, Kind kind, String cluster, String workgro
    * on this workgroup, or reading this one secret.
    */
   String policy(List<String> actions) {
+    return json(policyNode(actions));
+  }
+
+  private ObjectNode policyNode(List<String> actions) {
     ObjectNode policy = JsonNodeFactory.instance.objectNode().put("Version", "2012-10-17");
     ArrayNode statements = policy.putArray("Statement");
     statements.add(statement(actions, List.of(warehouseArn())));
@@ -212,6 +241,11 @@ record RedshiftSettings(String region, Kind kind, String cluster, String workgro
               // A name: Secrets Manager adds six random characters to the ARN of every secret.
               : "arn:" + p + ":secretsmanager:" + region + ":*:secret:" + secretArn + "-??????")));
     }
+    return policy;
+  }
+
+  /** The policy as STS takes it, at most {@link AwsSessionPolicy#MAX_CHARACTERS}. */
+  private static String json(ObjectNode policy) {
     String json = JSON.writeValueAsString(policy);
     if (json.length() > AwsSessionPolicy.MAX_CHARACTERS) {
       throw new IllegalStateException("The session policy has " + json.length() + " characters; STS accepts "

@@ -12,12 +12,14 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Duration;
@@ -60,9 +62,17 @@ public final class DynamoDbConnector implements Connector {
   private final CloudCredentials cloud;
   private final DynamoApi api;
   private final ConnectorManifest manifest;
+  /** What the setup helpers read of this computer: AWS profiles and regions. */
+  private final CloudLocal local;
 
   public DynamoDbConnector(CloudCredentials cloud) {
+    this(cloud, cloud == null ? null : new CloudLocal(cloud.endpoints()));
+  }
+
+  /** {@code local}: the profiles and regions the setup helpers read (tests: their own files and environment). */
+  DynamoDbConnector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.api = new DynamoApi(cloud);
     SchemaResources schemas = SchemaResources.of(DynamoDbConnector.class, TYPE);
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -674,6 +684,14 @@ public final class DynamoDbConnector implements Connector {
           : "No table in " + s.region() + " matches the connection's list."));
     }
     return out;
+  }
+
+  /**
+   * Profiles and regions of this computer; signed in, the tables of the region ({@link DynamoSuggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return DynamoSuggestions.suggest(cfg, secrets, ctx, scope, cloud, local, api);
   }
 
   @Override

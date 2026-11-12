@@ -67,7 +67,9 @@
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "examples": [
                   "acme-analytics"
-                ]
+                ],
+                "x-suggest": true,
+                "description": "The identifier of a provisioned cluster in the region."
               }
             },
             "required": [
@@ -96,6 +98,7 @@
                 "examples": [
                   "acme-wg"
                 ],
+                "x-suggest": true,
                 "description": "Its name, or its ARN: with the ARN, the session policy names this workgroup only."
               }
             },
@@ -110,10 +113,12 @@
       "type": "string",
       "title": "Database",
       "pattern": "^[A-Za-z_][A-Za-z0-9_$]{0,126}$",
+      "default": "dev",
       "examples": [
         "dev"
       ],
-      "description": "The database the Data API connects to."
+      "x-suggest": true,
+      "description": "The database the Data API connects to: dev unless the cluster or namespace was made with another."
     },
     "databaseAuth": {
       "type": "object",
@@ -192,6 +197,7 @@
                 "examples": [
                   "arn:aws:secretsmanager:eu-central-1:412398765012:secret:redshift/gw-reader-AbCdEf"
                 ],
+                "x-suggest": true,
                 "description": "Its ARN or name. The Data API reads its username and password; GateRook doesn't."
               }
             },
@@ -229,7 +235,8 @@
           "examples": [
             "arn:aws:iam::412398765012:role/gw-redshift"
           ],
-          "description": "With a role, GateRook limits each call to this warehouse, database and sign-in, enforced by AWS."
+          "x-advanced": false,
+          "description": "With a role, GateRook limits each call to this warehouse, database and sign-in, enforced by AWS; empty: the credentials' own permissions apply."
         },
         "externalId": {
           "type": "string",
@@ -244,7 +251,8 @@
           "minimum": 900,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a role session lasts, 900 to 3,600 seconds."
         },
         "sessionPolicy": {
           "enum": [
@@ -318,7 +326,8 @@
                 "type": "string",
                 "title": "Profile",
                 "maxLength": 128,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
               }
             },
             "required": [

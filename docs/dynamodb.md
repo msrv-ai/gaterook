@@ -6,12 +6,14 @@ GateRook's MCP Firewall lets AI apps read DynamoDB tables with bounded queries a
 
 The built-in **Amazon DynamoDB** connector (`dynamodb`) calls DynamoDB's JSON API in one region, signed with SigV4. There is no DynamoDB SDK in GateRook; requests go only to `dynamodb.<region>.amazonaws.com` (`.amazonaws.com.cn` in China). Choose the region and the credentials:
 
-- an **access key** (stored encrypted in GateRook), or an **AWS profile** of this computer (`~/.aws/config` and `~/.aws/credentials`). A profile may not use SSO, `credential_source`, `web_identity_token_file` or a `role_arn` of its own; a `credential_process` runs with a warning;
+- an **access key** (stored encrypted in GateRook), or an **AWS profile** of this computer (`~/.aws/config` and `~/.aws/credentials`). A profile may not use SSO, `credential_source`, `web_identity_token_file` or a `role_arn` of its own; a `credential_process` runs with a warning, though never for the form's suggestions;
 - optionally a **role to assume**, with an external ID in its trust policy.
 
 With a role, **Session policy** defaults to each call's own permissions: a read assumes the role with a session policy that allows only `DescribeTable`, `DescribeTimeToLive`, `ListTables`, `Query`, `Scan`, `GetItem`, `BatchGetItem` and `PartiQLSelect` on the connection's tables; an approved change gets `PartiQLInsert`, `PartiQLUpdate` and `PartiQLDelete` on its one table. AWS enforces these, whatever the role itself may do. On prod the session policy can't be turned off. Without a role, each call has every permission of the key or profile: **Test connection** says so, as a warning outside dev.
 
 **Tables** lists the tables agents may use (`*` matches any characters, as in `orders-*`). Empty, every table the credentials may read. Test connection reports the identity AWS sees (`sts:GetCallerIdentity`) and the tables agents may use.
+
+While you fill in the form, GateRook suggests the profiles of `~/.aws/config` and fills in the profile's region. Once the form can sign in, with the same credentials and read session as Test connection, it lists the region's tables under **Tables**.
 
 ## Bound reads and review exact changes
 

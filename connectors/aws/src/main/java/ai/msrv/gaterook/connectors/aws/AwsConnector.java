@@ -12,11 +12,13 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.net.http.HttpClient;
@@ -70,14 +72,21 @@ public final class AwsConnector implements Connector {
       .build();
   /** Connections whose access key (without a role) was checked against their Account ID: id|version → account. */
   private final Map<String, String> checkedAccounts = new ConcurrentHashMap<>();
+  private final AwsSuggestions suggestions;
 
   public AwsConnector(CloudCredentials cloud) {
     this(cloud, Clock.systemUTC());
   }
 
   AwsConnector(CloudCredentials cloud, Clock clock) {
+    this(cloud, clock, cloud == null ? null : new CloudLocal(cloud.endpoints()));
+  }
+
+  /** {@code local}: what the setup helpers read of this computer (tests: their own files and environment). */
+  AwsConnector(CloudCredentials cloud, Clock clock, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
     this.clock = Objects.requireNonNull(clock, "clock");
+    this.suggestions = new AwsSuggestions(cloud, clients, http, Objects.requireNonNull(local, "local"));
     SchemaResources schemas = SchemaResources.of(AwsConnector.class, "aws");
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
         .name("AWS")
@@ -170,6 +179,15 @@ public final class AwsConnector implements Connector {
     } finally {
       forgetDraft(cfg);
     }
+  }
+
+  /**
+   * Profiles and regions of this computer; signed in, the account (filled into Account ID), its alias and the regions
+   * enabled for it ({@link AwsSuggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return suggestions.suggest(cfg, secrets, ctx, scope);
   }
 
   /** The SDK clients kept between calls (tests). */
