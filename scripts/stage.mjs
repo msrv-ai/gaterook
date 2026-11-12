@@ -9,6 +9,7 @@
 //   bridge/                      gw-bridge.mjs (Claude Desktop extensions), the native gw-bridge, gw-bridge.jar
 //   cloudflared/<platform>/      optional offline cloudflared (--bundle-cloudflared, hashes checked)
 //   icons/icon.png               the app icon from assets/gaterook/gaterook-icon.png
+//   dmg/background[@2x].png      the macOS disk image window from assets/gaterook/gaterook-dmg-background[@2x].png
 //
 //   node scripts/stage.mjs                         this machine's platform, the native core of app/target
 //   node scripts/stage.mjs --core <binary>         another native core (its native-libs/ folder comes along)
@@ -182,6 +183,12 @@ export async function stage(o, sources = {}) {
       join(o.out, 'icons', `icon-macos.${extension}`));
     report.push(`icons/icon-macos.${extension}`);
   }
+  // The disk image window and its Retina copy: electron-builder joins a background@2x.png sibling into one HiDPI TIFF.
+  for (const suffix of ['', '@2x']) {
+    copyFile(join(root, 'assets', 'gaterook', `gaterook-dmg-background${suffix}.png`),
+      join(o.out, 'dmg', `background${suffix}.png`));
+  }
+  report.push('dmg/background.png + @2x');
   return report;
 }
 

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { load } from 'js-yaml';
 import { parseArgs, platformKey, sqliteLibName, stage } from '../../scripts/stage.mjs';
 import { readApplicationVersion } from '../../scripts/sync-version.mjs';
 
@@ -72,6 +73,29 @@ describe('stage.mjs', () => {
       else assert.equal(macIcon.subarray(0, 4).toString(), 'icns');
     }
     assert.ok(report.some((l) => l.startsWith('core/gaterook-core')));
+  });
+
+  it('stages the disk image window at 1x and 2x around the icon layout in electron-builder.yml', async () => {
+    const { sources } = fakes();
+    const out = join(dir, 'out-dmg');
+    const report = await stage({ out, platform: 'darwin-arm64', core: null, jar: false, jre: null, skipCloudflared: true }, sources);
+    assert.ok(report.includes('dmg/background.png + @2x'));
+    const [plain, retina] = ['', '@2x'].map((suffix) => {
+      const png = readFileSync(join(out, 'dmg', `background${suffix}.png`));
+      assert.deepEqual(png,
+        readFileSync(new URL(`../../assets/gaterook/gaterook-dmg-background${suffix}.png`, import.meta.url)));
+      return [png.readUInt32BE(16), png.readUInt32BE(20)];
+    });
+    // tiffutil -cathidpicheck joins the pair only when the Retina copy is exactly twice as large.
+    assert.deepEqual(retina, plain.map((pixels) => pixels * 2));
+    const { dmg } = load(readFileSync(new URL('../electron-builder.yml', import.meta.url), 'utf8'));
+    assert.equal(dmg.background, 'stage/dmg/background.png');
+    // Finder sizes the window to the picture, so every icon has to fit inside it.
+    assert.equal(dmg.contents.length, 2);
+    for (const { x, y } of dmg.contents) {
+      assert.ok(x >= dmg.iconSize / 2 && x + dmg.iconSize / 2 <= plain[0], `icon centre x ${x} leaves the window`);
+      assert.ok(y >= dmg.iconSize / 2 && y + dmg.iconSize / 2 <= plain[1], `icon centre y ${y} leaves the window`);
+    }
   });
 
   it('stages the JVM fallback only when asked', async () => {
