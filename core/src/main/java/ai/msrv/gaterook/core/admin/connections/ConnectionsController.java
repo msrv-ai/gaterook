@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.Limits;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Modes;
 import ai.msrv.gaterook.core.admin.Reasons;
@@ -57,7 +58,8 @@ import tools.jackson.databind.node.ObjectNode;
     ConnectionsController.Deleted.class, ConnectionsController.TestAllStarted.class,
     ConnectionsController.PolicyChanged.class, TestDtos.Outcome.class, TestDtos.Permissions.class,
     TestDtos.Hint.class, TestDtos.Snippet.class, TestDtos.Check.class, TestDtos.Error.class,
-    TestDtos.Confirmation.class, TestDtos.Confirmed.class})
+    TestDtos.Confirmation.class, TestDtos.Confirmed.class, ConnectionsController.Suggest.class,
+    TestDtos.Suggested.class, TestDtos.SuggestedField.class, TestDtos.SuggestedOption.class})
 class ConnectionsController {
 
   /**
@@ -77,6 +79,13 @@ class ConnectionsController {
   /** {@code POST /api/connections/test}: a draft; {@code existing} lets empty secret fields use what is stored. */
   record TestDraft(String type, String env, JsonNode config, Map<String, SecretSource> secrets, String existing,
       String confirm) {}
+
+  /**
+   * The setup form's helpers ({@code POST /api/connections/suggest}): {@code scope} {@code local} reads only this
+   * computer and what was typed; {@code service} signs in like a test and lists what the account may use.
+   */
+  record Suggest(String type, String env, JsonNode config, Map<String, SecretSource> secrets, String existing,
+      String confirm, String scope) {}
 
   /** The administrative remote folder browser; its entries do not grant agent access. */
   record BrowseFiles(String type, String env, JsonNode config, Map<String, SecretSource> secrets, String existing,
@@ -264,6 +273,28 @@ class ConnectionsController {
     } finally {
       clear(secrets, request.secrets());
     }
+  }
+
+  @PostMapping("/api/connections/suggest")
+  TestDtos.Suggested suggest(@RequestBody Suggest request) {
+    Suggestions.Scope scope = suggestScope(request.scope());
+    Map<String, SecretInput> secrets = secrets(request.secrets());
+    try {
+      return TestDtos.suggested(tester.suggest(request.type(), env(request.env()), request.config(), secrets,
+          request.existing(), request.confirm(), scope));
+    } finally {
+      clear(secrets, request.secrets());
+    }
+  }
+
+  private static Suggestions.Scope suggestScope(String scope) {
+    if (scope == null || scope.isBlank() || "local".equals(scope)) {
+      return Suggestions.Scope.LOCAL;
+    }
+    if ("service".equals(scope)) {
+      return Suggestions.Scope.SERVICE;
+    }
+    throw ApiRequestException.unprocessable("Unknown scope", "Ask for local or service suggestions.", "/scope");
   }
 
   @PostMapping("/api/connections/browse-files")

@@ -11,6 +11,8 @@ The built-in **Neo4j** connector (`neo4j`) uses the official Neo4j Java driver o
 - how GateRook signs in: a **user and password**, or a **bearer token** of single sign-on (OIDC), stored encrypted in GateRook. A token expires: paste a new one when Test connection says so;
 - under **Advanced**, the **CA certificate** (PEM) of a private CA for a `+s` URI. GateRook still checks the host name. **Rows per query** and **Transaction timeout** can only tighten the environment policy.
 
+The form helps with the scheme. An address typed without one gets `neo4j+s://` when you leave the field if it names another computer, which GateRook reaches only with TLS. For this computer, GateRook first tries a TLS hello on the port and, only when the port doesn't speak TLS, Bolt's handshake, sending nothing that signs in, and adds `neo4j+s://` or `neo4j://` to match. A scheme that doesn't fit the port, or a URI without TLS to another computer, gets a note with the one that does. With the URI empty, `neo4j://localhost:7687` (or `neo4j+s://`) is offered when a server answers there. Once the form can sign in, GateRook lists the databases the user may use (`SHOW DATABASES`) and fills the home database into **Database**; for `bolt+s://` to one server of a cluster it suggests `neo4j+s://`, which lets the cluster route each call.
+
 Sign in as a user with the `reader` role wherever you can (Enterprise Edition and Aura):
 
 ```cypher

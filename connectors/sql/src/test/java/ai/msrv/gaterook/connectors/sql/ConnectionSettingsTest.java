@@ -34,8 +34,11 @@ class ConnectionSettingsTest {
     ConnectionSettings settings = ConnectionSettings.of(config("postgres"), false);
     JsonNode schema = new JdbcSqlConnector(new PostgresDialect()).manifest().configSchema();
 
+    // A stored connection without sslMode keeps verify-full; new ones start with Auto, and with verify-full on prod.
     assertThat(settings.sslMode()).isEqualTo("verify-full")
-        .isEqualTo(schema.at("/properties/connection/properties/sslMode/default").asString());
+        .isEqualTo(schema.at("/properties/connection/properties/sslMode/x-env-default/prod").asString());
+    assertThat(schema.at("/properties/connection/properties/sslMode/default").asString()).isEqualTo("auto");
+    assertThat(settings.autoTls()).isFalse();
     assertThat(settings.allowPublicKeyRetrieval()).isFalse();
   }
 

@@ -62,6 +62,6 @@ class SmokeDescriptorTest {
       connector.close();
       checked++;
     }
-    assertThat(checked).isEqualTo(6);
+    assertThat(checked).isEqualTo(7);
   }
 }

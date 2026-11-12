@@ -13,6 +13,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -24,8 +25,11 @@ import ai.msrv.gaterook.connectors.influxdb.InfluxHttp.Response;
 import ai.msrv.gaterook.connectors.influxdb.InfluxSettings.AuthMethod;
 import ai.msrv.gaterook.connectors.influxdb.InfluxSettings.Family;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.connectors.support.LocalPorts;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -86,6 +90,9 @@ public final class InfluxDbConnector implements Connector {
       return "SHOW DATABASES".equals(type);
     }
   }
+
+  /** How long a local suggestion waits for {@code /ping} of a server on this computer. */
+  private static final Duration LOCAL_PING = Duration.ofMillis(1500);
 
   private final InfluxHttp http = new InfluxHttp();
   private final ConnectorManifest manifest;
@@ -909,6 +916,82 @@ public final class InfluxDbConnector implements Connector {
     return result;
   }
 
+  /**
+   * Local help ({@link InfluxSuggestions}) and, signed in as Test connection does: the server's API family for Server
+   * ({@code x-suggest}), InfluxDB 2.x's organizations, and the databases or buckets the credentials see.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    Suggestions.Builder out = Suggestions.builder();
+    InfluxSuggestions.local(cfg, LocalPorts::listening, Path.of(System.getProperty("user.home"), ".influxdbv2",
+        "configs"), uri -> InfluxSuggestions.ping(uri, LOCAL_PING), out);
+    if (scope == Suggestions.Scope.SERVICE) {
+      service(cfg, secrets, ctx, out);
+    }
+    return out.build();
+  }
+
+  void service(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Builder out) {
+    InfluxSettings s;
+    try {
+      s = InfluxSettings.of(cfg);
+    } catch (ConnectorException e) {
+      out.note(e.getMessage());
+      return;
+    }
+    Call c = new Call(cfg, s, secrets, ctx);
+    try {
+      Response ping = http.send(c, Request.get("/ping", "InfluxDB ping"), InfluxHttp.MAX_ERROR_BODY);
+      if (ping.status() == 401 || ping.status() == 403) {
+        out.note("InfluxDB refused the credentials: " + Errors.message(ping.body()) + ". Check "
+            + (s.auth() == AuthMethod.PASSWORD ? "the username and password" : "the API token") + " under "
+            + "Credentials.");
+        return;
+      }
+      String version = ping.header("X-Influxdb-Version");
+      String build = ping.header("X-Influxdb-Build");
+      Family detected = detect(version, build);
+      String server = serverName(version, build);
+      if (detected != null) {
+        out.value("/version", "the server", detected.id, List.of(new Suggestions.Option(detected.id, server, null)));
+        if (detected != s.family()) {
+          out.note("This server is " + server + ": Server changes to " + choice(detected) + ".");
+          return;
+        }
+      }
+      if (s.family() == Family.V2) {
+        organizations(c, out);
+      }
+      List<String> names = databases(c).names();
+      String noun = s.family() == Family.V2 ? "bucket" : "database";
+      out.options("/databases", "the server", names.stream().sorted().map(Suggestions.Option::of).toList());
+      out.note("Signed in to " + server + ": " + (names.isEmpty() ? "the credentials see no " + noun + "."
+          : count(names.size(), noun) + ". Choose the ones agents may use."));
+    } catch (ConnectorException e) {
+      out.note(e.getMessage());
+    }
+  }
+
+  /** InfluxDB 2.x's organizations the token sees: a single one is filled in, as writes need it on InfluxDB OSS. */
+  private void organizations(Call c, Suggestions.Builder out) {
+    try {
+      Response r = http.send(c, Request.get("/api/v2/orgs", "InfluxDB organizations", "limit", "100"), 1 << 20);
+      if (!r.ok()) {
+        return;
+      }
+      List<Suggestions.Option> orgs = new ArrayList<>();
+      for (JsonNode org : InfluxHttp.json(r, "InfluxDB organizations").path("orgs")) {
+        String name = org.path("name").asString(null);
+        if (name != null && InfluxSettings.NAME.matcher(name).matches()) {
+          orgs.add(Suggestions.Option.of(name));
+        }
+      }
+      out.value("/organization", "the server", orgs.size() == 1 ? orgs.getFirst().value() : null, orgs);
+    } catch (ConnectorException e) {
+      // A token that may not read organizations: the person types it.
+    }
+  }
+
   private static String code(ConnectorException e) {
     return switch (e.kind()) {
       case RESOURCE_UNAVAILABLE -> "influxdb.unreachable";
@@ -936,7 +1019,7 @@ public final class InfluxDbConnector implements Connector {
     return null;
   }
 
-  private static String serverName(String version, String build) {
+  static String serverName(String version, String build) {
     if (version == null || version.isBlank()) {
       return "InfluxDB (version not reported)";
     }
@@ -945,7 +1028,7 @@ public final class InfluxDbConnector implements Connector {
         : " " + build.strip());
   }
 
-  private static String choice(Family family) {
+  static String choice(Family family) {
     return switch (family) {
       case V3 -> "InfluxDB 3 Core or Enterprise";
       case V2 -> "InfluxDB 2.x or InfluxDB Cloud";

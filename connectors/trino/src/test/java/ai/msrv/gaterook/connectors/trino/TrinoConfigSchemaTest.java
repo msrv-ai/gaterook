@@ -36,7 +36,10 @@ class TrinoConfigSchemaTest {
         "{\"url\": \"ftp://trino.example.com\", \"auth\": {\"mode\": \"jwt\", \"token\": \"t\"}}",
         "{\"url\": \"https://trino.example.com\", \"auth\": {\"mode\": \"jwt\", \"token\": \"t\"}, \"catalogs\": "
             + "[\"a b\"]}",
-        "{\"url\": \"https://trino.example.com\", \"auth\": {\"mode\": \"jwt\", \"token\": \"t\", \"extra\": 1}}")) {
+        "{\"url\": \"https://trino.example.com\", \"auth\": {\"mode\": \"jwt\", \"token\": \"t\", \"extra\": 1}}",
+        // A default schema needs its catalog: the connector refuses one without it.
+        "{\"url\": \"https://trino.example.com\", \"schema\": \"sales\", \"auth\": {\"mode\": \"jwt\", \"token\": "
+            + "\"t\"}}")) {
       assertThat(SCHEMA.validate(JSON.readTree(bad))).as(bad).isNotEmpty();
     }
   }

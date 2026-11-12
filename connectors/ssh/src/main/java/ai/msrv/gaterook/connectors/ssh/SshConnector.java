@@ -14,6 +14,7 @@ import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.ResourceDescriptor;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntPredicate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -77,8 +79,18 @@ public final class SshConnector implements Connector {
    */
   private final Map<String, Integer> parallel = new ConcurrentHashMap<>();
   private final Map<String, Semaphore> slots = new ConcurrentHashMap<>();
+  /** This computer's {@code ~/.ssh} and loopback, for the form's local suggestions only. */
+  private final SshHome home;
+  private final IntPredicate loopbackSsh;
 
   public SshConnector() {
+    this(SshHome.current(), SshSuggestions::sshOnLoopback);
+  }
+
+  /** For tests: another home folder, and what answers on loopback. */
+  SshConnector(SshHome home, IntPredicate loopbackSsh) {
+    this.home = home;
+    this.loopbackSsh = loopbackSsh;
     // Before any MINA class picks its providers (A23: BouncyCastle is not MINA's JCE provider).
     MinaSecurity.install();
     SchemaResources schemas = SchemaResources.of(SshConnector.class, "ssh");
@@ -300,6 +312,18 @@ public final class SshConnector implements Connector {
   @Override
   public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return probe.health(cfg, ctx);
+  }
+
+  /**
+   * Local: the hosts, user, port, key file and bastion {@code ~/.ssh} knows ({@link SshSuggestions}). Service: no
+   * sign-in (a Vault certificate would be signed for nothing; sudo is the test's to check), only what to do about a
+   * host key nobody trusted yet.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return scope == Suggestions.Scope.LOCAL
+        ? SshSuggestions.local(cfg, secrets, home, loopbackSsh, SshSuggestions.Form.RUNBOOKS)
+        : SshSuggestions.hostKeyNotes(cfg);
   }
 
   @Override

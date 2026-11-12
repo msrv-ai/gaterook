@@ -90,7 +90,8 @@ public final class PostgresDialect implements SqlDialect {
     p.setProperty("readOnlyMode", "transaction");
     // No Kerberos or GSS encryption probing: the form has user and password only.
     p.setProperty("gssEncMode", "disable");
-    String mode = s.sslMode();
+    // Auto is chosen before a connection's properties exist (resolveTransport); if it ever wasn't, TLS is verified.
+    String mode = AUTO.equals(s.sslMode()) ? PostgresTls.TLS : s.sslMode();
     p.setProperty("sslmode", mode);
     if (!"disable".equals(mode)) {
       // The connection's CA, else the JVM's trust store (pgjdbc's own factory would look for ~/.postgresql/root.crt),
@@ -101,6 +102,35 @@ public final class PostgresDialect implements SqlDialect {
       }
     }
     return p;
+  }
+
+  /** The SSL mode that leaves TLS to the server's answer ({@link PostgresTls}). */
+  static final String AUTO = "auto";
+
+  /** Auto: an SSLRequest asks the server whether it speaks TLS before any credential is sent. */
+  @Override
+  public ConnectionSettings resolveTransport(ConnectionSettings s, int timeoutMs) throws SQLException {
+    if (!AUTO.equals(s.sslMode())) {
+      return s;
+    }
+    boolean tls = PostgresTls.offered(s.host(), s.port(), Math.max(1, Math.min(timeoutMs, s.connectTimeoutMs())));
+    return s.withTransport(tls ? PostgresTls.TLS : PostgresTls.PLAIN);
+  }
+
+  /**
+   * Auto in a pool: the properties of both answers are made now (a CA that can't be used fails at once, as for
+   * verify-full), the server is asked at the pool's first connection, and its answer holds for the pool.
+   */
+  @Override
+  public CredentialAwareDataSource.Transport poolTransport(ConnectionSettings s, Path certificates,
+      int socketTimeoutMs, boolean write) throws IOException {
+    if (!AUTO.equals(s.sslMode())) {
+      return SqlDialect.super.poolTransport(s, certificates, socketTimeoutMs, write);
+    }
+    Properties tls = properties(s.withTransport(PostgresTls.TLS), certificates, socketTimeoutMs);
+    Properties plain = properties(s.withTransport(PostgresTls.PLAIN), certificates, socketTimeoutMs);
+    return CredentialAwareDataSource.Transport.once(() ->
+        PostgresTls.TLS.equals(resolveTransport(s, s.connectTimeoutMs()).sslMode()) ? tls : plain);
   }
 
   /** {@code CockroachDB CCL v26.3.5 (aarch64-unknown-linux-gnu, …)}: the version after the {@code v}. */

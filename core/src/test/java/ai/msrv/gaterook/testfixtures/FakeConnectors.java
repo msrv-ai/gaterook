@@ -697,6 +697,31 @@ public class FakeConnectors {
       return result.withDetails(details);
     }
 
+    /**
+     * Local: a database to fill in, and whether a typed password reached it. Service: the password echoed into an
+     * option, a detail and a note, as a careless server or connector could.
+     */
+    @Override
+    public ai.msrv.gaterook.connector.api.Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets,
+        ExecContext ctx, ai.msrv.gaterook.connector.api.Suggestions.Scope scope) throws ConnectorException {
+      var out = ai.msrv.gaterook.connector.api.Suggestions.builder();
+      out.value("/connection/database", "this computer", "orders",
+          List.of(ai.msrv.gaterook.connector.api.Suggestions.Option.of("orders")));
+      String password = secrets.isSet("/credentials/password")
+          ? secrets.secret("/credentials/password").unsafeString() : null;
+      if (scope == ai.msrv.gaterook.connector.api.Suggestions.Scope.LOCAL) {
+        return out.note(password == null ? "No password typed." : "A password was typed.").build();
+      }
+      if ("suggest-fail.test".equals(cfg.string("/connection/host"))) {
+        throw ConnectorException.unavailable("Can't list schemas: the server said no to " + password + ".", null);
+      }
+      out.options("/connection/schema", "the server", List.of(
+          ai.msrv.gaterook.connector.api.Suggestions.Option.of("public"),
+          ai.msrv.gaterook.connector.api.Suggestions.Option.of(password == null ? "none" : password),
+          ai.msrv.gaterook.connector.api.Suggestions.Option.of("sales", "owned by " + password)));
+      return out.note("Signed in with " + password + ".").build();
+    }
+
     @Override
     public TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
       TestResult result = test(cfg, secrets, ctx);

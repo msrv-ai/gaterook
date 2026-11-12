@@ -23,15 +23,17 @@
       "description": "The Google Cloud project of the Spanner instance."
     },
     "instance": {
+      "x-suggest": true,
       "type": "string",
       "title": "Instance",
       "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
       "examples": [
         "orders-prod"
       ],
-      "description": "The instance id, as gcloud spanner instances list shows it."
+      "description": "The instance id, as gcloud spanner instances list shows it, not its display name."
     },
     "database": {
+      "x-suggest": true,
       "type": "string",
       "title": "Database",
       "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
@@ -59,7 +61,7 @@
             "Existing Google sign-in (ADC)",
             "Service account key (JSON)"
           ],
-          "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+          "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer, from gcloud auth application-default login. A service account key signs in as that service account."
         },
         "impersonate": {
           "type": "string",
@@ -67,13 +69,15 @@
           "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
           "examples": [
             "gw-spanner@acme-prod.iam.gserviceaccount.com"
-          ]
+          ],
+          "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/spanner.databaseReader on the database. Empty: calls use the sign-in or key itself."
         },
         "delegates": {
           "type": "array",
           "title": "Delegation chain",
           "maxItems": 5,
           "items": {
+            "title": "Service account",
             "type": "string"
           },
           "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
@@ -84,12 +88,13 @@
           "minimum": 300,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
         },
         "quotaProject": {
           "type": "string",
           "title": "Billed project",
-          "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
         }
       },
       "patternProperties": {

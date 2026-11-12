@@ -12,12 +12,14 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.cloudauth.GcpSpec;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
@@ -68,13 +70,20 @@ public final class SpannerConnector implements Connector {
       + "snapshot)");
 
   private final CloudCredentials cloud;
+  private final CloudLocal local;
   private final SpannerApi api;
   private final ConnectorManifest manifest;
   /** Each connection's dialect, by connection id and version: whether its database is PostgreSQL-dialect. */
   private final Map<String, Boolean> dialects = new ConcurrentHashMap<>();
 
   public SpannerConnector(CloudCredentials cloud) {
+    this(cloud, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** @param local what this computer's gcloud knows, for the form's suggestions (tests: their own files) */
+  SpannerConnector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.api = new SpannerApi(cloud);
     SchemaResources schemas = SchemaResources.of(SpannerConnector.class, TYPE);
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -867,6 +876,12 @@ public final class SpannerConnector implements Connector {
       result = result.withHint(h);
     }
     return result;
+  }
+
+  /** The project from this computer or the key; signed in, the instances, databases and database roles. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return SpannerSuggestions.suggest(cfg, secrets, ctx, scope, api, cloud, local);
   }
 
   static List<Hint> hints(Env env, SpannerSettings s, int visible) {

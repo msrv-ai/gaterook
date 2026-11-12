@@ -143,7 +143,8 @@
           "kubeconfigPath": {
             "type": "string",
             "title": "kubeconfig file",
-            "default": "~/.kube/config"
+            "default": "~/.kube/config",
+            "x-local-path": true
           },
           "pinnedCluster": {
             "type": "object",
@@ -193,6 +194,7 @@
             "title": "Run the credential command from kubeconfig",
             "x-confirm": "warning",
             "x-person-only": true,
+            "x-advanced": false,
             "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
           },
           "trustedExec": {

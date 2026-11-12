@@ -95,7 +95,7 @@ class CatalogApiIT {
 
     JARS.put("gw-jira-service-desk-1.3.0.jar", jar(Path.of("..", "plugins", "jira-service-desk", "src", "main",
         "releases", "1.3.0", "mcp-gateway-plugin.json")));
-    JARS.put("gw-clickhouse-0.6.1.jar", jar(Path.of("..", "plugins", "clickhouse", "src", "main", "resources",
+    JARS.put("gw-clickhouse-0.7.0.jar", jar(Path.of("..", "plugins", "clickhouse", "src", "main", "resources",
         "mcp-gateway-plugin.json")));
     JARS.put("gw-rabbitmq-0.3.0.jar", jar(Path.of("..", "plugins", "rabbitmq", "src", "main", "resources",
         "mcp-gateway-plugin.json")));
@@ -128,6 +128,16 @@ class CatalogApiIT {
   // ── The catalog ─────────────────────────────────────────────────────────────────────────────────────────────
 
   @Test
+  @Order(0)
+  void addConnectionChecksACatalogThatNeverWasChecked() {
+    // Add connection is often where a person looks for a plugin first: its list checks the catalog, as the Catalog
+    // tab does, instead of offering nothing until that tab was opened.
+    JsonNode duckdb = card(api.ok("/api/connector-types"), "Databases", "duckdb");
+    assertThat(duckdb.path("catalogRef").asString()).isEqualTo("duckdb@1.0.0");
+    assertThat(duckdb.path("available").asBoolean()).isFalse();
+  }
+
+  @Test
   @Order(1)
   void theFirstLookChecksTheCatalogAndOffersItInTheKitsTerms() {
     JsonNode c = api.ok("/api/catalog");
@@ -151,7 +161,7 @@ class CatalogApiIT {
     assertThat(cards).containsExactly(
         "plugin | jira-service-desk | Jira Service Desk | v1.3.0 | Signed | This release adds SLA timers: one new "
             + "read-only tool, no new hosts. | 6 tools | puzzle | not installed",
-        "plugin | clickhouse | ClickHouse | v0.6.1 | Signed | Analytics queries with row and time limits. Read only. "
+        "plugin | clickhouse | ClickHouse | v0.7.0 | Signed | Analytics queries with row and time limits. Read only. "
             + "| 6 tools | database | not installed",
         "plugin | rabbitmq | RabbitMQ | v0.3.0 | Unsigned | Queue depth, consumers and dead letters. Community code, "
             + "not reviewed. | 4 tools | puzzle | not installed",
@@ -175,16 +185,16 @@ class CatalogApiIT {
   @Test
   @Order(2)
   void aCatalogPluginIsDownloadedAndCheckedAgainstTheSignedHash() throws Exception {
-    JsonNode check = api.expect(200, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+    JsonNode check = api.expect(200, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.7.0\"}");
     JsonNode r = check.path("report");
     assertThat(check.path("stagingId").asString()).startsWith("stg_");
     assertThat(r.path("signed").asBoolean()).isTrue();
     assertThat(r.path("id").asString()).isEqualTo("clickhouse");
-    assertThat(r.path("version").asString()).isEqualTo("0.6.1");
+    assertThat(r.path("version").asString()).isEqualTo("0.7.0");
     assertThat(r.path("name").asString()).isEqualTo("ClickHouse");
-    assertThat(r.path("file").asString()).isEqualTo("gw-clickhouse-0.6.1.jar");
-    assertThat(r.path("sha256").asString()).isEqualTo(sha256(JARS.get("gw-clickhouse-0.6.1.jar")));
-    assertThat(r.path("size").asLong()).isEqualTo(JARS.get("gw-clickhouse-0.6.1.jar").length);
+    assertThat(r.path("file").asString()).isEqualTo("gw-clickhouse-0.7.0.jar");
+    assertThat(r.path("sha256").asString()).isEqualTo(sha256(JARS.get("gw-clickhouse-0.7.0.jar")));
+    assertThat(r.path("size").asLong()).isEqualTo(JARS.get("gw-clickhouse-0.7.0.jar").length);
     assertThat(r.path("tools")).hasSize(6);
     // Preview each connection field from the manifest, including the selected database scope.
     assertThat(r.path("configPreview")).extracting(JsonNode::asString)
@@ -209,15 +219,15 @@ class CatalogApiIT {
   @Test
   @Order(3)
   void aFlippedByteOfAJarIsRefused() {
-    byte[] jar = JARS.get("gw-clickhouse-0.6.1.jar").clone();
+    byte[] jar = JARS.get("gw-clickhouse-0.7.0.jar").clone();
     jar[jar.length / 2] ^= 0x01;
-    serve("/catalog/gw-clickhouse-0.6.1.jar", jar);
+    serve("/catalog/gw-clickhouse-0.7.0.jar", jar);
     try {
       JsonNode refused = api.expect(409, HttpMethod.POST, "/api/plugins/check",
-          "{\"catalog\":\"clickhouse@0.6.1\"}");
+          "{\"catalog\":\"clickhouse@0.7.0\"}");
       assertThat(refused.path("title").asString()).isEqualTo("Package doesn't match the signed catalog");
     } finally {
-      serve("/catalog/gw-clickhouse-0.6.1.jar", JARS.get("gw-clickhouse-0.6.1.jar"));
+      serve("/catalog/gw-clickhouse-0.7.0.jar", JARS.get("gw-clickhouse-0.7.0.jar"));
     }
   }
 
@@ -335,11 +345,11 @@ class CatalogApiIT {
   @Order(9)
   void aRevokedBuildIsRefused() throws Exception {
     publish(index(8, Instant.now().plus(30, ChronoUnit.DAYS),
-        List.of(sha256(JARS.get("gw-clickhouse-0.6.1.jar")))));
+        List.of(sha256(JARS.get("gw-clickhouse-0.7.0.jar")))));
     JsonNode c = api.expect(200, HttpMethod.POST, "/api/catalog/refresh", null);
     assertThat(c.path("offline").asBoolean()).as(c.toString()).isFalse();
     assertThat(c.path("signature").path("sequence").asLong()).isEqualTo(8);
-    JsonNode refused = api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+    JsonNode refused = api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.7.0\"}");
     assertThat(refused.path("title").asString()).isEqualTo("Revoked");
     assertThat(refused.path("detail").asString()).contains("leaked test build");
     // A later index without the revocation (this test only: a real release keeps revocations).
@@ -397,7 +407,7 @@ class CatalogApiIT {
     assertThat(c.path("signature").path("ok").asBoolean()).isFalse();
     assertThat(c.path("problem").asString()).contains("changed outside GateRook").contains("sequence 7 < 9");
     assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "catalog.last-good")).isTrue();
-    JsonNode refused = api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+    JsonNode refused = api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.7.0\"}");
     assertThat(refused.path("title").asString()).isEqualTo("Catalog unavailable");
     assertThat(refused.path("detail").asString()).contains("changed outside GateRook");
 
@@ -408,7 +418,7 @@ class CatalogApiIT {
     assertThat(fresh.path("signature").path("ok").asBoolean()).isTrue();
     assertThat(fresh.path("problem").isNull()).isTrue();
     assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "catalog.last-good")).isFalse();
-    api.expect(200, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+    api.expect(200, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.7.0\"}");
   }
 
   @Test
@@ -422,7 +432,7 @@ class CatalogApiIT {
     assertThat(c.path("signature").path("ok").asBoolean()).isFalse();
     assertThat(c.path("problem").asString()).contains("sequence 9 < 10");
     assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "catalog.last-good")).isTrue();
-    api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+    api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.7.0\"}");
 
     publish(index(11, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
     JsonNode fresh = api.expect(200, HttpMethod.POST, "/api/catalog/refresh", null);

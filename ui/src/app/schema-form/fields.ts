@@ -98,7 +98,89 @@ export class GwSchemaField {
   protected hidden(): boolean {
     return ('const' in this.node().schema && sameJson(this.value(), this.node().schema['const']))
       || (this.node().kind === 'secret' && this.form().source() === 'dynamic')
+      || (this.node().readOnly && !this.hasValue())
       || !this.form().visible(this.node());
+  }
+
+  /** A value set by Test connection (`readOnly`) shows as it is, never as a control. */
+  protected hasValue(): boolean {
+    const filled = (v: JsonValue): boolean => v !== null && v !== '' && (Array.isArray(v) ? v.length > 0
+      : typeof v === 'object' ? Object.values(v).some(filled) : true);
+    return filled(this.value());
+  }
+
+  protected readOnlyText(): string {
+    const v = this.value();
+    return typeof v === 'string' ? v : JSON.stringify(v);
+  }
+
+  // ─── Suggestions: what the setup helpers found, under the field ───
+
+  /** How many found values the line under a field names; the rest are in the field's autocomplete. */
+  private static readonly SHOWN = 8;
+
+  protected suggestion() {
+    return this.form().suggestionFor(this.node());
+  }
+
+  /** Found values worth a button: for text, numbers and lists (a choice lists them itself). */
+  protected chips() {
+    const kind = this.node().kind;
+    return kind === 'text' || kind === 'tags' || kind === 'number' || kind === 'textarea'
+      ? this.form().offered(this.node()).slice(0, GwSchemaField.SHOWN) : [];
+  }
+
+  protected moreChips(): number {
+    const kind = this.node().kind;
+    if (kind !== 'text' && kind !== 'tags' && kind !== 'number' && kind !== 'textarea') return 0;
+    const extra = this.form().offered(this.node()).length - GwSchemaField.SHOWN;
+    return Math.max(0, extra) + (this.suggestion()?.complete === false ? 1 : 0);
+  }
+
+  /** The id of the field's autocomplete list, while the helpers found values for a text or list field. */
+  protected datalistId(): string | null {
+    const kind = this.node().kind;
+    return (kind === 'text' || kind === 'tags') && this.listed().length ? `${this.form().id(this.node())}-found` : null;
+  }
+
+  /** What the autocomplete lists: every value found for a text field, those not added yet for a list. */
+  protected listed() {
+    return this.node().kind === 'tags' ? this.form().offered(this.node()) : (this.suggestion()?.options ?? []);
+  }
+
+  /**
+   * "Found in your kubeconfig:" ("Found on this computer:") before the values; "Filled in from …" when one was put
+   * into the field.
+   */
+  protected suggestLead(): string {
+    const source = this.suggestion()?.source ?? 'what GateRook found';
+    const where = /^(this computer|the server)\b/.test(source) ? `on ${source}` : `in ${source}`;
+    const others = this.chips().length > 0;
+    if (this.form().wasFilled(this.node())) {
+      const from = this.form().filledFrom(this.node()) ?? source;
+      return others ? `Filled in from ${from}. Also found ${where}:` : `Filled in from ${from}.`;
+    }
+    return this.node().kind === 'tags' ? `Add from ${source}:` : `Found ${where}:`;
+  }
+
+  protected showSuggestLine(): boolean {
+    return this.chips().length > 0 || this.form().wasFilled(this.node());
+  }
+
+  /** The tooltip: the detail, and the whole value when the chip shows a label or may cut a long value short. */
+  protected chipTitle(option: { readonly value: string; readonly label: string | null; readonly detail: string | null }):
+    string | null {
+    const whole = option.label != null || option.value.length > 40 ? option.value : null;
+    return [whole, option.detail].filter((s) => !!s).join(' · ') || null;
+  }
+
+  protected chipLabel(option: { readonly value: string; readonly label: string | null }): string {
+    const n = this.node();
+    return n.kind === 'tags' ? `Add ${option.value} to ${lowerFirst(n.title)}` : `Use ${option.value} for ${lowerFirst(n.title)}`;
+  }
+
+  protected pick(value: string): void {
+    this.form().applySuggestion(this.node(), value);
   }
 
   /** The error sentence with the value it names set in mono ("<Dev DB> is not a slug…"). */
@@ -140,7 +222,7 @@ export class GwSchemaField {
    */
   protected clearable(): boolean {
     const n = this.node();
-    return n.schema['default'] === undefined && (!n.required || n.within.length > 0);
+    return n.schema['default'] === undefined && (!this.form().needed(n) || n.within.length > 0);
   }
 
   // ─── Tags ───

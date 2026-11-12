@@ -12,6 +12,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -78,6 +79,7 @@ public final class SnowflakeConnector implements Connector {
 
   private final SnowflakeApi api;
   private final ConnectorManifest manifest;
+  private volatile SnowflakeSuggestions.Machine machine = SnowflakeSuggestions.Machine.system();
 
   public SnowflakeConnector() {
     this(null);
@@ -1013,6 +1015,21 @@ public final class SnowflakeConnector implements Connector {
     }
     String line = OutputSanitizer.sanitize(name.replaceAll("\\s+", " "));
     return line.length() > 128 ? line.substring(0, 127) + "…" : line;
+  }
+
+  /**
+   * Setup helpers ({@link SnowflakeSuggestions}): the Snowflake CLI's connections on this computer; signed in, the
+   * user's defaults, roles, warehouses, databases and schemas.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return SnowflakeSuggestions.suggest(api, cfg, secrets, ctx, scope, machine);
+  }
+
+  /** Tests: this computer's files and environment elsewhere. */
+  SnowflakeConnector machine(SnowflakeSuggestions.Machine machine) {
+    this.machine = Objects.requireNonNull(machine, "machine");
+    return this;
   }
 
   @Override

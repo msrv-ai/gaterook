@@ -1,8 +1,11 @@
 package ai.msrv.gaterook.core.admin.connections;
 
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.core.connections.ConnectionTester;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -39,7 +42,31 @@ public final class TestDtos {
   /** {@code POST …/test/confirm}: the draft's patched config, or the test that ran again for a stored connection. */
   public record Confirmed(String kind, JsonNode config, Outcome retest) {}
 
+  /**
+   * {@code POST /api/connections/suggest}: what the setup form offers, by the JSON Pointer of each config field, and
+   * notes on what was found or comes next. Already masked by the tester.
+   */
+  public record Suggested(Map<String, SuggestedField> fields, List<String> notes) {}
+
+  /**
+   * {@code fill}: what to fill in while the field is empty or holds its default; {@code complete}: nothing cut. No
+   * property is named like a secret's value (AdminResponseTypesTest): a suggestion is never one, as the answer is
+   * masked and an option a mask would change is left out.
+   */
+  public record SuggestedField(List<SuggestedOption> options, String fill, String source, boolean complete) {}
+
+  /** {@code option}: what picking it puts in the field. */
+  public record SuggestedOption(String option, String label, String detail) {}
+
   private TestDtos() {}
+
+  public static Suggested suggested(Suggestions s) {
+    Map<String, SuggestedField> fields = new LinkedHashMap<>();
+    s.fields().forEach((pointer, f) -> fields.put(pointer, new SuggestedField(f.options().stream()
+        .map(o -> new SuggestedOption(o.value(), o.label(), o.detail())).toList(), f.value(), f.source(),
+        f.complete())));
+    return new Suggested(fields, s.notes());
+  }
 
   public static Outcome outcome(ConnectionTester.Outcome o) {
     TestResult r = o.result();

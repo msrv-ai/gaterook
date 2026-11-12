@@ -88,6 +88,8 @@ class OracleDialectTest {
     var schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
         .getSchema(SchemaResources.of(JdbcSqlConnector.class, "sql").load("oracle.config"));
     ObjectNode cfg = (ObjectNode) config().config();
+    // The core validates a stored password as a stand-in: Oracle signs in only with one.
+    ((ObjectNode) cfg.path("credentials")).put("password", "stored-password");
     assertThat(schema.validate(cfg)).isEmpty();
     ((ObjectNode) cfg.path("connection")).remove("database");
     assertThat(schema.validate(cfg)).isNotEmpty();

@@ -30,6 +30,12 @@ Through the PostgreSQL connector:
 Connection poolers in transaction mode (Supavisor's port 6543, PgBouncer) have not been verified: GateRook's schema
 queries use bound parameters. Prefer a direct connection or a session-mode pooler.
 
+The PostgreSQL connector's SSL mode **Auto**, the default for new dev and stage connections, asks the server before
+signing in whether it speaks TLS. When it does, the certificate and host name are verified as with **verify-full**,
+and a certificate that fails is an error rather than a reason to connect without TLS; only a server without TLS gets
+an unencrypted connection. New prod connections start with **verify-full**, and connections saved before Auto keep
+their mode.
+
 ## MySQL protocol
 
 Through the MySQL connector: MariaDB; Amazon Aurora and RDS for MySQL; Cloud SQL for MySQL; Azure Database for MySQL;

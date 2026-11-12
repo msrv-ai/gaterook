@@ -157,6 +157,7 @@
             allowKnownDatabaseSelection
             credentialsDescription="Prepared credentials stay in this import until you confirm it. Enter missing values or replace a prepared source here. Only the final import saves credentials and connects them to the selected endpoint."
             [parts]="['connection', 'credentials', 'safety', 'advanced', 'actions']" [busy]="busy()" saveLabel="Keep for import" backLabel="Discard changes" confirmAction="continue" pageCopy
+            helpers (suggest)="suggest($event)"
             (save)="keep($event)" (back)="closeEditor()" (secretAction)="secretAction($event)" (discoverDatabases)="discoverDatabases($event)" (discoverProjects)="discoverProjects($event)" (browseFiles)="browseFiles($event)" (trustFiles)="trustFiles($event)"></form>
           <div class="gw-card gw-card--muted"><div class="gw-card__body gw-stack">
             <p class="gw-text-small">Missing a host, credential or another required setting? Keep what is available. On import, incomplete connections are saved disabled with a setup checklist.</p>

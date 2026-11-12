@@ -12,12 +12,14 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.AzureCloud.Audience;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.net.http.HttpClient;
@@ -59,6 +61,7 @@ public final class AzureConnector implements Connector {
   private final ConnectorManifest manifest;
   private final CloudCredentials cloud;
   private final Clock clock;
+  private final CloudLocal local;
   private final AzureLogs logs;
   private final Decisions decisions = new Decisions();
   private volatile HttpClient http;
@@ -68,8 +71,14 @@ public final class AzureConnector implements Connector {
   }
 
   AzureConnector(CloudCredentials cloud, Clock clock) {
+    this(cloud, clock, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** Tests: {@code local} reads another home folder's Azure CLI sign-in. */
+  AzureConnector(CloudCredentials cloud, Clock clock, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
     this.clock = Objects.requireNonNull(clock, "clock");
+    this.local = Objects.requireNonNull(local, "local");
     this.logs = new AzureLogs(cloud, clock);
     SchemaResources schemas = SchemaResources.of(AzureConnector.class, "azure");
     List<ToolDefinition> tools = new ArrayList<>(AzureTools.definitions(schemas));
@@ -223,6 +232,23 @@ public final class AzureConnector implements Connector {
     } finally {
       // The core tests an unsaved form as draft-<uuid>: nobody asks for it again, its tokens go at once.
       if (cfg.id().startsWith("draft-")) {
+        onConnectionRemoved(cfg.id());
+      }
+    }
+  }
+
+  /**
+   * The Azure CLI's subscriptions, tenants and cloud on this computer; signed in, the subscriptions the identity can
+   * see and the workspaces and components of the chosen ones ({@link AzureSuggestions}). Never runs the Azure CLI and
+   * never starts a device sign-in.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    try {
+      return AzureSuggestions.suggest(cfg, secrets, ctx, scope, local, cloud, client());
+    } finally {
+      // As after a draft's test: nobody asks for this draft again, its tokens go at once.
+      if (scope == Suggestions.Scope.SERVICE && cfg.id().startsWith("draft-")) {
         onConnectionRemoved(cfg.id());
       }
     }

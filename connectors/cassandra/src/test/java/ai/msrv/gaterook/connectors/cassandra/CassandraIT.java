@@ -13,6 +13,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -247,6 +248,29 @@ class CassandraIT {
     });
     assertThat(connector.health(reader(), secrets(reader()), TestCtx.of().timeout(Duration.ofSeconds(10))).state())
         .isEqualTo(HealthResult.State.HEALTHY);
+  }
+
+  @Test
+  void autoAndServiceSuggestionsFindTheTransportTheDataCenterAndTheKeyspaces() {
+    // The test node speaks TLS and plain CQL on one port: Auto prefers TLS.
+    TestResult auto = connector.test(config(READER, Env.DEV, c -> c.put("tls", "auto")), secrets(reader()),
+        TestCtx.of().timeout(Duration.ofSeconds(20)));
+    assertThat(auto.ok()).as(String.valueOf(auto.error())).isTrue();
+    assertThat(auto.checks().getFirst().detail()).contains(" over TLS (Auto) to ");
+
+    ConnectionConfig draft = config(READER, Env.DEV, c -> {
+      c.remove("localDataCenter");
+      c.put("tls", "auto");
+    });
+    Suggestions s = connector.suggest(draft, secrets(reader()), TestCtx.of().timeout(Duration.ofSeconds(20)),
+        Suggestions.Scope.SERVICE);
+    Suggestions.Field dc = s.fields().get("/localDataCenter");
+    assertThat(dc).as("%s", s.notes()).isNotNull();
+    assertThat(dc.value()).isEqualTo(DC);
+    assertThat(dc.options()).extracting(Suggestions.Option::value).containsExactly(DC);
+    assertThat(s.fields().get("/keyspaces").options()).extracting(Suggestions.Option::value).contains(KS, OTHER);
+    assertThat(s.fields().get("/keyspace").options()).extracting(Suggestions.Option::value).containsExactly(KS);
+    assertThat(s.notes()).contains("The nodes speak TLS: Auto connects with TLS.");
   }
 
   @Test

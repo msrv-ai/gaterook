@@ -79,7 +79,7 @@ export class DirectPluginInstaller extends PluginInstaller {
               @if (f.allReadOnly) {
                 {{ f.toolNames.length }}, all read only <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The plugin declares these annotations; the gateway can't check what the tools do"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ f.id }}, not verified</span>. On an endpoint each starts as Approval; Read only needs your confirmation per tool.
               } @else {
-                @for (t of f.toolNames; track t) {<code class="gw-code">{{ t }}</code>{{ ' ' }}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.
+                @for (t of f.toolNames; track t; let last = $last) {<code class="gw-code">{{ t }}</code>@if (!last) {{{ ' ' }}}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.
               }
             </dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Needs access to</dt><dd class="gw-kv__value">{{ f.access }}</dd></div>

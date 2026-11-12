@@ -41,7 +41,7 @@ const NOW = new Date('2026-10-26T12:00:00.123Z');
 function artifacts() {
   return new Map([
     ['gw-jira-service-desk-1.3.0.jar', Buffer.from('jira 1.3.0 jar')],
-    ['gw-clickhouse-0.6.1.jar', Buffer.from('clickhouse 0.6.1 jar')],
+    ['gw-clickhouse-0.7.0.jar', Buffer.from('clickhouse 0.7.0 jar')],
     ['gw-rabbitmq-0.3.0.jar', Buffer.from('rabbitmq 0.3.0 jar')],
     ['gw-duckdb-1.0.0.jar', Buffer.from('duckdb 1.0.0 jar')],
     ['gw-h2-1.0.0.jar', Buffer.from('h2 1.0.0 jar')],
@@ -63,12 +63,12 @@ test('the source index of this folder signs: every artifact pinned, sequence, ti
   assert.equal(index.generatedAt, '2026-10-26T12:00:00Z');
   assert.equal(index.expiresAt, '2026-11-25T12:00:00Z');
   assert.deepEqual(index.entries.map((e) => `${e.kind}:${e.id}@${e.version}`), [
-    'plugin:jira-service-desk@1.3.0', 'plugin:clickhouse@0.6.1', 'plugin:rabbitmq@0.3.0', 'plugin:duckdb@1.0.0',
+    'plugin:jira-service-desk@1.3.0', 'plugin:clickhouse@0.7.0', 'plugin:rabbitmq@0.3.0', 'plugin:duckdb@1.0.0',
     'plugin:h2@1.0.0', 'plugin:msaccess@1.0.0', 'template:pg-slow-queries@1.0.0',
   ]);
   const clickhouse = index.entries.find((e) => e.id === 'clickhouse');
-  assert.equal(clickhouse.artifact.sha256, sha256(Buffer.from('clickhouse 0.6.1 jar')));
-  assert.equal(clickhouse.artifact.size, 'clickhouse 0.6.1 jar'.length);
+  assert.equal(clickhouse.artifact.sha256, sha256(Buffer.from('clickhouse 0.7.0 jar')));
+  assert.equal(clickhouse.artifact.size, 'clickhouse 0.7.0 jar'.length);
   assert.equal(index.entries.find((e) => e.id === 'rabbitmq').signed, false);
   assert.deepEqual(index.revoked, []);
   // The kit's cards: names, tool counts, signed or not.
@@ -135,7 +135,7 @@ test('every artifact is pinned: a missing one, an http URL or a lockfile that pi
     /gw-rabbitmq-0\.3\.0\.jar isn't among the built files/);
 
   const insecure = structuredClone(SOURCE);
-  insecure.entries[1].artifact.url = 'http://example.com/gw-clickhouse-0.6.1.jar';
+  insecure.entries[1].artifact.url = 'http://example.com/gw-clickhouse-0.7.0.jar';
   assert.throws(() => prepareIndex(insecure, { artifacts: artifacts(), sequence: 1, now: NOW }), /https:\/\/ only/);
   assert.equal(artifactName('https://github.com/acme/catalog/releases/latest/download/x.jar?raw=1'), 'x.jar');
 
@@ -162,9 +162,9 @@ test('revocations are kept across releases, checked, and a revoked artifact can\
   ]);
   assert.throws(() => prepareIndex(SOURCE, { artifacts: artifacts(), sequence: 1, now: NOW,
     revoke: [{ sha256: 'xyz', reason: 'r' }] }), /64 hex digits/);
-  const listed = sha256(Buffer.from('clickhouse 0.6.1 jar'));
+  const listed = sha256(Buffer.from('clickhouse 0.7.0 jar'));
   assert.throws(() => prepareIndex(SOURCE, { artifacts: artifacts(), sequence: 1, now: NOW,
-    revoke: [{ sha256: listed, reason: 'bad build' }] }), /clickhouse@0\.6\.1 is revoked/);
+    revoke: [{ sha256: listed, reason: 'bad build' }] }), /clickhouse@0\.7\.0 is revoked/);
 });
 
 test('the CLI signs with the key of the environment, verifies, and never writes the key', () => {

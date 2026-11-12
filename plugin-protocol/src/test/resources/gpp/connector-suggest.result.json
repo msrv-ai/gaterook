@@ -1,0 +1,21 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 65,
+  "result" : {
+    "fields" : {
+      "/serviceDeskIds" : {
+        "options" : [ {
+          "value" : "4",
+          "label" : "IT Help Desk",
+          "detail" : "SD"
+        }, {
+          "value" : "7"
+        } ],
+        "value" : "4",
+        "source" : "the site",
+        "complete" : true
+      }
+    },
+    "notes" : [ "Signed in as svc-gateway@acme.com: 2 service desks." ]
+  }
+}

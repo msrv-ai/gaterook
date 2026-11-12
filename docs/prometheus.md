@@ -13,6 +13,8 @@ The built-in **Prometheus** connector (`prometheus`) calls the server's HTTP API
 
 **Test connection** reads the server's build information (`/api/v1/status/buildinfo`; a server that reports none still passes), evaluates `vector(1)`, and counts the `up` series to show whether anything is scraped into the server. It warns, outside dev, when a server other than this computer answers without credentials.
 
+While you fill in the form, GateRook offers `http://localhost:9090` when a server answers there, and once the URL is in, it asks the server as Test connection does: it names the server (Prometheus, Grafana Mimir), fills in the sign-in a server asks for in its `WWW-Authenticate` answer, says when Mimir or Cortex needs a tenant, and for a URL without a path that finds nothing, tries `/prometheus`, `/api/prom` and `/select/0/prometheus` and offers the one that answers.
+
 ## Read-only tools
 
 | Tool | What it does | Default mode |

@@ -1,7 +1,7 @@
 import { CONNECTOR_FORMS } from '../../testing/connector-schemas';
 import { JsonObject } from '../core/api/types';
-import { compileSchema } from './compile';
-import { valueProblem } from './messages';
+import { compileSchema, tagNoun } from './compile';
+import { requiredMessage, valueProblem } from './messages';
 
 describe('schema-form validation for metadata choices', () => {
   it('accepts a Kubernetes context before discovery and a saved context absent from current metadata', () => {
@@ -66,5 +66,33 @@ describe('schema-form validation for resource scopes', () => {
       },
     };
     expect(valueProblem(compileSchema(schema).all[0], ['acme-stage'])).toBe('acme-stage is not a valid resource scope.');
+  });
+});
+
+describe('schema-form list nouns', () => {
+  const noun = (title: string, items: JsonObject = { type: 'string' }) =>
+    tagNoun(compileSchema({ type: 'object', properties: { list: { type: 'array', title, items } } }).all[0]);
+
+  it('names an item by the title up to its first plural word, made singular', () => {
+    expect(noun('Data folders')).toBe('data folder');
+    expect(noun('Base URLs')).toBe('base URL');
+    expect(noun('GET paths that change state')).toBe('GET path');
+    expect(noun('Keys the agent may access')).toBe('key');
+    expect(noun('Trusted host keys')).toBe('trusted host key');
+    expect(noun('Policies')).toBe('policy');
+    expect(noun('Addresses')).toBe('address');
+    expect(noun('Databases')).toBe('database');
+  });
+
+  it('takes the first word of a title without a plural, and the items’ own title over both', () => {
+    expect(noun('Schema allowlist')).toBe('schema');
+    expect(noun('Delegation chain', { type: 'string', title: 'Service account' })).toBe('service account');
+    expect(noun('Indices', { type: 'string', title: 'Index' })).toBe('index');
+  });
+
+  it('says which item a required list needs', () => {
+    const list = compileSchema({ type: 'object', required: ['list'], properties: {
+      list: { type: 'array', title: 'Log groups', minItems: 1, items: { type: 'string' } } } }).all[0];
+    expect(requiredMessage(list)).toBe('Add at least one log group.');
   });
 });

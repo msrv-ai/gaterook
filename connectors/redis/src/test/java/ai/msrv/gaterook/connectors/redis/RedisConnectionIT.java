@@ -262,6 +262,27 @@ class RedisConnectionIT {
   }
 
   @Test
+  void autoFindsThePlainPortAndTheTlsPortOfARealServer() {
+    // redis-server waits silently on a ClientHello at its plain port; PING without credentials then answers.
+    TestResult plain = test(Configs.redis("localhost", primary.port).auto(null).build(),
+        TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));
+    assertThat(plain.ok()).as("%s", plain.error()).isTrue();
+    assertThat(plain.checks().getFirst().detail()).isEqualTo("Without TLS (Auto) · localhost:" + primary.port);
+    assertThat(plain.details().path("tls").asBoolean()).isFalse();
+
+    TestResult tls = test(Configs.redis("localhost", primary.tlsPort).auto(certs.caPem()).build(),
+        TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));
+    assertThat(tls.ok()).as("%s", tls.error()).isTrue();
+    assertThat(tls.checks().getFirst().detail()).isEqualTo("TLS (Auto) · localhost:" + primary.tlsPort);
+
+    // A certificate the computer doesn't trust is the answer: no PING, no plain connection.
+    TestResult untrusted = test(Configs.redis("localhost", primary.tlsPort).auto(null).build(),
+        TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));
+    assertThat(untrusted.error().message()).isEqualTo("TLS: the server certificate isn't trusted. Add its CA "
+        + "certificate.");
+  }
+
+  @Test
   void tlsFailuresSayWhatToChange() {
     TestResult otherCa = test(Configs.redis("localhost", primary.tlsPort).tls(true, "full", certs.otherCaPem())
         .build(), TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));

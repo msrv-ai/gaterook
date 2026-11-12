@@ -115,6 +115,14 @@ final class SpannerApi {
     return send(call, HttpRequest.newBuilder(uri(path)).GET(), path, what, false);
   }
 
+  /**
+   * A {@code GET} whose refusal the caller words itself (a listing the form's suggestions may not get): the answer's
+   * status and JSON. A failure to connect or to sign in still throws.
+   */
+  Response read(Call call, String path, String what) throws ConnectorException {
+    return exchange(call, HttpRequest.newBuilder(uri(path)).GET(), path, what, false);
+  }
+
   void delete(Call call, String path, String what) throws ConnectorException {
     send(call, HttpRequest.newBuilder(uri(path)).DELETE(), path, what, false);
   }

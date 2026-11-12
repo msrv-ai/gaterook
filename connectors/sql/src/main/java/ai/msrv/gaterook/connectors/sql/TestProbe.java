@@ -104,50 +104,106 @@ final class TestProbe {
     if (ctx.cancelled() || ctx.remaining().isZero()) {
       return TestResult.failure("sql.timeout", "Loading databases timed out.", null);
     }
-    Properties props;
-    try {
-      props = dialect.properties(s.withConnectTimeoutAtMost(budget), certificates(ctx), budget);
-    } catch (IOException e) {
-      return TestResult.failure("sql.certificate", e.getMessage(), null);
-    }
     long started = System.nanoTime();
-    try (Credentials login = Credentials.resolve(cfg, secrets)) {
-      if (login.user() != null) props.setProperty("user", login.user());
-      if (login.password().length > 0) props.setProperty("password", new String(login.password()));
-      try (Connection c = dialect.driver().connect(dialect.url(s), props)) {
-        props.remove("password");
-        ctx.onCancel(() -> closeOnCancel(c));
-        if (!dialect.sqlServer()) c.setReadOnly(true);
-        ServerInfo server = dialect.identify(c);
-        String query = dialect.mysql()
-            ? "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN "
-                + "('information_schema', 'mysql', 'performance_schema', 'sys') ORDER BY SCHEMA_NAME LIMIT 1001"
-            : dialect.sqlServer() ? "SELECT TOP (1001) name FROM sys.databases WHERE state = 0 "
-                + "AND database_id > 4 AND HAS_DBACCESS(name) = 1 ORDER BY name"
-            : "SELECT datname FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate "
-                + "AND has_database_privilege(oid, 'CONNECT') ORDER BY datname LIMIT 1001";
-        ObjectNode details = JsonNodeFactory.instance.objectNode();
-        ArrayNode databases = details.putArray("databases");
-        boolean complete = true;
-        try (Statement st = c.createStatement()) {
-          st.setQueryTimeout(Math.max(1, (budget + 999) / 1000));
-          ctx.onCancel(() -> { try { st.cancel(); } catch (SQLException ignored) { } });
-          try (ResultSet rows = st.executeQuery(query)) {
-            while (rows.next()) {
-              if (databases.size() == 1000) { complete = false; break; }
-              databases.add(rows.getString(1));
-            }
+    Opened opened = open(cfg, secrets, ctx, s, budget);
+    if (opened.failure() != null) {
+      return opened.failure();
+    }
+    try (Connection c = opened.connection()) {
+      if (!dialect.sqlServer()) c.setReadOnly(true);
+      ServerInfo server = dialect.identify(c);
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      ArrayNode databases = details.putArray("databases");
+      boolean complete = true;
+      try (Statement st = c.createStatement()) {
+        st.setQueryTimeout(Math.max(1, (budget + 999) / 1000));
+        ctx.onCancel(() -> { try { st.cancel(); } catch (SQLException ignored) { } });
+        try (ResultSet rows = st.executeQuery(databasesQuery())) {
+          while (rows.next()) {
+            if (databases.size() == 1000) { complete = false; break; }
+            databases.add(rows.getString(1));
           }
         }
-        details.put("discoveryComplete", complete);
-        return TestResult.success(ms(started), server.full(), login.user(), null).withDetails(details);
+      }
+      details.put("discoveryComplete", complete);
+      return TestResult.success(ms(started), server.full(), opened.user(), null).withDetails(details);
+    } catch (SQLException e) {
+      return failure(e, opened.settings(), opened.user());
+    }
+  }
+
+  /** The databases the login may connect to, at most 1,001 of them by name: discovery's list. */
+  String databasesQuery() {
+    return dialect.mysql()
+        ? "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN "
+            + "('information_schema', 'mysql', 'performance_schema', 'sys') ORDER BY SCHEMA_NAME LIMIT 1001"
+        : dialect.sqlServer() ? "SELECT TOP (1001) name FROM sys.databases WHERE state = 0 "
+            + "AND database_id > 4 AND HAS_DBACCESS(name) = 1 ORDER BY name"
+        : "SELECT datname FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate "
+            + "AND has_database_privilege(oid, 'CONNECT') ORDER BY datname LIMIT 1001";
+  }
+
+  /**
+   * A direct connection of a test, a discovery or a suggestion, with {@code budget}: the CA checked, Auto's transport
+   * chosen by the server ({@link SqlDialect#resolveTransport}), and only then the login sent. The caller closes it; a
+   * cancelled call closes it too.
+   *
+   * @param connection the open connection, or {@code null} with {@code failure} saying why there is none
+   * @param settings   what it connected with, Auto's choice made
+   * @param user       the login's user
+   * @param error      the driver's refusal behind {@code failure}, or {@code null}
+   */
+  record Opened(Connection connection, ConnectionSettings settings, String user, long connectMs, TestResult failure,
+      SQLException error) {
+
+    static Opened failed(TestResult failure) {
+      return new Opened(null, null, null, 0, failure, null);
+    }
+
+    static Opened failed(TestResult failure, SQLException error) {
+      return new Opened(null, null, null, 0, failure, error);
+    }
+  }
+
+  Opened open(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, ConnectionSettings s, int budget) {
+    ConnectionSettings bounded = s.withConnectTimeoutAtMost(budget);
+    Properties props;
+    try {
+      // The CA first: a certificate that can't be used is said before anything goes to the server.
+      props = dialect.properties(bounded, certificates(ctx), budget);
+      ConnectionSettings resolved = dialect.resolveTransport(bounded, budget);
+      if (resolved != bounded) {
+        bounded = resolved;
+        props = dialect.properties(bounded, certificates(ctx), budget);
+      }
+    } catch (IOException e) {
+      return Opened.failed(TestResult.failure("sql.certificate", e.getMessage(), null));
+    } catch (SQLException e) {
+      return Opened.failed(failure(e, bounded, cfg.string(ConnectionSettings.USER)), e);
+    }
+    try (Credentials login = Credentials.resolve(cfg, secrets)) {
+      if (login.user() != null) {
+        props.setProperty("user", login.user());
+      }
+      if (login.password().length > 0) {
+        props.setProperty("password", new String(login.password()));
+      }
+      long connectStart = System.nanoTime();
+      Connection c;
+      try {
+        c = dialect.driver().connect(dialect.url(bounded), props);
+        if (c == null) {
+          throw new SQLException("The driver doesn't take this URL.", "08001");
+        }
       } catch (SQLException e) {
-        return failure(e, s, login.user());
+        return Opened.failed(failure(e, bounded, login.user()), e);
       } finally {
         props.remove("password");
       }
+      ctx.onCancel(() -> closeOnCancel(c));
+      return new Opened(c, bounded, login.user(), ms(connectStart), null, null);
     } catch (SecretUnavailableException e) {
-      return TestResult.failure("sql.secret", e.getMessage(), null);
+      return Opened.failed(TestResult.failure("sql.secret", e.getMessage(), null));
     }
   }
 
@@ -173,42 +229,20 @@ final class TestProbe {
       return TestResult.failure("sql.file", e.getMessage(), null);
     }
     int budget = (int) Math.max(1, Math.min(BUDGET_MS, ctx.remaining().toMillis()));
-    Properties props;
-    try {
-      props = dialect.properties(s.withConnectTimeoutAtMost(budget), certificates(ctx), budget);
-    } catch (IOException e) {
-      return TestResult.failure("sql.certificate", e.getMessage(), null);
+    Opened opened = open(cfg, secrets, ctx, s, budget);
+    if (opened.failure() != null) {
+      return opened.failure();
     }
-    try (Credentials login = Credentials.resolve(cfg, secrets)) {
-      if (login.user() != null) {
-        props.setProperty("user", login.user());
-      }
-      if (login.password().length > 0) {
-        props.setProperty("password", new String(login.password()));
-      }
-      long connectStart = System.nanoTime();
-      Connection c;
+    ConnectionSettings used = opened.settings();
+    checks.add(new TestResult.Check("connect", true, opened.connectMs(), "Connected to " + used.target()));
+    try (Connection c = opened.connection()) {
       try {
-        c = dialect.driver().connect(dialect.url(s), props);
-      } catch (SQLException e) {
-        return failure(e, s, login.user());
+        return probe(c, cfg, used, opened.user(), checks, opened.connectMs(), started);
       } finally {
-        props.remove("password");
+        if (dialect.syntax() == SqlSyntax.ORACLE) c.rollback();
       }
-      long connectMs = ms(connectStart);
-      checks.add(new TestResult.Check("connect", true, connectMs, "Connected to " + s.target()));
-      try (c) {
-        ctx.onCancel(() -> closeOnCancel(c));
-        try {
-          return probe(c, cfg, s, login.user(), checks, connectMs, started);
-        } finally {
-          if (dialect.syntax() == SqlSyntax.ORACLE) c.rollback();
-        }
-      } catch (SQLException e) {
-        return failure(e, s, login.user()).withChecks(checks);
-      }
-    } catch (SecretUnavailableException e) {
-      return TestResult.failure("sql.secret", e.getMessage(), null);
+    } catch (SQLException e) {
+      return failure(e, used, opened.user()).withChecks(checks);
     }
   }
 
@@ -236,8 +270,7 @@ final class TestProbe {
       tls = new SqlProbe.Tls(false, "Local file");
       checks.add(new TestResult.Check("file", true, 0, fileDetail(c, s)));
     } else {
-      checks.add(new TestResult.Check("tls", true, 0, !tlsKnown ? tls.version()
-          : tls.enabled() ? "Encrypted · " + tls.version() : "Not encrypted"));
+      checks.add(new TestResult.Check("tls", true, 0, !tlsKnown ? tls.version() : tlsDetail(s, tls)));
     }
     SqlProbe.Access access = probe.access(c, s, server);
     checks.add(new TestResult.Check("permissions", true, 0, access.write() == null ? "Read only" : "Can write"));
@@ -269,6 +302,7 @@ final class TestProbe {
       ObjectNode tlsDetails = details.putObject("tls").put("version", tls.version());
       if (tlsKnown) tlsDetails.put("enabled", tls.enabled());
       else tlsDetails.putNull("enabled");
+      tlsDetails.put("mode", s.sslMode()).put("auto", s.autoTls() || AUTO.equals(s.sslMode()));
     }
     ObjectNode snippets = details.putObject("snippets");
     for (Hint h : file ? sqliteHints(cfg.env(), access) : hints(cfg.env(), s, access, tls, missing, server)) {
@@ -320,8 +354,14 @@ final class TestProbe {
       out.add(new Hint(Severity.INFO, "sql.replica", null, "Read replica: sql_execute will fail here."));
     }
     if (!tls.enabled() && env == Env.PROD) {
-      out.add(new Hint(Severity.WARNING, "sql.tls-off", "/connection/sslMode", "The connection isn't encrypted. "
-          + "On prod use TLS (verify-full)."));
+      out.add(new Hint(Severity.WARNING, "sql.tls-off", "/connection/sslMode", (s.autoTls()
+          ? "The server doesn't offer TLS, so Auto connected without encryption." : "The connection isn't encrypted.")
+          + " On prod use TLS (verify-full)."));
+    }
+    if (tls.enabled() && env == Env.PROD && AUTO.equals(s.sslMode())) {
+      // MySQL's Auto is the driver's PREFERRED: TLS when the server offers it, its certificate taken as it comes.
+      out.add(new Hint(Severity.WARNING, "sql.tls-unverified", "/connection/sslMode", "Auto encrypts without "
+          + "verifying the server's certificate. On prod use verify-full, with the CA certificate under Advanced."));
     }
     if (!missing.isEmpty()) {
       out.add(new Hint(Severity.WARNING, "sql.schema-not-found", "/advanced/schemaAllowlist", (missing.size() == 1
@@ -371,6 +411,22 @@ final class TestProbe {
     double mib = pages * pageSize / 1048576.0;
     return "Local file · " + (mib < 0.1 ? (pages * pageSize / 1024) + " KiB" : String.format(Locale.US, "%.1f MiB", mib))
         + (journal == null ? "" : " · journal " + journal.toLowerCase(Locale.ROOT));
+  }
+
+  /** The SSL mode whose transport the server decides: PostgreSQL asks it ({@link PostgresTls}), MySQL's driver tries. */
+  static final String AUTO = "auto";
+
+  /** {@code Encrypted · TLSv1.3}, and with Auto what it chose and why. */
+  static String tlsDetail(ConnectionSettings s, SqlProbe.Tls tls) {
+    String base = tls.enabled() ? "Encrypted" + (tls.version() == null ? "" : " · " + tls.version()) : "Not encrypted";
+    if (s.autoTls()) {
+      return base + (tls.enabled() ? " · Auto: the server offers TLS, so its certificate and host name were verified"
+          : " · Auto: the server doesn't offer TLS");
+    }
+    if (AUTO.equals(s.sslMode())) {
+      return base + (tls.enabled() ? " · Auto: the certificate isn't verified" : " · Auto: the server doesn't offer TLS");
+    }
+    return base;
   }
 
   private static String danger(String privilege) {
@@ -452,7 +508,7 @@ final class TestProbe {
       String msg = SqlErrors.firstLine(e.getMessage());
       if (SqlErrors.hostNameMismatch(e)) {
         return TestResult.failure("sql.tls", "TLS: the certificate doesn't match the host " + s.host() + " ("
-            + s.sslMode() + "). Use the name in the certificate, or verify-ca.", technical);
+            + mode(s) + "). Use the name in the certificate, or verify-ca.", technical);
       }
       if (msg != null && msg.toLowerCase(Locale.ROOT).contains("ssl")) {
         return TestResult.failure("sql.tls", "TLS: " + msg + ".", technical);
@@ -466,12 +522,17 @@ final class TestProbe {
   private static String tlsText(Throwable t, ConnectionSettings s) {
     String msg = t.getMessage() == null ? "" : t.getMessage();
     if (msg.toLowerCase(Locale.ROOT).contains("hostname") || msg.contains("No subject alternative")) {
-      return "the certificate doesn't match the host (" + s.sslMode() + ")";
+      return "the certificate doesn't match the host (" + mode(s) + ")";
     }
     if (msg.contains("PKIX") || msg.contains("unable to find valid certification path")) {
-      return "the certificate isn't signed by a trusted CA (" + s.sslMode() + "). Add the CA certificate";
+      return "the certificate isn't signed by a trusted CA (" + mode(s) + "). Add the CA certificate under Advanced";
     }
     return SqlErrors.firstLine(msg);
+  }
+
+  /** The SSL mode as a TLS failure names it: the form's, or what Auto did. */
+  private static String mode(ConnectionSettings s) {
+    return s.autoTls() ? "Auto verifies it, as the server offers TLS" : s.sslMode();
   }
 
   private static String technical(Throwable e) {

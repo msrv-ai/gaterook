@@ -2,6 +2,7 @@
 // The UI's development loop in one command (ARCHITECTURE.md §8.1, README "UI development"):
 //
 //   npm run dev -w ui            # or: node ui/scripts/dev.mjs [--port 4300] [--core-port 7465] [--keep] [--no-demo]
+//                                #     [--no-plugins]
 //
 // 1. app/target/app.jar is built once if it is missing (mvn -pl app -am -DskipTests package; under the shared
 //    heavy-build lock when `flock` exists).
@@ -12,6 +13,9 @@
 //    and AI apps' first run, then setup once a connection is added. The AI apps it finds then live in a sandbox
 //    (<home>/demo-user-home, -Dgateway.clients.user-home) where Claude Desktop, Codex and Cursor are installed, so
 //    Connect never touches this computer's real apps (the demo world does the same on its own).
+//    The plugins of this checkout come from a local signed catalog on loopback (ui/scripts/dev-catalog.mjs: the
+//    plugin JARs and plugin-host.jar are built once if missing), so Add connection and Connectors › Catalog offer
+//    and install them as a release does; --no-plugins starts without it (no catalog, no plugin host).
 // 4. Waits for the core's ready line, then `ng serve` with ui/proxy.conf.mjs signing every /api request with the
 //    secret as Electron's main process does.
 //
@@ -25,6 +29,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createRequire } from 'node:module';
+import { startDevCatalog } from './dev-catalog.mjs';
 
 const UI = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(UI, '..');
@@ -97,6 +102,8 @@ async function main() {
   }
   const coreEnv = { ...process.env, GW_DEV_INTERNAL_SECRET: secret, ...(demo ? { GW_DEMO: '1' } : {}) };
   if (!demo) delete coreEnv.CODEX_HOME; // Codex's real home would win over the sandbox's ~/.codex
+  const catalog = flag('--no-plugins') ? null : await startDevCatalog({ root: ROOT, home, java: java() });
+  if (catalog) process.on('exit', catalog.stop);
 
   console.log(`[dev] core: 127.0.0.1:${corePort} (public ${publicPort}), home ${home}${demo ? ', demo world' : `, empty; AI apps in ${userHome}`}`);
   const core = spawn(
@@ -112,6 +119,7 @@ async function main() {
       // recorded; the deferred first round is a second lock for a core before that. Test connection and Test all
       // still check for real.
       ...(demo ? ['-Dgateway.connections.health-interval=1m', '-Dgateway.connections.health-initial-delay=7d'] : [`-Dgateway.clients.user-home=${userHome}`]),
+      ...(catalog?.properties ?? []),
       '-jar',
       JAR,
     ],

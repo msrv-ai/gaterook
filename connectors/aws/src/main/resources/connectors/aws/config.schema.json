@@ -22,14 +22,16 @@
         [
           "eu-central-1"
         ]
-      ]
+      ],
+      "x-suggest": true,
+      "description": "The regions agents may read; the first is the default of every call."
     },
     "accountId": {
       "type": "string",
       "title": "Account ID",
       "x-person-only": true,
       "pattern": "^\\d{12}$",
-      "description": "Filled by Test connection; calls fail if the account changes"
+      "description": "The account the credentials must belong to, filled in once the form can sign in: calls fail if it changes. Empty: not checked."
     },
     "accountAlias": {
       "type": "string",
@@ -38,7 +40,7 @@
       "examples": [
         "acme-stage"
       ],
-      "description": "Display only"
+      "description": "Display only, filled in from the account's IAM alias."
     },
     "credentials": {
       "type": "object",
@@ -66,7 +68,11 @@
           "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
           "examples": [
             "arn:aws:iam::412398765012:role/gw-readonly"
-          ]
+          ],
+          "x-required-env": [
+            "prod"
+          ],
+          "description": "Required on prod: only an assumed role carries the read-only session policy that AWS enforces."
         },
         "externalId": {
           "type": "string",
@@ -81,7 +87,8 @@
           "minimum": 900,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a role session lasts, 900 to 3,600 seconds."
         },
         "sessionPolicy": {
           "title": "Session policy",
@@ -155,7 +162,8 @@
                 "type": "string",
                 "title": "Profile",
                 "maxLength": 128,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
               }
             },
             "required": [

@@ -160,7 +160,8 @@ record Call(ConnectionConfig cfg, Settings settings, AwsPolicy policy, Clients c
     String code = e.awsErrorDetails() == null ? "" : e.awsErrorDetails().errorCode();
     return switch (code) {
       case "InvalidClientTokenId", "SignatureDoesNotMatch" -> ConnectorException.unavailable(
-          "AWS refused the access key: it is wrong or deactivated. Replace it under Credentials.", e);
+          "AWS refused the access key: it is wrong or deactivated. Replace it under Credentials, or for a "
+          + "profile in ~/.aws/credentials (aws configure).", e);
       case "AccessDenied" -> ConnectorException.unavailable("AWS denied AssumeRole: allow sts:AssumeRole for this "
           + "user and add the external ID to the role's trust policy.", e);
       case "PackedPolicyTooLarge" -> ConnectorException.unavailable("The session policy is too large for STS: allow "

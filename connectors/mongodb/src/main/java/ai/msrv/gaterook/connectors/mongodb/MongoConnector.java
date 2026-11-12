@@ -22,6 +22,7 @@ import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -29,6 +30,7 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.mongodb.Ejson.BadArgument;
 import ai.msrv.gaterook.connectors.mongodb.PipelineValidator.Verdict;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.connectors.support.LocalPorts;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.net.InetSocketAddress;
 import java.text.NumberFormat;
@@ -468,6 +470,12 @@ public final class MongoConnector implements Connector {
   @Override
   public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return probe.test(cfg, secrets, ctx);
+  }
+
+  /** {@code localhost} on this computer; signed in, the databases the user may read ({@link MongoSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return MongoSuggestions.suggest(cfg, secrets, ctx, scope, dns, LocalPorts::listening);
   }
 
   @Override

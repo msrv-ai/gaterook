@@ -44,12 +44,12 @@ class CatalogPluginsIT {
   void clickHouseDiscoveryCrossesThePluginProtocolWithScopedSecretAccess() throws Exception {
     server = serve(request -> new MockResponse.Builder().code(200).addHeader("Content-Type", "application/json")
         .body("{\"meta\":[],\"data\":[[\"analytics\"],[\"archive\"]],\"rows\":2}").build());
-    host = Harness.start("clickhouse@0.6.1", Harness.pluginJar("clickhouse", "gw-clickhouse-0.6.1.jar"), home, true);
+    host = Harness.start("clickhouse@0.7.0", Harness.pluginJar("clickhouse", "gw-clickhouse-0.7.0.jar"), home, true);
     ObjectNode c = GppJson.object().put("host", "127.0.0.1").put("port", server.getPort()).put("user", "gw_reader");
     c.putObject("options").put("tls", false);
     ConnectionConfig cfg = new ConnectionConfig("c_ch", "events-ch", "clickhouse", Env.DEV, 1, c,
         Set.of("/password"), null);
-    JsonNode result = host.discoverDatabases("clickhouse@0.6.1", cfg, grant(server),
+    JsonNode result = host.discoverDatabases("clickhouse@0.7.0", cfg, grant(server),
         Map.of("/password", "cnry-ch-discovery-31f0"), Duration.ofSeconds(10));
     assertThat(result.path("ok").asBoolean()).isTrue();
     assertThat(result.path("details").path("databases")).extracting(JsonNode::asString)
@@ -76,7 +76,7 @@ class CatalogPluginsIT {
         .body("{\"meta\":[{\"name\":\"event\",\"type\":\"String\"},{\"name\":\"n\",\"type\":\"UInt64\"}],"
             + "\"data\":[[\"click\",\"120\"]],\"rows\":1,\"statistics\":{\"elapsed\":0.002,\"rows_read\":120}}")
         .build());
-    host = Harness.start("clickhouse@0.6.1", Harness.pluginJar("clickhouse", "gw-clickhouse-0.6.1.jar"), home, true);
+    host = Harness.start("clickhouse@0.7.0", Harness.pluginJar("clickhouse", "gw-clickhouse-0.7.0.jar"), home, true);
     assertThat(host.alive()).isTrue();
 
     ObjectNode c = GppJson.object();
@@ -88,7 +88,7 @@ class CatalogPluginsIT {
     ConnectionConfig cfg = new ConnectionConfig("c_ch", "events-ch", "clickhouse", Env.DEV, 1, c,
         Set.of("/password"), null);
 
-    JsonNode result = host.execute("clickhouse@0.6.1", call("clickhouse_query", "events-ch",
+    JsonNode result = host.execute("clickhouse@0.7.0", call("clickhouse_query", "events-ch",
         "{\"sql\":\"SELECT event, count() AS n FROM events GROUP BY event\"}"), cfg, false, grant(server),
         Map.of("/password", "cnry-ch-pass-31f0"), Duration.ofSeconds(10));
     var tool = WireCodec.result(result);
@@ -99,7 +99,7 @@ class CatalogPluginsIT {
     assertThat(seen.getTarget()).contains("readonly=1").contains("allow_ddl=0");
     assertThat(seen.getHeaders().get("X-ClickHouse-Key")).isEqualTo("cnry-ch-pass-31f0");
 
-    assertThatThrownBy(() -> host.execute("clickhouse@0.6.1", call("clickhouse_query", "events-ch",
+    assertThatThrownBy(() -> host.execute("clickhouse@0.7.0", call("clickhouse_query", "events-ch",
         "{\"sql\":\"DROP TABLE events\"}"), cfg, false, grant(server), Map.of("/password", "cnry-ch-pass-31f0"),
         Duration.ofSeconds(10))).isInstanceOf(Harness.ProtocolError.class).hasMessageContaining("never changes data");
     assertThat(server.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();

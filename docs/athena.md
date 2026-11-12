@@ -14,6 +14,8 @@ The built-in **Amazon Athena** connector (`athena`) calls Athena's JSON API in o
 
 The workgroup is the cost boundary: Athena charges for the data a query scans, and only the workgroup's per-query data usage control (`BytesScannedCutoffPerQuery`) stops a query that would scan too much. GateRook stops a query at the call's deadline, which bounds its time, not its bytes. **Test connection** reports the identity AWS sees (`sts:GetCallerIdentity`), reads the workgroup with `GetWorkGroup` (its state, engine version and data limit), lists the databases agents may use, and runs `EXPLAIN SELECT 1`, which scans nothing and costs nothing, to prove that queries start and their results can be read. It warns when the workgroup has no per-query data limit, and when it doesn't override client-side settings, so its results location and encryption don't hold for every query.
 
+While you fill in the form, GateRook suggests the profiles of `~/.aws/config` and fills in the profile's region. Once the form can sign in, it lists the workgroups, data catalogs and databases and offers the workgroup's results location, under a session policy that allows only `athena:ListWorkGroups`, `GetWorkGroup`, `ListDataCatalogs`, `ListDatabases` and Glue's catalog and database names: no query runs. It says so when the workgroup doesn't exist or has no results location.
+
 ### Session policies
 
 With a role, **Session policy** defaults to each call's own permissions, enforced by AWS whatever the role itself may do. On prod it can't be turned off.

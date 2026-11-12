@@ -123,7 +123,9 @@
                 "type": "string",
                 "title": "Header name",
                 "default": "X-API-Key",
-                "pattern": "^[A-Za-z0-9-]{1,64}$"
+                "pattern": "^[A-Za-z0-9-]{1,64}$",
+                "x-advanced": false,
+                "description": "The header the API reads the key from, such as X-API-Key or api-key."
               },
               "apiKey": {
                 "type": "string",
@@ -154,7 +156,9 @@
                 "type": "string",
                 "title": "Query parameter name",
                 "default": "api_key",
-                "maxLength": 64
+                "maxLength": 64,
+                "x-advanced": false,
+                "description": "The query parameter the API reads the key from, such as api_key or key."
               },
               "apiKey": {
                 "type": "string",
@@ -184,7 +188,8 @@
               "username": {
                 "type": "string",
                 "title": "User",
-                "maxLength": 256
+                "maxLength": 256,
+                "description": "Empty sends only the password."
               },
               "password": {
                 "type": "string",
@@ -345,7 +350,8 @@
             "path": {
               "type": "string",
               "title": "Path",
-              "default": "/"
+              "default": "/",
+              "description": "Under the first base URL. A path that needs the credentials shows that they work."
             }
           }
         }

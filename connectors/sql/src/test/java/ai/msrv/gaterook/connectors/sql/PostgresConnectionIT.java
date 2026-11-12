@@ -8,6 +8,8 @@ import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
+import ai.msrv.gaterook.connector.api.Suggestions.Option;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -226,6 +228,85 @@ class PostgresConnectionIT {
         "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"), 1);
 
     assertThat(r.table().rows().get(0).get(0).asBoolean()).isTrue();
+  }
+
+  @Test
+  void autoUsesVerifiedTlsWhenTheServerOffersIt() throws Exception {
+    Fixtures.Secrets ro = Fixtures.Secrets.password(LocalPostgres.password("ro"));
+    ConnectionConfig cfg = tls("localhost", "auto", PG.certificatePem());
+
+    TestResult ok = CONNECTOR.test(cfg, ro, Fixtures.Context.of(Env.PROD, WORK));
+
+    assertThat(ok.ok()).as(String.valueOf(ok.error())).isTrue();
+    assertThat(ok.details().at("/tls/enabled").asBoolean()).isTrue();
+    assertThat(ok.details().at("/tls/mode").asString()).isEqualTo("verify-full");
+    assertThat(ok.details().at("/tls/auto").asBoolean()).isTrue();
+    assertThat(ok.checks()).filteredOn(c -> c.name().equals("tls")).singleElement()
+        .satisfies(c -> assertThat(c.detail()).contains("Auto: the server offers TLS"));
+    assertThat(hint(ok, "sql.tls-off")).isNull();
+    // Calls through the pool: its first connection asks, and every connection is verified TLS.
+    ToolResult r = CONNECTOR.runRead(cfg, ConnectionSettings.of(cfg, false), ro, Fixtures.Context.of(Env.PROD, WORK),
+        BoundSql.plain("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"), 1);
+    assertThat(r.table().rows().get(0).get(0).asBoolean()).isTrue();
+  }
+
+  @Test
+  void autoWithACertificateItCantVerifyIsAnErrorNotAPlainConnection() {
+    Fixtures.Secrets ro = Fixtures.Secrets.password(LocalPostgres.password("ro"));
+
+    TestResult noCa = CONNECTOR.test(tls("localhost", "auto", null), ro, Fixtures.Context.of(Env.PROD, WORK));
+    assertThat(noCa.error().code()).as(String.valueOf(noCa.error())).isEqualTo("sql.tls");
+    assertThat(noCa.error().message()).contains("Auto");
+
+    TestResult wrongHost = CONNECTOR.test(tls("127.0.0.1", "auto", null), ro, Fixtures.Context.of(Env.PROD, WORK));
+    assertThat(wrongHost.error().code()).as(String.valueOf(wrongHost.error())).isEqualTo("sql.tls");
+  }
+
+  // ── Setup helpers ───────────────────────────────────────────────────────────────────────────────────────
+
+  @Test
+  void signedInTheSchemasAndReadOnlyFunctionsOfTheDatabaseAreOffered() {
+    Suggestions s = CONNECTOR.suggest(cfg("ro", Env.DEV), Fixtures.Secrets.password(LocalPostgres.password("ro")),
+        Fixtures.Context.of(Env.DEV, WORK), Suggestions.Scope.SERVICE);
+
+    Suggestions.Field schema = s.fields().get("/advanced/defaultSchema");
+    assertThat(schema.value()).isEqualTo("public");
+    assertThat(schema.source()).isEqualTo("database app");
+    assertThat(schema.options()).extracting(Option::value).contains("public", "reporting")
+        .doesNotContain("secret_stuff", "pg_catalog", "information_schema");
+    assertThat(s.fields().get("/advanced/schemaAllowlist").options()).extracting(Option::value)
+        .contains("public", "reporting");
+    // f_read is immutable; f_write changes data and p_write is a procedure.
+    assertThat(s.fields().get("/advanced/allowedFunctions").options()).extracting(Option::value)
+        .contains("f_read").doesNotContain("f_write", "p_write", "public.f_read");
+    assertThat(s.notes()).anyMatch(n -> n.startsWith("Signed in to app as ro (PostgreSQL "));
+  }
+
+  @Test
+  void withoutADatabaseTheSuggestionsSayHowManyItMayConnectTo() {
+    ConnectionConfig cfg = Fixtures.config("postgres", Env.DEV, "127.0.0.1", PG.port(), null, "ro", null, null);
+
+    Suggestions s = CONNECTOR.suggest(cfg, Fixtures.Secrets.password(LocalPostgres.password("ro")),
+        Fixtures.Context.of(Env.DEV, WORK), Suggestions.Scope.SERVICE);
+
+    assertThat(s.fields()).isEmpty();
+    assertThat(s.notes()).singleElement().satisfies(n -> assertThat(n).startsWith("Signed in as ro: ")
+        .endsWith("Load them and choose the ones agents may use."));
+  }
+
+  @Test
+  void aDiscoveryDatabaseTheAccountCantUseGivesWayToTemplate1() {
+    ObjectNode advanced = Fixtures.object().put("discoveryDatabase", "no_such_database");
+    ConnectionConfig cfg = Fixtures.config("postgres", Env.DEV, "127.0.0.1", PG.port(), null, "ro", advanced, null);
+
+    Suggestions s = CONNECTOR.suggest(cfg, Fixtures.Secrets.password(LocalPostgres.password("ro")),
+        Fixtures.Context.of(Env.DEV, WORK), Suggestions.Scope.SERVICE);
+
+    Suggestions.Field discovery = s.fields().get("/advanced/discoveryDatabase");
+    assertThat(discovery.value()).isEqualTo("template1");
+    assertThat(discovery.options()).extracting(Option::value).contains("template1", "app", "postgres");
+    assertThat(s.notes()).singleElement().satisfies(n -> assertThat(n).startsWith("ro may not connect to "
+        + "no_such_database: Discovery database is set to template1, which lists "));
   }
 
   // ── Health ──────────────────────────────────────────────────────────────────────────────────────────────

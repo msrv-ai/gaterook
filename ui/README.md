@@ -15,7 +15,7 @@ bundled fonts, `theme-boot.js` and logo into `public/assets` (`scripts/sync-ui-a
 ## Develop against the demo world
 
 ```bash
-npm run dev -w ui                    # or: npm run dev -w ui -- --port 4311 [--core-port N] [--keep] [--no-demo]
+npm run dev -w ui                    # or: npm run dev -w ui -- --port 4311 [--core-port N] [--keep] [--no-demo] [--no-plugins]
 ```
 
 One command (`scripts/dev.mjs`):
@@ -26,7 +26,13 @@ One command (`scripts/dev.mjs`):
    on an empty home in `ui/target/dev-home`: the shared demo world (`--keep` reuses the last home,
    `--no-demo` starts empty and discovers sample AI apps in `demo-user-home` inside that development home,
    so connecting them does not change your real AI app configurations);
-3. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
+3. serves this checkout's plugins as a signed catalog on `127.0.0.1` (`scripts/dev-catalog.mjs`): the JARs that
+   `catalog/index.json` names and `plugin-host.jar` are built when missing or older than their sources, the index is
+   signed with a key made for this run and served over HTTPS with a certificate made for this run, and the core gets
+   the plugin host, the catalog's address and key, and that certificate as its test CA (`gateway.test.catalog.ca`).
+   Add connection and Connectors › Catalog then offer and install the plugins as a release does; `--no-plugins` starts
+   without a catalog or plugin host;
+4. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
    (`X-Gateway-Auth`, HMAC of `METHOD|target|ts|nonce`) and strips `Origin`, `Referer`, `Cookie` and `Sec-Fetch-*`,
    as Electron's main process does. `/internal` is not proxied.
 

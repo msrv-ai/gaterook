@@ -38,6 +38,20 @@ class RedisSettingsTest {
   }
 
   @Test
+  void autoIsTlsUntilDetectedAndOtherTextsAreRefused() throws Exception {
+    RedisSettings auto = parse(Configs.redis("cache", 6379).auto(null));
+    assertThat(auto.autoTls()).isTrue();
+    assertThat(auto.tls()).isTrue();
+    assertThat(auto.withTls(false).autoTls()).isFalse();
+    assertThat(auto.withTls(false).tls()).isFalse();
+    assertThat(auto.withDatabase(3).autoTls()).isTrue();
+    assertThat(parse(Configs.redis("cache", 6379).tls(true, null, null)).autoTls()).isFalse();
+    Configs.Cfg other = Configs.redis("cache", 6379);
+    other.root.withObjectProperty("connection").put("tls", "AUTO");
+    assertThatThrownBy(() -> parse(other)).hasMessage("Connection type is Auto, Without TLS or TLS.");
+  }
+
+  @Test
   void caOnlyVerificationIsNeverUsedOnProd() throws Exception {
     assertThat(parse(Configs.redis("cache", 6380).tls(true, "ca", null)).verifyHost()).isFalse();
     // The core refuses to save it (x-forbidden-env-values); the connector doesn't trust that alone.

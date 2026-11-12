@@ -13,11 +13,13 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.net.http.HttpClient;
@@ -63,6 +65,7 @@ public final class GcpConnector implements Connector {
   private final ConnectorManifest manifest;
   private final CloudCredentials cloud;
   private final Clock clock;
+  private final CloudLocal local;
   private final CloudLogs logs;
   private final Decisions decisions = new Decisions();
   private final Discovery discovery = new Discovery();
@@ -77,8 +80,14 @@ public final class GcpConnector implements Connector {
   }
 
   GcpConnector(CloudCredentials cloud, Clock clock) {
+    this(cloud, clock, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** @param local what this computer's gcloud knows, for the form's suggestions (tests: their own files) */
+  GcpConnector(CloudCredentials cloud, Clock clock, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
     this.clock = Objects.requireNonNull(clock, "clock");
+    this.local = Objects.requireNonNull(local, "local");
     this.logs = new CloudLogs(cloud, clock);
     SchemaResources schemas = SchemaResources.of(GcpConnector.class, "gcp");
     List<ToolDefinition> tools = new ArrayList<>(GcpTools.definitions(schemas));
@@ -273,6 +282,12 @@ public final class GcpConnector implements Connector {
   @Override
   public TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return logs.discoverProjects(cfg, secrets, ctx);
+  }
+
+  /** The scopes' project from this computer or the key; signed in, the projects inside the scopes for metrics. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return GcpSuggestions.suggest(cfg, secrets, ctx, scope, cloud, local, client());
   }
 
   @Override

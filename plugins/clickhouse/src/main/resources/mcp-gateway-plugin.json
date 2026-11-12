@@ -1,14 +1,14 @@
 {
   "manifestVersion": 1,
   "id": "clickhouse",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "name": "ClickHouse",
   "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Analytics queries with row and time limits. Read only.",
   "requires": {
     "gateway": ">=0.4.0 & <1.0.0",
-    "connectorApi": ">=1.0.0 & <2.0.0",
+    "connectorApi": ">=1.1.0 & <2.0.0",
     "javaModules": ["java.net.http"]
   },
   "connectorClass": "gaterook.plugins.clickhouse.ClickHouseConnector",
@@ -19,7 +19,7 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["host", "user", "password"],
+    "required": ["host", "user"],
     "x-database-selection": {"path": "/databases", "legacyPath": "/database"},
     "x-card": {"description": "Analytics queries with row and time limits. Read only."},
     "properties": {
@@ -39,7 +39,8 @@
         "default": 8443,
         "title": "Port",
         "description": "The HTTP interface: 8443 with TLS (ClickHouse Cloud), 8123 without. The plugin may reach only these two ports.",
-        "x-agent-visible": true
+        "x-agent-visible": true,
+        "x-advanced": false
       },
       "database": {
         "type": "string",
@@ -69,6 +70,7 @@
         "writeOnly": true,
         "format": "password",
         "title": "Password",
+        "description": "Leave empty for a user without a password, such as the default user of a local server.",
         "x-gateway-secret": "value"
       },
       "options": {
@@ -81,7 +83,7 @@
             "type": "boolean",
             "default": true,
             "title": "TLS",
-            "description": "https:// to the HTTP interface. Without TLS the plugin reaches only a private address the environment's policy allows."
+            "description": "https:// to the HTTP interface: on for port 8443, off for 8123. Without TLS the plugin reaches only a private address the environment's policy allows."
           },
           "maxRows": {
             "type": "integer",

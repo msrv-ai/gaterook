@@ -318,10 +318,13 @@
         [parts]="['connection', 'credentials', 'safety', 'advanced']"
         [policyDefaults]="prodLines()"
         [nameProblem]="nameProblem()"
+        [takenNames]="takenNames()"
         [confirmAction]="m === 'edit' ? 'save' : 'continue'"
         [busy]="saving()"
         (submit)="showSettings()"
         (save)="onFormSubmit($event)"
+        helpers
+        (suggest)="loadSuggestions($event)"
         (discoverDatabases)="loadDatabases($event)"
         (discoverProjects)="loadProjects($event)"
         (browseFiles)="browseFiles($event)"

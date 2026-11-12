@@ -88,8 +88,7 @@ final class Http {
       throw ConnectorException.unavailable("Can't connect to " + host(built.uri()) + ": " + reason(e)
           + ". Check the URL and that the service is running.", e);
     } catch (SSLException e) {
-      throw ConnectorException.unavailable("The TLS handshake with " + host(built.uri()) + " failed: " + reason(e)
-          + ". If it uses a private CA, paste the CA certificate in the connection.", e);
+      throw ConnectorException.unavailable(Tls.explain(host(built.uri()), e), e);
     } catch (IOException e) {
       throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
     } catch (InterruptedException e) {

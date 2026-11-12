@@ -70,6 +70,11 @@ final class WeaviateBackend extends VectorBackend implements VectorConnector.Rec
   }
 
   @Override
+  int localPort() {
+    return 8080;
+  }
+
+  @Override
   ServiceHttp.Endpoint endpoint(ConnectionConfig cfg) throws ConnectorException {
     return new ServiceHttp.Endpoint(ServiceHttp.base(cfg.string("/url"),
         "https://abc123.c0.europe-west3.gcp.weaviate.cloud", "/v1"), ca(cfg));

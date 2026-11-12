@@ -58,7 +58,7 @@ describe('schema-form goldens: every connector form the core serves', () => {
     expect(g.sections).toEqual(['/connection', '/credentials', '/advanced']);
     expect(g.rows['/connection'][0]).toEqual(['/connection/host', '/connection/port', '/connection/database']);
     expect(g.fields.find((f) => f.pointer === '/credentials/password')).toMatchObject({ kind: 'secret', secret: 'value' });
-    expect(g.defaults).toMatchObject({ connection: { port: 5432, sslMode: 'verify-full' } });
+    expect(g.defaults).toMatchObject({ connection: { port: 5432, sslMode: 'auto' } });
   });
 });
 
@@ -415,13 +415,13 @@ describe('schema-form: environments, locks, confirmations (x-env-default, x-forb
 
   it('MongoDB: picking prod moves the defaults the person left alone, and keeps what they chose', () => {
     const f = make('mongodb');
-    expect(f.value()['connection']).toMatchObject({ tls: false, readPreference: 'primary' });
+    expect(f.value()['connection']).toMatchObject({ tls: 'auto', readPreference: 'primary' });
     f.set(node(f, '/connection/readPreference'), 'nearest');
     f.setEnv('prod');
     expect(f.value()['connection']).toMatchObject({ tls: true, readPreference: 'nearest' });
     // Back to dev, a new connection follows the defaults again.
     f.setEnv('dev');
-    expect(f.value()['connection']).toMatchObject({ tls: false, readPreference: 'nearest' });
+    expect(f.value()['connection']).toMatchObject({ tls: 'auto', readPreference: 'nearest' });
   });
 
   it('a stored config is only tightened by an env change', () => {
@@ -511,9 +511,9 @@ describe('schema-form: environments, locks, confirmations (x-env-default, x-forb
     expect(getAt(f.model(), ['credentials', 'user'])).toBe('');
     // A number field keeps null, and what is sent drops empty values as before.
     expect(getAt(f.model(), ['advanced', 'statementTimeoutMs'])).toBeNull();
-    expect(f.value()['connection']).toEqual({ port: 5432, sslMode: 'verify-full' });
+    expect(f.value()['connection']).toEqual({ port: 5432, sslMode: 'auto' });
     f.field(node(f, '/connection/host'))().value.set('db.dev.internal');
-    expect(f.value()['connection']).toEqual({ host: 'db.dev.internal', port: 5432, sslMode: 'verify-full' });
+    expect(f.value()['connection']).toEqual({ host: 'db.dev.internal', port: 5432, sslMode: 'auto' });
     f.reset(null, CONNECTOR_FORMS['postgres']);
     expect(getAt(f.model(), ['connection', 'host'])).toBe('');
   });

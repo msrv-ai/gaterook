@@ -11,6 +11,8 @@ The built-in **Cloud Firestore** connector (`firestore`) calls Firestore's REST 
 
 A key's or an impersonated service account's token carries only the `datastore` scope, so it reaches Datastore and Firestore and no other Google API. Your own sign-in keeps the scopes it was given. The identity's IAM roles are the boundary behind GateRook's checks: give a service account `roles/datastore.viewer` to read, or `roles/datastore.user` when agents may propose changes. On prod, **Test connection** warns about your own sign-in or a stored key used without impersonation.
 
+While you fill in the form, GateRook fills in the project of a pasted key, or the one gcloud works in on this computer. Once the form can sign in, it lists the project's databases in Native mode (filling in the only one when the project has no `(default)`) and the database's top-level collections.
+
 **Collections** lists the collections agents may use. An entry without a slash is a collection ID (`orders`, `audit-*`): it allows every collection with that ID, wherever it is, and collection-group queries on it. An entry with a slash is a path (`users/*/orders`, or `/orders` for the top-level collection only), in which `*` matches one ID and `**` any number; a path never allows a collection-group query. Empty, every collection the credentials may read. Test connection names the identity (the service account, or for your own sign-in the email Google's token information reports) and lists the top-level collections agents may use.
 
 ## Bound reads and review exact changes

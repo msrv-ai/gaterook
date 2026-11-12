@@ -131,7 +131,9 @@ Choose the credentials under **Credentials**:
 
 GateRook never uses managed identity, environment variables or other programs' token caches. It asks Entra ID for one token per audience (Resource Manager, Log Analytics) and keeps tokens in memory only.
 
-**Tenant and subscriptions.** Enter the subscription IDs agents may read. Test connection checks that each one is visible to the identity, enabled and in the token's tenant, and records the tenant. Every later token must belong to that tenant (or to the configured tenant ID); a sign-in of another tenant is refused until you test again.
+**Tenant and subscriptions.** Enter the subscription IDs agents may read. A service principal and a code sign-in need the tenant (directory) ID; the Azure CLI uses its default tenant without one. Test connection checks that each subscription is visible to the identity, enabled and in the token's tenant, and records the tenant. Every later token must belong to that tenant (or to the configured tenant ID); a sign-in of another tenant is refused until you test again.
+
+**Suggestions in the form.** While you fill in the form, it offers the subscriptions of the Azure CLI's sign-in on this computer (`az login`), with the default one filled in while Subscriptions is empty, their tenant (filled in when one fits) and their cloud. Once the form can sign in with a service principal, or with a code sign-in completed in Test connection, it lists the subscriptions the identity can see, filling in the only one while Subscriptions is empty, and the Log Analytics workspaces and Application Insights components of the chosen subscriptions. Suggestions read with GET requests only, never run the Azure CLI and never start a code sign-in.
 
 **Clouds.** Choose **Azure**, **Azure Government** or **Azure China (21Vianet)**. Sign-in, Resource Manager and Log Analytics then use that cloud's own endpoints, and tokens are sent only there.
 

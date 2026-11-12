@@ -4,8 +4,8 @@
   HTTP interface. connector-api and Jackson are provided by the host (parent-first); HTTP goes through the host's
   guarded ExecContext.egress(). No other library.
 
-  The JAR is the catalog's package gw-clickhouse-0.6.1.jar: the manifest (src/main/resources/mcp-gateway-plugin.json)
-  says 0.6.1, and the fixed outputTimestamp makes the build reproducible, so anyone can rebuild it and compare the
+  The JAR is the catalog's package gw-clickhouse-0.7.0.jar: the manifest (src/main/resources/mcp-gateway-plugin.json)
+  says 0.7.0, and the fixed outputTimestamp makes the build reproducible, so anyone can rebuild it and compare the
   SHA-256 the catalog signs. Built by step K6.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -70,6 +70,6 @@
   </dependencies>
 
   <build>
-    <finalName>gw-clickhouse-0.6.1</finalName>
+    <finalName>gw-clickhouse-0.7.0</finalName>
   </build>
 </project>

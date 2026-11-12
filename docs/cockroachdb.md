@@ -4,7 +4,7 @@ CockroachDB speaks PostgreSQL's wire protocol, so GateRook connects to it with t
 
 ## Connect
 
-Add a **PostgreSQL** connection with the cluster's host, port (`26257` by default) and database, and a SQL user with a password. Keep TLS on: choose **verify-full** and paste the cluster's CA certificate (CockroachDB Cloud lets you download it; a self-hosted cluster has it as `ca.crt` in its certificates directory). GateRook never sends a client certificate, so sign in with a password. **Test connection** reports the server as CockroachDB with its version, the TLS state and what the user may do.
+Add a **PostgreSQL** connection with the cluster's host, port (`26257` by default) and database, and a SQL user with a password. Keep TLS verified: **Auto**, the default for new dev and stage connections, verifies the certificate and host name as **verify-full** does when the cluster offers TLS, so paste the cluster's CA certificate under **Advanced** (CockroachDB Cloud lets you download it; a self-hosted cluster has it as `ca.crt` in its certificates directory). GateRook never sends a client certificate, so sign in with a password. **Test connection** reports the server as CockroachDB with its version, the TLS state and what the user may do.
 
 For a read-only user:
 

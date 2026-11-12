@@ -215,6 +215,21 @@ class AdminApiIT {
         .formatted(draft("db.test"), password()));
     assertThat(badPath.path("title").asString()).isEqualTo("Invalid folder");
 
+    // Setup help: the value to fill in (fill) and the values offered (option), masked: an option that would be the
+    // typed password is left out, its words masked, and no property is named like a secret's value
+    // (noAnswerCarriesASecretValue).
+    JsonNode suggested = api.expect(200, HttpMethod.POST, "/api/connections/suggest", """
+        {"type":"pgfake","env":"dev","scope":"service","config":%s,
+         "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}"""
+        .formatted(draft("db.test"), password()));
+    assertThat(suggested.at("/fields/~1connection~1database/fill").asString()).isEqualTo("orders");
+    assertThat(suggested.at("/fields/~1connection~1database/options/0/option").asString()).isEqualTo("orders");
+    assertThat(suggested.at("/fields/~1connection~1schema/options")).extracting(o -> o.path("option").asString())
+        .containsExactly("public", "sales");
+    assertThat(suggested.at("/fields/~1connection~1schema/options/1/detail").asString()).isEqualTo("owned by ‹masked›");
+    assertThat(suggested.toString()).doesNotContain(CANARY);
+    assertThat(api.get("/api/connections").json().path("total").asInt()).as("suggestions save nothing").isZero();
+
     JsonNode projects = api.expect(200, HttpMethod.POST, "/api/connections/projects", """
         {"type":"pgfake","env":"dev","config":%s,
          "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}"""

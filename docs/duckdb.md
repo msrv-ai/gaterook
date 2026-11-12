@@ -29,6 +29,8 @@ By default queries read the database file only. **Data folders** (person-only to
 
 GateRook refuses a data folder that is GateRook's own folder, lies in it or holds it, your home folder or a folder above it, the root of a disk, and a folder that holds the database file. That last rule matters because DuckDB's allowed folders admit writes as well as reads: a statement could otherwise overwrite the database through its own folder.
 
+Once the plugin's host runs, the form offers the DuckDB files of the folder you type and, for the database file you chose, the subfolders next to it that hold Parquet, CSV or JSON files as data folders, saying how many of each; data files beside the database itself get a note to move them into a subfolder. Nothing is filled in: both fields stay yours to choose. This needs connector API 1.1.
+
 ## Bound reads and review exact SQL
 
 | Tool | What it does |

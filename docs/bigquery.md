@@ -10,6 +10,8 @@ The built-in **Google BigQuery** connector (`bigquery`) calls BigQuery's REST AP
 - the **credentials**: your Google sign-in on this computer (Application Default Credentials, from `gcloud auth application-default login`) or a service account key, stored encrypted in GateRook. Either can **impersonate** a service account; outside dev, **Test connection** warns when calls use your own sign-in;
 - the **datasets** agents may use: `dataset` in the project, or `project.dataset`, with `*` matching any characters. Empty, every dataset the credentials may read.
 
+While you fill in the form, GateRook fills in the project of a pasted key, or the one gcloud works in on this computer. Once the form can sign in, it signs in as Test connection does and lists the project's datasets with their locations, and the other projects BigQuery shows the credentials.
+
 Give readers `roles/bigquery.dataViewer` on the datasets and `roles/bigquery.jobUser` on the project. BigQuery has no read-only session: the credentials' roles stay part of the boundary, so a reader should not hold `dataEditor`. Test connection lists the datasets agents may use and runs a dry run of `SELECT 1` to check that the credentials can run jobs.
 
 ## Bound reads and review exact changes

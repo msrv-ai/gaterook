@@ -12,11 +12,13 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.connectors.support.LocalPorts;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Clock;
 import java.time.Duration;
@@ -123,6 +125,12 @@ public final class RedisConnector implements Connector {
   @Override
   public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return test(cfg, secrets, ctx);
+  }
+
+  /** {@code localhost} on this computer; signed in, the server's databases and keys ({@link RedisSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return RedisSuggestions.suggest(cfg, secrets, ctx, scope, LocalPorts::listening);
   }
 
   /** {@code PING} on the pool, at most 2 s; over 1 s is "Slow" (report 05 §5). */

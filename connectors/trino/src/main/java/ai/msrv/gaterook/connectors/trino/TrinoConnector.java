@@ -13,6 +13,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -840,6 +841,15 @@ public final class TrinoConnector implements Connector {
           + "Presto's IO plan names its tables the same way."));
     }
     return out;
+  }
+
+  /**
+   * Setup helpers ({@link TrinoSuggestions}): a coordinator on Trino's usual port of this computer; the engine from
+   * {@code /v1/info}; signed in, the catalogs and the schemas of the default catalog.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return TrinoSuggestions.suggest(http, cfg, secrets, ctx, scope);
   }
 
   @Override

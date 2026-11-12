@@ -7,6 +7,36 @@
     "subscriptions",
     "credentials"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "credentials": {
+            "properties": {
+              "source": {
+                "enum": [
+                  "deviceCode",
+                  "clientSecret",
+                  "clientCertificate"
+                ]
+              }
+            },
+            "required": [
+              "source"
+            ]
+          }
+        },
+        "required": [
+          "credentials"
+        ]
+      },
+      "then": {
+        "required": [
+          "tenantId"
+        ]
+      }
+    }
+  ],
   "properties": {
     "cloud": {
       "title": "Cloud",
@@ -38,6 +68,7 @@
       "minItems": 1,
       "maxItems": 20,
       "uniqueItems": true,
+      "x-suggest": true,
       "items": {
         "type": "string",
         "title": "Subscription ID",
@@ -163,7 +194,7 @@
         "title": "Workspace ID",
         "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
       },
-      "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL."
+      "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL. Empty: no workspace logs."
     },
     "applicationInsights": {
       "type": "array",
@@ -181,7 +212,7 @@
           "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
         ]
       ],
-      "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+      "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Empty: none."
     }
   }
 }

@@ -37,21 +37,27 @@
           "x-section": "/advanced"
         },
         "tls": {
-          "type": "boolean",
+          "x-previous-default": false,
+          "type": [
+            "boolean",
+            "string"
+          ],
           "title": "Connection type",
-          "default": false,
+          "default": "auto",
           "x-env-default": {
             "prod": true
           },
           "enum": [
+            "auto",
             false,
             true
           ],
           "x-enumTitles": [
+            "Auto",
             "Without TLS",
             "TLS"
           ],
-          "description": "TLS is enabled by default on prod. Without TLS is also allowed; on stage and prod, the connection test warns that traffic is not encrypted."
+          "description": "Auto uses TLS when the server speaks it and connects without TLS only when it doesn't, checked before signing in. New prod connections use TLS. Without TLS, stage and prod tests warn that traffic isn't encrypted."
         },
         "tlsVerify": {
           "type": "string",

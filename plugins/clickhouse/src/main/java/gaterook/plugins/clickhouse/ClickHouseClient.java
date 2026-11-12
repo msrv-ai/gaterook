@@ -108,7 +108,10 @@ final class ClickHouseClient {
     headers.put("Accept", List.of("application/json"));
     headers.put("Content-Type", List.of("text/plain; charset=utf-8"));
     headers.put("X-ClickHouse-User", List.of(config.user()));
-    headers.put("X-ClickHouse-Key", List.of(password()));
+    String key = password();
+    if (!key.isEmpty()) {
+      headers.put("X-ClickHouse-Key", List.of(key));
+    }
     long started = System.nanoTime();
     ExecContext.EgressResponse r = ctx.egress().send(new ExecContext.EgressRequest("POST", uri, headers,
         sql.getBytes(StandardCharsets.UTF_8), timeout()), MAX_BYTES);
@@ -221,6 +224,11 @@ final class ClickHouseClient {
 
   private String password() throws ConnectorException {
     if (password != null) {
+      return password;
+    }
+    if (!secrets.isSet(ClickHouseConfig.PASSWORD)) {
+      // A user without a password, such as a local server's default user: ClickHouse takes no key as an empty one.
+      password = "";
       return password;
     }
     try (SecretResolver.Secret secret = secrets.secret(ClickHouseConfig.PASSWORD)) {

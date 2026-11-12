@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -180,6 +181,14 @@ public final class AccessConnector implements Connector {
             shorten(what + " of " + cfg.name())).withPayload(call.arguments());
       }
     }
+  }
+
+  // ── Setup help ──────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** The Access databases next to the typed path ({@link AccessSuggestions}), in either scope. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return AccessSuggestions.suggest(cfg, ctx);
   }
 
   // ── Test connection ─────────────────────────────────────────────────────────────────────────────────────────

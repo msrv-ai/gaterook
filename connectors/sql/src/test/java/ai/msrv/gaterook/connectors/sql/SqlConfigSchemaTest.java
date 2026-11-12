@@ -37,6 +37,36 @@ class SqlConfigSchemaTest {
   }
 
   @Test
+  void oracleRequiresThePasswordItCantSignInWithout() {
+    ObjectNode config = (ObjectNode) JSON.readTree("""
+        {"connection":{"host":"db.example.test","port":1521,"database":"FREEPDB1"},
+         "credentials":{"user":"GW_READER","password":"stored-password"}}
+        """);
+    var schema = SCHEMAS.getSchema(RESOURCES.load("oracle.config"));
+    ObjectNode credentials = (ObjectNode) config.path("credentials");
+    assertThat(schema.validate(config)).isEmpty();
+    credentials.remove("password");
+    assertThat(schema.validate(config)).as("the thin driver refuses a sign-in without a password").isNotEmpty();
+    credentials.put("password", "");
+    assertThat(schema.validate(config)).isNotEmpty();
+  }
+
+  @Test
+  void postgresTakesAutoAndEveryExplicitSslMode() {
+    var schema = SCHEMAS.getSchema(RESOURCES.load("postgres.config"));
+    for (String mode : new String[] {"auto", "disable", "require", "verify-ca", "verify-full"}) {
+      ObjectNode config = (ObjectNode) JSON.readTree("""
+          {"connection":{"host":"db.example.test","port":5432,"databases":["app"],"sslMode":"%s"},
+           "credentials":{"user":"reader"}}""".formatted(mode));
+      assertThat(schema.validate(config)).as(mode).isEmpty();
+    }
+    ObjectNode prefer = (ObjectNode) JSON.readTree("""
+        {"connection":{"host":"db.example.test","port":5432,"databases":["app"],"sslMode":"prefer"},
+         "credentials":{"user":"reader"}}""");
+    assertThat(schema.validate(prefer)).as("libpq's prefer may fall back to plain text: not offered").isNotEmpty();
+  }
+
+  @Test
   void sqliteNeedsOnlyItsFileWhichThePersonChooses() {
     var schema = SCHEMAS.getSchema(RESOURCES.load("sqlite.config"));
     ObjectNode config = (ObjectNode) JSON.readTree("""

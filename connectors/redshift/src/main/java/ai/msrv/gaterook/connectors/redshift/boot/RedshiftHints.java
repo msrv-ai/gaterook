@@ -5,7 +5,8 @@ import org.springframework.aot.hint.RuntimeHintsRegistrar;
 
 /**
  * Native-image hints of the Redshift connector. The AWS SDK's signer and STS client are covered by the hints of
- * connectors/cloud-auth and the logs connector; what is left are the connector's own schemas.
+ * connectors/cloud-auth and the logs connector, the JDK's DOM parser of {@code DescribeClusters} answers by the image
+ * itself (as for the S3 connector); what is left are the connector's own schemas.
  */
 class RedshiftHints implements RuntimeHintsRegistrar {
 

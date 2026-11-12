@@ -114,6 +114,7 @@
             "examples": [
               "eu-central-1"
             ],
+            "x-suggest": true,
             "description": "The AWS region of the buckets."
           },
           "credentials": {
@@ -143,7 +144,7 @@
                 "examples": [
                   "arn:aws:iam::412398765012:role/gw-s3"
                 ],
-                "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+                "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
               },
               "externalId": {
                 "type": "string",
@@ -158,7 +159,8 @@
                 "minimum": 900,
                 "maximum": 3600,
                 "default": 900,
-                "x-unit": "s"
+                "x-unit": "s",
+                "description": "How long a role session lasts, 900 to 3,600 seconds."
               },
               "sessionPolicy": {
                 "enum": [
@@ -232,7 +234,8 @@
                       "type": "string",
                       "title": "Profile",
                       "maxLength": 128,
-                      "pattern": "\\S"
+                      "pattern": "\\S",
+                      "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
                     }
                   },
                   "required": [

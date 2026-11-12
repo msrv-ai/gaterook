@@ -14,7 +14,7 @@
       autocomplete="off"
       spellcheck="false"
       [attr.aria-invalid]="error ? 'true' : null"
-      [attr.aria-describedby]="(error ? p + '-name-err ' : '') + p + '-name-hint'"
+      [attr.aria-describedby]="(error ? p + '-name-err ' : '') + p + '-name-hint' + (nameFrom() ? ' ' + p + '-name-found' : '')"
     />
     @if (error) {
       <p class="gw-field__error" [id]="p + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>@for (part of nameErrorParts(error); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</p>
@@ -27,6 +27,10 @@
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (renamedFrom(); as was) { Saving renames <span class="gw-mono">{{ was }}</span> from the next call: endpoints, policies and secret names follow, and past calls keep <span class="gw-mono">{{ was }}</span>.} @else if (mode() === 'edit') { Renaming applies from the next call: endpoints, policies and secret names follow, and past calls keep the old name.}</p>
     } @else {
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents and Activity see it as <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.</p>
+    }
+    <!-- A new connection's Name the helpers proposed, while it still holds it: typing one replaces it for good. -->
+    @if (nameFrom(); as from) {
+      <p class="gw-field__hint" [id]="p + '-name-found'">Filled in from {{ from }}.</p>
     }
   </div>
 </ng-template>
@@ -79,7 +83,7 @@
 @if (projectNode(); as node) {
   @if (show('connection')) {
     <gw-cloud-projects [form]="s" [node]="node" [value]="value()" [type]="spec().type" [stored]="stored()" [idPrefix]="p"
-      [title]="projectTitle()" (discover)="discoverProjects.emit($event)" />
+      [title]="projectTitle()" [auto]="helpers() && mode() === 'create'" (discover)="discoverProjects.emit($event)" />
   }
 }
 
@@ -106,7 +110,10 @@
           @else {Enter the server and credentials, then load databases. Reload after changing connection settings.}
         </p>
       </div>
-      @if (discovery?.state === 'error') {
+      @if (discovery?.state === 'error' && discovery!.auto) {
+        <!-- The form tried by itself: the credentials may still be half typed, so no alarm. -->
+        <p class="gw-field__hint">Couldn't load databases yet: {{ discovery!.message }} Check the settings and credentials, then load them again.</p>
+      } @else if (discovery?.state === 'error') {
         <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
           <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
           <div class="gw-alert__content"><p class="gw-alert__title">Couldn't load databases</p><p class="gw-alert__body">{{ discovery!.message }}</p></div>
@@ -157,6 +164,24 @@
     <gw-remote-files [form]="s" [selection]="selection" [value]="value()" [type]="spec().type" [stored]="stored()" [idPrefix]="p" [submitted]="submitted()"
       (browse)="browseFiles.emit($event)" (trust)="trustFiles.emit($event)" />
   }
+}
+
+<!--
+  The setup helpers' findings: what this computer or the service showed (contexts, namespaces, databases) and what comes
+  next. The values themselves are offered under their fields.
+-->
+@if (show('connection') && helpers() && (suggesting() === 'service' || suggestionNotes().length)) {
+  <div class="gw-alert gw-alert--info gw-alert--compact" role="status" [id]="p + '-helpers'">
+    <svg lucideIcon="lightbulb" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      @for (note of suggestionNotes(); track $index) {
+        <p class="gw-alert__body">{{ note }}</p>
+      }
+      @if (suggesting() === 'service') {
+        <p class="gw-alert__body"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Signing in to look up what this account can use…</p>
+      }
+    </div>
+  </div>
 }
 
 @if (show('safety')) {

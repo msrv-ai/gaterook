@@ -109,6 +109,46 @@ final class Kubeconfig {
     return out;
   }
 
+  /** The file's {@code current-context} when it names a context of the file, or {@code null}. */
+  String currentContext() {
+    return currentContext != null && contexts.containsKey(currentContext) ? currentContext : null;
+  }
+
+  /** The namespace context {@code name} sets, or {@code null}: read without resolving its user. */
+  String namespaceOf(String name) {
+    JsonNode ctx = name == null ? null : contexts.get(name);
+    String ns = ctx == null ? null : ctx.path("namespace").asString(null);
+    return ns == null || ns.isBlank() ? null : ns.strip();
+  }
+
+  /**
+   * The file name of the credential command context {@code name}'s user runs ({@code gke-gcloud-auth-plugin}), or
+   * {@code null}: only read, never run.
+   */
+  String execCommandOf(String name) {
+    JsonNode ctx = name == null ? null : contexts.get(name);
+    JsonNode user = ctx == null ? null : users.get(ctx.path("user").asString(""));
+    String command = user == null ? null : user.path("exec").path("command").asString(null);
+    if (command == null || command.isBlank()) {
+      return null;
+    }
+    String plain = command.strip().replace('\\', '/');
+    return plain.substring(plain.lastIndexOf('/') + 1);
+  }
+
+  /** The API server of every cluster with the contexts that use it, in file order (token sign-in offers them). */
+  Map<String, List<String>> servers() {
+    Map<String, List<String>> out = new LinkedHashMap<>();
+    for (Map.Entry<String, JsonNode> c : contexts.entrySet()) {
+      JsonNode cluster = clusters.get(c.getValue().path("cluster").asString(""));
+      String server = cluster == null ? null : cluster.path("server").asString(null);
+      if (server != null && server.startsWith("https://")) {
+        out.computeIfAbsent(server, k -> new ArrayList<>()).add(c.getKey());
+      }
+    }
+    return out;
+  }
+
   static ArrayNode contextsTree(List<Context> contexts) {
     ArrayNode out = JsonNodeFactory.instance.arrayNode();
     for (Context c : contexts) {

@@ -3,7 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { ConnectionImportsApi, ConnectionImportResult, ConnectionImportSession, ImportCandidate, ImportSelection, ImportSummary } from '../../core/api/connection-imports.api';
 import { ClientId } from '../../core/api/clients.api';
-import { ConnectionsApi, SecretInputs, StoredSecret, TestOutcome } from '../../core/api/connections.api';
+import { ConnectionsApi, SecretInputs, StoredSecret, Suggested, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
 import { SecretsApi } from '../../core/api/secrets.api';
@@ -14,7 +14,7 @@ import { TimeService } from '../../core/time/time.service';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { COPIED_MS } from '../../kit/copy';
 import { GwCodeBlock } from '../../code/code-block';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, SuggestionRequest } from '../../kit/elements/connection-form/connection-form';
 import { GwConnectionTest, TestState } from '../../kit/elements/connection-form/connection-test';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
 import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/cloud-projects';
@@ -681,6 +681,26 @@ export class ConnectionImportPage {
       this.testResult.set(result.retest);
     } catch (e) { this.fail(e); }
     finally { this.busy.set(false); }
+  }
+
+  /**
+   * The setup helpers in the import editor: what this computer knows always; what the service lists only with
+   * credentials typed here, since staged ones are used after the import.
+   */
+  async suggest(request: SuggestionRequest): Promise<void> {
+    const form = this.form();
+    const candidate = this.active();
+    if (!form || !candidate) return;
+    const value = this.withEditorSecrets(request.value);
+    let result: Suggested | null = null;
+    if (request.scope === 'local' || !this.needsRetainedSecrets(value)) {
+      try {
+        result = await this.connections.suggest({ type: candidate.type, ...value, scope: request.scope });
+      } catch {
+        result = null;
+      }
+    }
+    if (form === this.form()) form.completeSuggestions(request.key, request.scope, result);
   }
 
   async discoverDatabases(request: DatabaseDiscoveryRequest): Promise<void> {

@@ -79,6 +79,27 @@ public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, Oracle
   }
 
   /**
+   * The settings with Auto's transport chosen, asked of the server before any credential is sent: PostgreSQL's
+   * {@code auto} becomes {@code verify-full} or {@code disable} ({@link PostgresTls}). Every other mode, and every other
+   * dialect, keeps its settings: MySQL's {@code auto} is the driver's own PREFERRED.
+   *
+   * @param timeoutMs how long the question may take, at most the connect timeout of {@code s}
+   */
+  default ConnectionSettings resolveTransport(ConnectionSettings s, int timeoutMs) throws SQLException {
+    return s;
+  }
+
+  /**
+   * The driver properties of a pool's connections, except the login ({@link SqlPools}): {@link #properties} as they
+   * are, or for Auto the properties of the transport the server chose, asked at the pool's first connection and kept
+   * for every later one. A CA certificate that can't be used fails here, before any connection.
+   */
+  default CredentialAwareDataSource.Transport poolTransport(ConnectionSettings s, Path certificates,
+      int socketTimeoutMs, boolean write) throws IOException {
+    return CredentialAwareDataSource.Transport.fixed(properties(s, certificates, socketTimeoutMs, write));
+  }
+
+  /**
    * Checks where the connection points before anything connects there: SQLite's file must be a database file outside
    * GateRook's own folder. {@code ctx} gives the connector's work folder; a server dialect has nothing to check.
    */

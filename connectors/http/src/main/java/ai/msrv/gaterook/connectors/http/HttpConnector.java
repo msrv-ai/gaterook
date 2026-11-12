@@ -11,6 +11,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
@@ -48,6 +49,8 @@ public final class HttpConnector implements Connector {
   private final OpenApiTemplateKind openApi;
   /** Calls running per connection version: {@code advanced.maxConcurrentCalls} (prod 2 by default). */
   private final Map<String, Semaphore> slots = new ConcurrentHashMap<>();
+  /** The setup form's help; keeps what an API's OpenAPI document said for a short while. */
+  private final HttpSuggestions suggestions = new HttpSuggestions();
 
   public HttpConnector() {
     SchemaResources schemas = SchemaResources.of(HttpConnector.class, "http");
@@ -250,6 +253,17 @@ public final class HttpConnector implements Connector {
   @Override
   public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return TestProbe.health(cfg, secrets, ctx);
+  }
+
+  /**
+   * Local: how a well-known API signs in, the usual key header and parameter names, Allow plain HTTP for an
+   * {@code http://} base URL. Service: the API's own OpenAPI document, fetched without credentials
+   * ({@link HttpSuggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return scope == Suggestions.Scope.LOCAL ? HttpSuggestions.local(cfg, secrets)
+        : suggestions.service(cfg, secrets, ctx);
   }
 
   /** {@code describe_connection}: where requests may go and what needs approval; no I/O, no secret. */

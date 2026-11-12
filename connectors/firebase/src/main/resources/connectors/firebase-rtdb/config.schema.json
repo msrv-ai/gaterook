@@ -68,7 +68,7 @@
           "examples": [
             "gw-rtdb@acme-stage.iam.gserviceaccount.com"
           ],
-          "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes."
+          "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes. Empty: calls use the sign-in or key itself."
         },
         "lifetimeSeconds": {
           "type": "integer",
@@ -76,7 +76,8 @@
           "minimum": 300,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
         }
       },
       "patternProperties": {

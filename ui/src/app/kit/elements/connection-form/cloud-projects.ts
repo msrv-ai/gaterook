@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, linkedSignal, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, booleanAttribute, computed, effect, input, linkedSignal, output, untracked } from '@angular/core';
 import { StoredSecret, TestOutcome } from '../../../core/api/connections.api';
 import { SchemaNode, getAt } from '../../../schema-form/compile';
 import { GwSchemaField } from '../../../schema-form/fields';
@@ -37,7 +37,29 @@ export class GwCloudProjects {
   readonly stored = input<readonly StoredSecret[]>([]);
   readonly idPrefix = input.required<string>();
   readonly title = input('Projects and log views');
+  /** Load the projects by themselves once the credentials can sign in (a new connection; Google sign-in counts). */
+  readonly auto = input(false, { transform: booleanAttribute });
   readonly discover = output<ProjectDiscoveryRequest>();
+  /** The credentials the picker last loaded projects for by itself: once per credentials. */
+  private autoKey: string | null = null;
+
+  constructor() {
+    effect((onCleanup) => {
+      if (!this.auto() || this.result() || this.selected().length) return;
+      const key = this.key();
+      if (key === this.autoKey || !this.form().readyExcept([this.node().pointer])) return;
+      const timer = setTimeout(() => untracked(() => this.autoLoad(key)), 1500);
+      onCleanup(() => clearTimeout(timer));
+    });
+  }
+
+  private autoLoad(key: string): void {
+    if (this.busy() || this.result() || key !== this.key()) return;
+    this.autoKey = key;
+    const request = { key, value: this.value() };
+    this.result.set({ request, state: 'loading', projects: [], complete: true, message: null, hints: [] });
+    this.discover.emit(request);
+  }
 
   private readonly key = computed(() => {
     const value = this.value();

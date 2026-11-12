@@ -25,6 +25,13 @@ public interface Connector extends AutoCloseable {
       throws ConnectorException { return PreparedAction.approval(describeAction(call, cfg), null); }
   /** Persists nothing; may stop with needsConfirmation (host key, certificate, exec plugin). */
   TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx);
+  /** Setup helpers (Suggestions): LOCAL = this computer and what was typed, no network but loopback, a few ms;
+   *  SERVICE = signs in like test and lists what the account may use. Draft may be incomplete; saves nothing, never
+   *  asks for trust or runs a credential command (a note instead). Values per field pointer, notes on what's next.
+   *  Plugins: connector/suggest over GPP/1 with a test's params and the scope; LOCAL reaches only a host that already
+   *  runs (no JVM start while the person types), a host without the method offers nothing. */
+  default Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope)
+      throws ConnectorException { return Suggestions.none(); }
   default HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     TestResult t = test(cfg, secrets, ctx);
     return t.ok() ? HealthResult.healthy(t.latencyMs()) : HealthResult.unreachable(t.error() == null ? "Unreachable" : t.error().message());

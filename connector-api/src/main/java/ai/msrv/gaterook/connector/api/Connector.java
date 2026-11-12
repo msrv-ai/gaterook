@@ -69,6 +69,19 @@ public interface Connector extends AutoCloseable {
     return TestResult.failure("discovery-unavailable", "This connector can't browse remote files.", null);
   }
 
+  /**
+   * Help for the setup form while the person fills it in ({@link Suggestions}): with {@link Suggestions.Scope#LOCAL}
+   * what this computer knows (no network but loopback, a few ms: called as the person types); with
+   * {@link Suggestions.Scope#SERVICE} what the service lists for the draft's credentials, under the same deadline and
+   * host checks as {@link #test}. The draft may be incomplete. Saves nothing, changes nothing, never runs a credential
+   * command and never asks for trust: a step that needs the person (an unknown host key or certificate, a command not
+   * yet allowed) becomes a note. A failure may be thrown or returned as a note; the form then offers nothing new.
+   */
+  default Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope)
+      throws ConnectorException {
+    return Suggestions.none();
+  }
+
   default HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     TestResult t = test(cfg, secrets, ctx);
     return t.ok()

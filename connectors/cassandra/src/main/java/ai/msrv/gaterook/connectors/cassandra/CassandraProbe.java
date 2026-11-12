@@ -51,12 +51,18 @@ final class CassandraProbe {
   private CassandraProbe() {}
 
   static TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
-    CassandraSettings s;
+    CassandraSettings chosen;
     try {
-      s = CassandraSettings.of(cfg);
+      chosen = CassandraSettings.of(cfg);
     } catch (ConnectorException e) {
       return TestResult.failure("cassandra.settings", e.getMessage(), null);
     }
+    return test(cfg, chosen, secrets, ctx);
+  }
+
+  private static TestResult test(ConnectionConfig cfg, CassandraSettings chosen, SecretResolver secrets,
+      ExecContext ctx) {
+    CassandraSettings s = chosen;
     CassandraSessions.Login login;
     try {
       login = CassandraSessions.login(s, secrets, ctx);
@@ -72,6 +78,11 @@ final class CassandraProbe {
       } catch (ConnectorException e) {
         return TestResult.failure(e.kind() == ConnectorException.Kind.DENIED ? "cassandra.address"
             : "cassandra.unreachable", e.getMessage(), null);
+      }
+      try {
+        s = AutoTls.resolve(s, points, CassandraSessions.autoBudget(s, ctx));
+      } catch (ConnectorException e) {
+        return TestResult.failure(code(e), e.getMessage(), null);
       }
       CompletableFuture<CqlSession> opening = CassandraSessions.open("test-" + cfg.id(), s, login, points);
       CqlSession session;
@@ -94,8 +105,8 @@ final class CassandraProbe {
         long connected = ms(started);
         checks.add(new Check("connect", true, connected, (login.user() == null ? "Connected without signing in"
             : "Signed in as " + login.user()) + (s.tls() ? " over TLS" + (s.verifyHostname() ? "" : " (CA only)")
-            : " without TLS") + " to " + s.contactPointsText()));
-        return probe(cfg, s, login, session, ctx, checks, connected);
+            : " without TLS") + (chosen.autoTls() ? " (Auto)" : "") + " to " + s.contactPointsText()));
+        return probe(cfg, s, chosen.autoTls(), login, session, ctx, checks, connected);
       } finally {
         session.closeAsync();
       }
@@ -115,7 +126,7 @@ final class CassandraProbe {
     if (m.startsWith("Cassandra refused the sign-in")) {
       return "cassandra.auth";
     }
-    if (m.startsWith("TLS")) {
+    if (m.startsWith("TLS") || m.startsWith("Auto:")) {
       return "cassandra.tls";
     }
     if (m.startsWith("The connection's keyspace")) {
@@ -133,8 +144,8 @@ final class CassandraProbe {
         + CassandraErrors.firstLine(String.valueOf(root.getMessage())), 300));
   }
 
-  private static TestResult probe(ConnectionConfig cfg, CassandraSettings s, CassandraSessions.Login login,
-      CqlSession session, ExecContext ctx, List<Check> checks, long latency) {
+  private static TestResult probe(ConnectionConfig cfg, CassandraSettings s, boolean auto,
+      CassandraSessions.Login login, CqlSession session, ExecContext ctx, List<Check> checks, long latency) {
     // Data centers as the control connection read them from system.local and system.peers.
     Map<String, Integer> centers = new TreeMap<>();
     for (Node node : session.getMetadata().getNodes().values()) {
@@ -206,7 +217,7 @@ final class CassandraProbe {
     ObjectNode dcs = details.putObject("dataCenters");
     centers.forEach(dcs::put);
     details.putObject("tls").put("enabled", s.tls()).put("verify", s.tls() ? (s.verifyHostname() ? "full" : "ca")
-        : "none");
+        : "none").put("auto", auto);
     details.put("readConsistency", s.readConsistency());
     ObjectNode metadata = F.objectNode().put("serverVersion", version);
     if (cluster != null) {
@@ -216,7 +227,7 @@ final class CassandraProbe {
     centers.keySet().forEach(dcList::add);
     TestResult result = TestResult.success(latency, version, login.user() == null ? "anonymous" : login.user(),
         permissions).withChecks(checks).withDetails(details).withMetadata(metadata);
-    for (Hint h : hints(cfg.env(), s, login.user(), grants, permissions, centers, visible)) {
+    for (Hint h : hints(cfg.env(), s, auto, login.user(), grants, permissions, centers, visible)) {
       result = result.withHint(h);
     }
     return result;
@@ -338,6 +349,12 @@ final class CassandraProbe {
 
   static List<Hint> hints(Env env, CassandraSettings s, String user, Grants grants,
       TestResult.Permissions permissions, Map<String, Integer> centers, List<String> visible) {
+    return hints(env, s, false, user, grants, permissions, centers, visible);
+  }
+
+  /** @param auto the transport is the one Auto found */
+  static List<Hint> hints(Env env, CassandraSettings s, boolean auto, String user, Grants grants,
+      TestResult.Permissions permissions, Map<String, Integer> centers, List<String> visible) {
     List<Hint> out = new ArrayList<>();
     boolean dev = env == Env.DEV;
     String role = readerRole(s);
@@ -364,8 +381,10 @@ final class CassandraProbe {
         + "cassandra_query runs only what GateRook reads as one SELECT, and the role's grants are the boundary. "
         + "cassandra_execute needs MODIFY (and CREATE, ALTER or DROP for schema) on the keyspaces it changes."));
     if (!s.tls()) {
-      out.add(new Hint(dev ? Severity.INFO : Severity.WARNING, "cassandra.no-tls", "/tls", "Traffic to the "
-          + "cluster, the password included, isn't encrypted. Turn on TLS where the cluster offers it."));
+      out.add(new Hint(dev ? Severity.INFO : Severity.WARNING, "cassandra.no-tls", "/tls", auto ? "The nodes "
+          + "don't speak TLS, so Auto connects without it: traffic to the cluster, the password included, isn't "
+          + "encrypted." : "Traffic to the cluster, the password included, isn't encrypted. Turn on TLS where the "
+          + "cluster offers it."));
     } else if (!s.verifyHostname()) {
       out.add(new Hint(dev ? Severity.INFO : Severity.WARNING, "cassandra.tls-ca-only", "/tlsVerify", "Certificates "
           + "are checked against the CA, not the node's name: any node certificate of that CA is accepted."));

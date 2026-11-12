@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ExecContext;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connector.api.TestResult;
@@ -79,8 +80,8 @@ public final class ConnectorEndpoint {
   /** Whether this endpoint answers {@code method}. */
   public static boolean handles(String method) {
     return switch (method) {
-      case Gpp.CONNECTOR_EXECUTE, Gpp.CONNECTOR_TEST, Gpp.CONNECTOR_DISCOVER_DATABASES, Gpp.CONNECTOR_CLASSIFY, Gpp.CONNECTOR_DESCRIBE_ACTION,
-          Gpp.CONNECTOR_TOOLS -> true;
+      case Gpp.CONNECTOR_EXECUTE, Gpp.CONNECTOR_TEST, Gpp.CONNECTOR_DISCOVER_DATABASES, Gpp.CONNECTOR_SUGGEST,
+          Gpp.CONNECTOR_CLASSIFY, Gpp.CONNECTOR_DESCRIBE_ACTION, Gpp.CONNECTOR_TOOLS -> true;
       default -> false;
     };
   }
@@ -90,6 +91,7 @@ public final class ConnectorEndpoint {
       case Gpp.CONNECTOR_EXECUTE -> execute(Messages.Execute.read(params), incoming);
       case Gpp.CONNECTOR_TEST -> test(Messages.Test.read(params), incoming, false);
       case Gpp.CONNECTOR_DISCOVER_DATABASES -> test(Messages.Test.read(params), incoming, true);
+      case Gpp.CONNECTOR_SUGGEST -> suggest(Messages.Suggest.read(params), incoming);
       case Gpp.CONNECTOR_CLASSIFY -> classify(Messages.Classify.read(params));
       case Gpp.CONNECTOR_DESCRIBE_ACTION -> describe(Messages.Describe.read(params));
       case Gpp.CONNECTOR_TOOLS -> tools(Messages.Tools.read(params));
@@ -153,6 +155,31 @@ public final class ConnectorEndpoint {
         result = TestResult.failure("no-result", "The plugin returned no result.", null);
       }
       return WireCodec.test(explained(result, scoped));
+    } catch (RuntimeException | LinkageError | StackOverflowError e) {
+      throw cancelledOr(incoming, explainedInternal(e, scoped));
+    }
+  }
+
+  /**
+   * Setup help ({@code Connector.suggest}) with a test's secrets and context: what the plugin found, or its own
+   * refusal as a connector error, which the core turns into a note.
+   */
+  private Object suggest(Messages.Suggest s, JsonRpcPeer.Incoming incoming) throws RpcException {
+    Messages.Test t = s.test();
+    Loaded l = loaded(t.generation());
+    ExecContext.Egress callEgress = egress(t.egress(), t.connection(), t.timeoutMs());
+    ScopedEgress scoped = callEgress instanceof ScopedEgress e ? e : null;
+    HostExecContext ctx = context(t.callId(), t.callToken(), null, null, t.connection(), t.limits(), t.timeoutMs(),
+        false, null, null, null, l, callEgress, incoming);
+    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken()); scoped) {
+      Suggestions result = scoped == null ? l.connector().suggest(t.connection(), secrets, ctx, s.scope())
+          : scoped.run(() -> l.connector().suggest(t.connection(), secrets, ctx, s.scope()));
+      if (incoming != null && incoming.cancelled()) {
+        throw new RpcException(Gpp.CANCELLED, "Cancelled");
+      }
+      return WireCodec.suggestions(result == null ? Suggestions.none() : result);
+    } catch (ConnectorException ce) {
+      throw cancelledOr(incoming, connectorError(explained(ce, scoped)));
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
       throw cancelledOr(incoming, explainedInternal(e, scoped));
     }

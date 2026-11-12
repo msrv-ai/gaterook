@@ -4,7 +4,7 @@ GateRook's MCP Firewall lets AI apps read a SQLite database file on this compute
 
 ## Choose the database file
 
-The built-in **SQLite** connector (`sqlite`) opens one database file with the SQLite library bundled with GateRook. Choose the file with **Choose file…** in the desktop app, or enter an absolute path or `~/…`, such as `~/projects/shop/db/development.sqlite3`. There is no host, user or password: what GateRook may do with the file is what your account may do with it.
+The built-in **SQLite** connector (`sqlite`) opens one database file with the SQLite library bundled with GateRook. Choose the file with **Choose file…** in the desktop app, or enter an absolute path or `~/…`, such as `~/projects/shop/db/development.sqlite3`; while you type, the form offers the SQLite files of that folder. There is no host, user or password: what GateRook may do with the file is what your account may do with it.
 
 Only you choose the file. The setting is marked person-only, so an [AI connection import](ai-connection-import.md) cannot propose a path: an imported SQLite connection waits for you to choose its file. GateRook refuses:
 

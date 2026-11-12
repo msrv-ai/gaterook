@@ -17,6 +17,8 @@ For Meilisearch and Typesense, the **Server URL** takes `https://` and the port,
 
 **Indexes** (**Collections** on Typesense) lists what agents may use; `*` matches any characters. Empty, every index the credentials see. A key that may not list indexes — Algolia's Search API key without `listIndexes`, Meilisearch's search keys, a scoped Typesense key, an Azure query key — needs the names listed without `*`: GateRook then shows those names and checks the key with one search. The same applies to an Entra ID identity without Reader.
 
+While you fill in the form, GateRook offers Meilisearch or Typesense when it answers on its usual port of this computer, the application IDs of the Algolia CLI's profiles (`~/.config/algolia/config.toml`, the default profile's filled in, never a key), and the Azure CLI's tenants for an Entra ID sign-in. Once the form can sign in, it offers the indexes the credentials see. For these suggestions the Azure CLI runs only after you allowed its command in Test connection, and a device sign-in is never started.
+
 ### Azure AI Search with Microsoft Entra ID
 
 Under **Sign in with**, choose **Microsoft Entra ID** instead of **API key**; the API key stays the default. The credentials are those of the [Azure connector](azure.md#sign-in): the Azure CLI sign-in on this computer (Test connection shows the exact `az account get-access-token` command and runs nothing until you allow it), a code in the browser (the sign-in lasts until GateRook restarts), or a service principal with a certificate or a client secret. Enter the tenant ID for a device sign-in or a service principal.

@@ -6,7 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { CONNECTOR_FORMS } from '../../../testing/connector-schemas';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, SuggestRequest, Suggested, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
@@ -221,6 +221,8 @@ class FakeCore {
     projects: [{ projectId: 'example-dev', displayName: 'Example development' }], discoveryComplete: true,
   } });
   pendingProjects: Promise<TestOutcome> | null = null;
+  suggestRequests: SuggestRequest[] = [];
+  nextSuggestions: Suggested | ApiError = { fields: {}, notes: [] };
   fileRequests: (TestDraftRequest & { readonly path: string })[] = [];
   nextFiles: TestOutcome | ApiError = outcome({ ok: true, details: { path: '/var/log', parent: '/var',
     entries: [{ name: 'app.log', path: '/var/log/app.log', type: 'file', size: 20 }], truncated: false } });
@@ -312,6 +314,11 @@ beforeEach(() => {
     }),
   };
   const connections: Partial<ConnectionsApi> = {
+    suggest: vi.fn(async (r: SuggestRequest) => {
+      core.suggestRequests.push(structuredClone(r));
+      if (core.nextSuggestions instanceof ApiError) throw core.nextSuggestions;
+      return structuredClone(core.nextSuggestions);
+    }),
     projects: vi.fn(async (r: TestDraftRequest) => {
       core.projectRequests.push(structuredClone(r));
       if (core.pendingProjects) return core.pendingProjects;
@@ -540,6 +547,37 @@ function cloudLogging(): void {
   }] }], installed: [] };
 }
 
+describe('setup helpers', () => {
+  it('asks the core what this computer knows and offers it under the field', async () => {
+    core.nextSuggestions = { fields: { '/connection/host': { value: null, source: 'this computer', complete: true,
+      options: [{ value: 'localhost', label: null, detail: 'A PostgreSQL server answers on port 5432' }] } },
+    notes: ['A PostgreSQL server answers on localhost:5432.'] };
+    const p = await open('/connections/new#step-2');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await p.settle();
+    expect(core.suggestRequests.length).toBeGreaterThan(0);
+    expect(core.suggestRequests[0]).toMatchObject({ type: 'postgres', env: 'dev', scope: 'local' });
+    expect(core.suggestRequests[0].existing).toBeUndefined();
+    const line = p.q('#cf-connection-host-found-line')!;
+    expect(text(line)).toContain('Found on this computer:');
+    p.button('localhost', line).click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('localhost');
+    expect(text(p.q('#cf-helpers'))).toContain('A PostgreSQL server answers on localhost:5432.');
+  });
+
+  it('offers nothing new, and asks nothing, when the core refuses a lookup', async () => {
+    core.nextSuggestions = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?', detail: 'x',
+      confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/new#step-2');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await p.settle();
+    expect(core.suggestRequests.length).toBeGreaterThan(0);
+    expect(p.q('#cf-helpers')).toBeNull();
+    expect(p.q('dialog[open]')).toBeNull();
+  });
+});
+
 describe('Redis production connections', () => {
   it('adds an External MCP server through Add MCP server, which reviews, signs in and ends on an endpoint', async () => {
     const card = { ...structuredClone(CATALOG.groups[0].cards[0]), type: 'mcp-server', name: 'External MCP server', icon: 'plug', description: 'Put any MCP server behind modes, approvals and audit.', tools: null, connections: 0 };
@@ -575,6 +613,9 @@ describe('Redis production connections', () => {
     p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
     await p.settle();
 
+    // Auto by default, TLS on prod: the choice sits under Advanced settings.
+    p.q<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
+    await p.settle();
     const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
     expect(tls.tagName).toBe('SELECT');
     expect(tls.closest('[hidden]')).toBeNull();
@@ -874,9 +915,11 @@ describe('Add connection: wizard', () => {
     p.button('Continue', p.q('#cf-form')!).click();
     await p.settle();
     expect(p.visible()).toEqual(['step-3']);
-    expect(core.discoveries).toHaveLength(1);
+    // Prod moves the SSL mode from Auto to verify-full: the list is loaded again with it, the choice kept.
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.discoveries[1]).toMatchObject({ env: 'prod', config: { connection: { sslMode: 'verify-full' } } });
     expect(core.tests.map((request) => request.env)).toEqual(testInDev ? ['dev', 'prod'] : ['prod']);
-    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'] });
+    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'], sslMode: 'verify-full' });
 
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
@@ -886,20 +929,21 @@ describe('Add connection: wizard', () => {
     expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
   });
 
-  it.each([false, 'auto'])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
+  // Auto, the default, becomes TLS on prod; a transport the person chose (Without TLS) stays as chosen.
+  it.each(['auto', false])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
     mongoDb();
     const p = await open('/connections/new#step-2');
     await p.type('cf-name', 'prod-mongo');
     await p.type('cf-connection-host', 'mongo.example.test');
     await p.type('cf-credentials-user', 'reader');
     await p.type('cf-credentials-password', 'local-password');
-    if (initialTls === 'auto') {
+    if (initialTls === false) {
       const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
-      tls.value = 'auto';
+      tls.value = 'false';
       tls.dispatchEvent(new Event('change', { bubbles: true }));
       await p.settle();
     }
-    const productionTls = initialTls === 'auto' ? 'auto' : true;
+    const productionTls = initialTls === 'auto' ? true : false;
     p.button('Load databases').click();
     await p.settle();
     expect(core.discoveries[0].config['connection']).toMatchObject({ tls: initialTls });
@@ -1107,6 +1151,21 @@ describe('Add connection: wizard', () => {
     expect(start).toEqual({ connection: { sslMode: 'verify-full' } });
   });
 
+  it('names a plugin’s tools in its review, the last one right before the comma', async () => {
+    const check = clickhouseCheck(true);
+    core.nextPluginCheck = { ...check, report: { ...check.report, tools: [
+      { name: 'ch_query', declared: { readOnlyHint: true } }, { name: 'ch_execute', declared: { readOnlyHint: false } }] } };
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+    const review = document.querySelector<HTMLDialogElement>('dialog.gw-dialog[open]')!;
+    const tools = Array.from(review.querySelectorAll('.gw-kv__row')).find((r) => text(r.querySelector('dt')) === 'Tools')!;
+    expect(tools.querySelector('dd')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('ch_query ch_execute, Off until you '
+      + 'add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.');
+  });
+
   it('a catalog plugin that isn’t installed is reviewed and installed on Continue, then Configure opens on it', async () => {
     const p = await open();
     p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
@@ -1162,7 +1221,7 @@ describe('Add connection: wizard', () => {
         type: 'postgres',
         env: 'dev',
         config: {
-          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'verify-full' },
+          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'auto' },
           credentials: { user: 'app_rw' },
           advanced: { poolSize: 2, defaultSchema: 'public', connectTimeoutMs: 5000, discoveryDatabase: 'postgres' },
         },

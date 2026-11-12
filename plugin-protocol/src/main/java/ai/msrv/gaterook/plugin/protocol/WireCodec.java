@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -301,6 +302,77 @@ public final class WireCodec {
     return new TestResult(n.path("ok").asBoolean(false), n.path("latencyMs").asLong(0), text(n.get("serverVersion")),
         text(n.get("identity")), permissions, List.copyOf(hints), List.copyOf(checks), error, confirmation,
         tree(n.get("metadataUpdate")), tree(n.get("suggestedPolicyChange")), tree(n.get("details")));
+  }
+
+  // ── Setup helpers ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /** The most fields one answer of {@code connector/suggest} carries; more are left out as they are read. */
+  public static final int MAX_SUGGESTED_FIELDS = 64;
+  /** The most notes one answer carries. */
+  public static final int MAX_SUGGESTION_NOTES = 20;
+
+  /** {@code {"fields": {"/pointer": {options, value?, source?, complete}}, "notes": [...]}}. */
+  public static ObjectNode suggestions(Suggestions s) {
+    ObjectNode o = GppJson.object();
+    ObjectNode fields = o.putObject("fields");
+    s.fields().forEach((pointer, f) -> {
+      ObjectNode field = fields.putObject(pointer);
+      ArrayNode options = field.putArray("options");
+      for (Suggestions.Option option : f.options()) {
+        ObjectNode item = options.addObject();
+        item.put("value", option.value());
+        putIfNotNull(item, "label", option.label());
+        putIfNotNull(item, "detail", option.detail());
+      }
+      putIfNotNull(field, "value", f.value());
+      putIfNotNull(field, "source", f.source());
+      field.put("complete", f.complete());
+    });
+    strings(o.putArray("notes"), s.notes());
+    return o;
+  }
+
+  /**
+   * An answer of {@code connector/suggest}, bounded as it is read: at most {@link #MAX_SUGGESTED_FIELDS} fields of
+   * {@link Suggestions#MAX_OPTIONS} options each, and {@link #MAX_SUGGESTION_NOTES} notes. An option without a value
+   * isn't one.
+   */
+  public static Suggestions suggestions(JsonNode n) {
+    Suggestions.Builder out = Suggestions.builder();
+    JsonNode fields = n == null ? null : n.get("fields");
+    if (fields != null && fields.isObject()) {
+      int count = 0;
+      for (Map.Entry<String, JsonNode> e : fields.properties()) {
+        if (++count > MAX_SUGGESTED_FIELDS) {
+          break;
+        }
+        JsonNode f = e.getValue();
+        List<Suggestions.Option> options = new ArrayList<>();
+        boolean complete = f.path("complete").asBoolean(true);
+        for (JsonNode option : f.path("options")) {
+          if (options.size() == Suggestions.MAX_OPTIONS) {
+            complete = false;
+            break;
+          }
+          String value = option.path("value").isString() ? option.get("value").asString() : null;
+          if (value != null) {
+            options.add(new Suggestions.Option(value, text(option.get("label")), text(option.get("detail"))));
+          }
+        }
+        String value = f.path("value").isString() ? f.get("value").asString() : null;
+        out.field(e.getKey(), new Suggestions.Field(options, value, text(f.get("source")), complete));
+      }
+    }
+    JsonNode notes = n == null ? null : n.get("notes");
+    if (notes != null && notes.isArray()) {
+      int count = 0;
+      for (JsonNode note : notes) {
+        if (note.isString() && count++ < MAX_SUGGESTION_NOTES) {
+          out.note(note.asString());
+        }
+      }
+    }
+    return out.build();
   }
 
   public static ObjectNode health(HealthResult h) {

@@ -140,6 +140,11 @@ final class OpenSearchHttp {
         throw ConnectorException.outcomeUnknown("The " + service + " connection failed after dispatch; the approved "
             + "operation may have been applied. Inspect server state before retrying.", e);
       }
+      if (e instanceof SSLHandshakeException handshake) {
+        boolean untrusted = !Tls.wrongName(handshake) && Tls.untrusted(handshake);
+        throw ConnectorException.unavailable(Tls.explain(Http.host(signedRequest.uri()), handshake) + (untrusted
+            ? " Ask the person to add its CA certificate to the connection in GateRook." : ""), e);
+      }
       throw ConnectorException.unavailable("The " + service + " request failed: "
           + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), e);
     } finally {

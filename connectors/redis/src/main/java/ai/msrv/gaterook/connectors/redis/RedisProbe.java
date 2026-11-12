@@ -60,33 +60,26 @@ final class RedisProbe {
 
   private RedisProbe() {}
 
-  static TestResult run(ConnectionConfig cfg, RedisSettings s, Credentials login, ExecContext ctx) {
+  static TestResult run(ConnectionConfig cfg, RedisSettings settings, Credentials login, ExecContext ctx) {
     Clock clock = ctx.clock();
     Instant deadline = earlier(clock.instant().plus(BUDGET), ctx.deadline());
     List<Check> checks = new ArrayList<>();
     long t0 = System.nanoTime();
+    RedisSettings s = settings;
     Connection c;
     try {
-      c = ScopedValue.where(GuardedSocketFactory.DEADLINE, deadline).call(() -> new Connection(
-          GuardedSocketFactory.oneSocket(new GuardedSocketFactory(s)), DefaultJedisClientConfig.builder()
-              .protocol(RedisProtocol.RESP2)
-              .connectionTimeoutMillis(s.connectTimeoutMs())
-              .socketTimeoutMillis(s.commandTimeoutMs())
-              .database(s.database())
-              .clientName("gaterook")
-              .clientSetInfoConfig(ClientSetInfoConfig.withLibNameSuffix("gaterook"))
-              .credentialsProvider(login::asRedisCredentials)
-              .build()));
+      s = AutoTls.resolve(settings, deadline);
+      c = connect(s, login, deadline);
     } catch (JedisException e) {
-      return RedisErrors.of(e, s).test(technical(e));
+      return RedisErrors.of(e, settings).test(technical(e));
     } catch (RuntimeException e) {
-      return RedisErrors.of(e, s).test(technical(e));
+      return RedisErrors.of(e, settings).test(technical(e));
     }
-    checks.add(new Check("connect", true, ms(t0), (s.tls() ? "TLS · " : "") + s.hostPort()));
+    checks.add(new Check("connect", true, ms(t0), transport(settings, s) + s.hostPort()));
     try {
       RedisCommandExecutor x = new RedisCommandExecutor(c, RedisCommandExecutor.Mode.PROBE, clock,
           deadline, s.commandTimeoutMs());
-      return probe(cfg, s, login, x, checks, clock);
+      return probe(cfg, s, settings.autoTls(), login, x, checks, clock);
     } catch (JedisException e) {
       return RedisErrors.of(e, s).test(technical(e)).withChecks(checks);
     } finally {
@@ -94,7 +87,32 @@ final class RedisProbe {
     }
   }
 
-  private static TestResult probe(ConnectionConfig cfg, RedisSettings s, Credentials login,
+  /**
+   * One signed-in connection of its own, never the pool's: {@code HELLO 2 AUTH …}, the client's name and the database;
+   * {@code s} without Auto.
+   */
+  static Connection connect(RedisSettings s, Credentials login, Instant deadline) {
+    return ScopedValue.where(GuardedSocketFactory.DEADLINE, deadline).call(() -> new Connection(
+        GuardedSocketFactory.oneSocket(new GuardedSocketFactory(s)), DefaultJedisClientConfig.builder()
+            .protocol(RedisProtocol.RESP2)
+            .connectionTimeoutMillis(s.connectTimeoutMs())
+            .socketTimeoutMillis(s.commandTimeoutMs())
+            .database(s.database())
+            .clientName("gaterook")
+            .clientSetInfoConfig(ClientSetInfoConfig.withLibNameSuffix("gaterook"))
+            .credentialsProvider(login::asRedisCredentials)
+            .build()));
+  }
+
+  /** {@code TLS · }, {@code TLS (Auto) · }, {@code Without TLS (Auto) · } or nothing, before the address. */
+  static String transport(RedisSettings chosen, RedisSettings used) {
+    if (chosen.autoTls()) {
+      return used.tls() ? "TLS (Auto) · " : "Without TLS (Auto) · ";
+    }
+    return used.tls() ? "TLS · " : "";
+  }
+
+  private static TestResult probe(ConnectionConfig cfg, RedisSettings s, boolean auto, Credentials login,
       RedisCommandExecutor x, List<Check> checks, Clock clock) {
     long[] pings = new long[3];
     for (int i = 0; i < pings.length; i++) {
@@ -246,8 +264,9 @@ final class RedisProbe {
               + s.hostPort() + " can run commands."));
     }
     if (!s.tls() && env != Env.DEV) {
-      result = result.withHint(new Hint(Severity.WARNING, "redis.tls-off", "connection.tls", "TLS is off: the "
-          + "password and the values travel in clear text."));
+      result = result.withHint(new Hint(Severity.WARNING, "redis.tls-off", "connection.tls", (auto ? "This server "
+          + "doesn't speak TLS, so Auto connects without it" : "TLS is off") + ": the password and the values travel "
+          + "in clear text."));
     }
     if (version.startsWith("6.0") || version.startsWith("5") || version.startsWith("4")) {
       result = result.withHint(new Hint(Severity.INFO, "redis.old", null, product + " " + version
@@ -270,6 +289,9 @@ final class RedisProbe {
     ObjectNode d = JSON.objectNode();
     d.set("snippets", snippets);
     d.put("tls", s.tls());
+    if (auto) {
+      d.put("connectionType", "auto");
+    }
     d.put("database", s.database());
     DatabaseListing listing = databases(x, s.database());
     ArrayNode available = d.putArray("databases");
@@ -291,7 +313,7 @@ final class RedisProbe {
 
   record DatabaseListing(List<Integer> databases, boolean complete) {}
 
-  private static DatabaseListing databases(RedisCommandExecutor x, int connectedDatabase) {
+  static DatabaseListing databases(RedisCommandExecutor x, int connectedDatabase) {
     try {
       Map<String, Object> config = Replies.pairs(run(x, Cmd.CONFIG, "GET", "databases"));
       int count = Integer.parseInt(Replies.text(config.get("databases")));
@@ -372,7 +394,7 @@ final class RedisProbe {
         + (v7 ? "" : "+client|setname +client|id ") + "-dump -xread -lolwut";
   }
 
-  private static Object run(RedisCommandExecutor x, Cmd command, Object... args) {
+  static Object run(RedisCommandExecutor x, Cmd command, Object... args) {
     return x.executeCommand(new CommandObject<>(RedisSession.args(command, args), BuilderFactory.RAW_OBJECT));
   }
 

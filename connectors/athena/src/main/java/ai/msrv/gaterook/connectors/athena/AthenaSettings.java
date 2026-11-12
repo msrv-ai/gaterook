@@ -277,4 +277,21 @@ record AthenaSettings(String region, String workgroup, String catalog, String da
     }
     return AwsSessionPolicy.builder().allow(List.of("athena:GetWorkGroup"), List.of(workgroupArn())).toJson();
   }
+
+  /** What the setup helpers list for the form: workgroups, data catalogs and databases, and no query. */
+  static final List<String> LIST_ACTIONS = List.of("athena:ListWorkGroups", "athena:GetWorkGroup",
+      "athena:ListDataCatalogs", "athena:ListDatabases");
+
+  /**
+   * The session policy of the setup helpers' listings ({@code null} without a generated one): the names of the
+   * account's workgroups, catalogs and databases, the settings of a workgroup, and the Glue names Athena's listings
+   * read; no query, no table, no data.
+   */
+  String listPolicy() {
+    if (!generatedPolicy) {
+      return null;
+    }
+    return AwsSessionPolicy.builder().allow(LIST_ACTIONS, List.of("*"))
+        .allow(GLUE_NAMES, List.of(glue("catalog"), glue("database/*"))).toJson();
+  }
 }

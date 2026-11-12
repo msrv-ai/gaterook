@@ -47,7 +47,7 @@ echo "Building the plugins of the catalog"
 
 # The catalog's file names of the built JARs (the index names them in artifact.url).
 cp "$root"/plugins/jira-service-desk/target/plugins-jira-service-desk-*-1.3.0.jar "$dist/assets/gw-jira-service-desk-1.3.0.jar"
-cp "$root/plugins/clickhouse/target/gw-clickhouse-0.6.1.jar" "$dist/assets/"
+cp "$root/plugins/clickhouse/target/gw-clickhouse-0.7.0.jar" "$dist/assets/"
 cp "$root/plugins/rabbitmq/target/gw-rabbitmq-0.3.0.jar" "$dist/assets/"
 cp "$root/plugins/duckdb/target/gw-duckdb-1.0.0.jar" "$dist/assets/"
 cp "$root/plugins/h2/target/gw-h2-1.0.0.jar" "$dist/assets/"

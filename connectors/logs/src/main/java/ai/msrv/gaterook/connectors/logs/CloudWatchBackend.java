@@ -535,6 +535,62 @@ final class CloudWatchBackend implements Backend {
     return out;
   }
 
+  // ── Setup helpers: reads only, with the credentials of Test connection ───────────────────────────────────
+
+  /** Who the credentials are ({@code sts:GetCallerIdentity}), the role's session when one is assumed. */
+  CloudCredentials.CallerIdentity identity() throws ConnectorException {
+    return call.cloud().callerIdentity(credentials(), s.region());
+  }
+
+  /**
+   * Log groups of a region.
+   *
+   * @param complete whether every log group of the region is in {@code groups}
+   */
+  record Groups(List<LogGroup> groups, boolean complete) {}
+
+  /**
+   * The log groups of the region, at most {@code max}: {@code DescribeLogGroups} page by page. A throttled or late
+   * page ends the list where it is.
+   */
+  Groups logGroups(int max) throws ConnectorException {
+    CloudWatchLogsClient cw = client();
+    List<LogGroup> out = new ArrayList<>();
+    String token = null;
+    for (int page = 0; page < Math.max(1, ceilDiv(max, 50)); page++) {
+      if (page > 0 && call.ctx().remaining().compareTo(Duration.ofSeconds(2)) < 0) {
+        return new Groups(List.copyOf(out), false);
+      }
+      AwsRequestOverrideConfiguration o = override();
+      String next = token;
+      DescribeLogGroupsResponse r;
+      try {
+        r = aws("DescribeLogGroups", () -> cw.describeLogGroups(q -> {
+          q.overrideConfiguration(o).limit(50);
+          if (next != null) {
+            q.nextToken(next);
+          }
+        }));
+      } catch (ConnectorException e) {
+        if (out.isEmpty()) {
+          throw e;
+        }
+        return new Groups(List.copyOf(out), false);
+      }
+      for (LogGroup g : r.logGroups()) {
+        if (out.size() >= max) {
+          return new Groups(List.copyOf(out), false);
+        }
+        out.add(g);
+      }
+      token = r.nextToken();
+      if (token == null || token.isBlank() || token.equals(next)) {
+        return new Groups(List.copyOf(out), true);
+      }
+    }
+    return new Groups(List.copyOf(out), false);
+  }
+
   private LogGroup findGroup(CloudWatchLogsClient cw, String name) throws ConnectorException {
     AwsRequestOverrideConfiguration o = override();
     DescribeLogGroupsResponse r = aws("DescribeLogGroups", () -> cw.describeLogGroups(q -> q

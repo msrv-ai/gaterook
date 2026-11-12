@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -26,7 +27,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * ClickHouse for agents (catalog plugin {@code clickhouse} 0.6.1, step K6): read-only analytics over the HTTP
+ * ClickHouse for agents (catalog plugin {@code clickhouse} 0.7.0, step K6): read-only analytics over the HTTP
  * interface — one query with row and time limits, databases, tables, a table's columns, a query's plan and the queries
  * running now. Nothing here writes: a statement that isn't a read is refused before it leaves the plugin
  * ({@link ReadOnlySql}), and ClickHouse runs every query with {@code readonly=1} and {@code allow_ddl=0}.
@@ -196,6 +197,12 @@ public final class ClickHouseConnector implements Connector {
           "clickhouse_running_queries" -> table(ch, call, rows);
       default -> throw ConnectorException.badInput(call.tool() + " isn't implemented here.");
     };
+  }
+
+  /** Setup help for the form ({@link ClickHouseSuggestions}); the plugin host carries it as {@code connector/suggest}. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return ClickHouseSuggestions.suggest(cfg, secrets, ctx, scope);
   }
 
   @Override

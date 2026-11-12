@@ -17,6 +17,8 @@ Keys, signatures, tokens and the client secret are never shown, logged or put in
 
 Test connection reads the account (its regions and default consistency), lists the databases agents may use and names the identity: the key kind you selected, or the service principal. A principal whose roles are scoped to databases may not list the account's databases: then `cosmosdb_list_databases` looks up the databases named in the connection's list (without `*`) one by one.
 
+While you fill in the form, it takes the endpoint from a connection string pasted into **Account endpoint** or **Account key** (never its key), offers `https://<account>.documents.azure.com` for an account name typed alone, offers the emulator when its port 8081 answers on this computer, and for Microsoft Entra ID the tenants of the Azure CLI's sign-in. Once the form can sign in, it lists the databases the credentials may read and the containers of the allowed ones.
+
 ## Bound reads and review exact changes
 
 | Tool | What it does | Default mode |

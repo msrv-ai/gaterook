@@ -199,6 +199,68 @@ export interface TestDraftRequest {
   readonly confirm?: string | null;
 }
 
+/** Where suggestions may look: `local` (this computer and what was typed) or `service` (signs in like a test). */
+export type SuggestScope = 'local' | 'service';
+
+export interface SuggestRequest extends TestDraftRequest {
+  readonly scope: SuggestScope;
+}
+
+/** One value a setup form offers under a field. */
+export interface SuggestedOption {
+  readonly value: string;
+  /** How it reads when it isn't the value itself ("kind-dev (current)"). */
+  readonly label: string | null;
+  /** One short fact: the server a context points to, a region. */
+  readonly detail: string | null;
+}
+
+/** What one field is offered: its options, a value to fill in while it is empty or at its default, and from where. */
+export interface SuggestedField {
+  readonly options: readonly SuggestedOption[];
+  readonly value: string | null;
+  /** "your kubeconfig", "the cluster", "~/.aws/config". */
+  readonly source: string | null;
+  /** False when more exist than are offered. */
+  readonly complete: boolean;
+}
+
+/** `POST /api/connections/suggest`: fields by JSON Pointer of the config (`/context`), notes on what comes next. */
+export interface Suggested {
+  readonly fields: { readonly [pointer: string]: SuggestedField };
+  readonly notes: readonly string[];
+}
+
+/**
+ * The answer as the core sends it: an offered value is `option` and the value to fill in is `fill`, as no admin answer
+ * has a property named like a secret's value.
+ */
+export interface SuggestedWire {
+  readonly fields: {
+    readonly [pointer: string]: {
+      readonly options: readonly { readonly option: string; readonly label: string | null; readonly detail: string | null }[];
+      readonly fill: string | null;
+      readonly source: string | null;
+      readonly complete: boolean;
+    };
+  };
+  readonly notes: readonly string[];
+}
+
+/** The core's answer in the form's terms: each option and the value to fill in as `value`. */
+export function suggestedFromWire(wire: SuggestedWire): Suggested {
+  const fields: { [pointer: string]: SuggestedField } = {};
+  for (const [pointer, f] of Object.entries(wire.fields ?? {})) {
+    fields[pointer] = {
+      options: (f.options ?? []).map((o) => ({ value: o.option, label: o.label ?? null, detail: o.detail ?? null })),
+      value: f.fill ?? null,
+      source: f.source ?? null,
+      complete: f.complete !== false,
+    };
+  }
+  return { fields, notes: wire.notes ?? [] };
+}
+
 export interface CreateConnectionRequest extends WithReason {
   readonly name: string;
   readonly type: string;
@@ -277,6 +339,11 @@ export class ConnectionsApi {
   /** Optional project suggestions using the draft's credentials; no connection is saved. */
   projects(request: TestDraftRequest): Promise<TestOutcome> {
     return this.api.post('/api/connections/projects', request);
+  }
+
+  /** Help for the setup form: values found on this computer or, with `service`, on the service; saves nothing. */
+  async suggest(request: SuggestRequest): Promise<Suggested> {
+    return suggestedFromWire(await this.api.post<SuggestedWire>('/api/connections/suggest', request));
   }
 
   /** Read-only remote folder browsing for a draft; no connection is saved. */

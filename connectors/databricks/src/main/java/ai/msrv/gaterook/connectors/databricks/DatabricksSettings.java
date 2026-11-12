@@ -78,6 +78,36 @@ record DatabricksSettings(URI base, String host, String warehouse, String catalo
   }
 
   /**
+   * The settings the setup helpers sign in with: the workspace and the sign-in as {@link #of} checks them; the
+   * warehouse, the defaults and the lists as far as they are valid ({@code null} or left out otherwise), since the
+   * helpers are there to find them.
+   */
+  static DatabricksSettings forSuggestions(ConnectionConfig cfg) throws ConnectorException {
+    URI base = base(cfg.string("/host"));
+    String warehouse = cfg.string("/warehouseId");
+    String method = cfg.string("/auth/method");
+    Auth auth = method == null || method.equals("oauth") ? Auth.OAUTH : method.equals("token") ? Auth.TOKEN : null;
+    if (auth == null) {
+      throw ConnectorException.badInput("Choose how GateRook signs in: a personal access token or a service "
+          + "principal.");
+    }
+    String clientId = null;
+    if (auth == Auth.OAUTH) {
+      clientId = cfg.string("/auth/clientId");
+      if (clientId == null || !CLIENT_ID.matcher(clientId).matches()) {
+        throw ConnectorException.badInput("Enter the service principal's client ID (its application ID).");
+      }
+    }
+    return new DatabricksSettings(base, base.getHost(), warehouse != null && WAREHOUSE.matcher(warehouse).matches()
+        ? warehouse : null, valid(cfg.string("/catalog")), valid(cfg.string("/schema")),
+        lower(cfg.strings("/catalogs")), lower(cfg.strings("/schemas")), auth, clientId);
+  }
+
+  private static String valid(String value) {
+    return value == null || !OBJECT.matcher(value).matches() ? null : value.toLowerCase(Locale.ROOT);
+  }
+
+  /**
    * The workspace URL as {@code https://<host>[:port]/}: https only, no user, path, query or fragment, and a host that
    * is a name, never an IP address but a loopback one.
    */

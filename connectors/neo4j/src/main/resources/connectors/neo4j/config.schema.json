@@ -20,7 +20,7 @@
       "examples": [
         "neo4j+s://a1b2c3d4.databases.neo4j.io"
       ],
-      "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer."
+      "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer. Typed without a scheme, the one the server needs is added."
     },
     "database": {
       "type": "string",

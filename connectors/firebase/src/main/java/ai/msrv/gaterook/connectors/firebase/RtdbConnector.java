@@ -12,12 +12,14 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -51,12 +53,19 @@ public final class RtdbConnector implements Connector {
   private static final JsonNodeFactory F = JsonNodeFactory.instance;
 
   private final CloudCredentials cloud;
+  private final CloudLocal local;
   private final GoogleHttp http;
   private final RtdbApi api;
   private final ConnectorManifest manifest;
 
   public RtdbConnector(CloudCredentials cloud) {
+    this(cloud, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** @param local what this computer's gcloud knows, for the form's suggestions (tests: their own files) */
+  RtdbConnector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.http = new GoogleHttp(cloud);
     this.api = new RtdbApi(http);
     SchemaResources schemas = SchemaResources.of(RtdbConnector.class, TYPE);
@@ -372,6 +381,12 @@ public final class RtdbConnector implements Connector {
       result = result.withHint(h);
     }
     return result;
+  }
+
+  /** A project's default database URL from this computer; signed in, the project's databases and top-level paths. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return RtdbSuggestions.suggest(cfg, secrets, ctx, scope, http, api, cloud, local);
   }
 
   static List<Hint> hints(Env env, RtdbSettings s, boolean personal, boolean nothingVisible) {
