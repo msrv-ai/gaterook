@@ -9,7 +9,9 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
+import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.Suggestions;
+import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -423,26 +425,80 @@ public final class WireCodec {
     o.put("tool", c.tool());
     putIfNotNull(o, "connection", c.connection());
     o.set("arguments", c.arguments() == null ? GppJson.object() : c.arguments().deepCopy());
-    if (c.template() != null) {
-      ObjectNode t = o.putObject("template");
-      t.put("templateId", c.template().templateId());
-      t.put("version", c.template().version());
-      putIfNotNull(t, "opKey", c.template().opKey());
-      set(t, "binding", c.template().binding());
-    }
+    template(o, c.template());
     return o;
   }
 
   public static ToolCall call(JsonNode n) {
     JsonNode args = n.get("arguments");
-    ToolCall.TemplateBinding template = null;
-    JsonNode t = n.get("template");
-    if (t != null && t.isObject()) {
-      template = new ToolCall.TemplateBinding(t.path("templateId").asString(), t.path("version").asInt(),
-          text(t.get("opKey")), tree(t.get("binding")));
-    }
     return new ToolCall(n.path("callId").asString(), n.path("tool").asString(), text(n.get("connection")),
-        args instanceof ObjectNode obj ? obj.deepCopy() : GppJson.object(), template);
+        args instanceof ObjectNode obj ? obj.deepCopy() : GppJson.object(), template(n.get("template")));
+  }
+
+  /** Writes a call's template binding as {@code template}; nothing for a call that isn't a template's. */
+  static void template(ObjectNode o, ToolCall.TemplateBinding template) {
+    if (template != null) {
+      ObjectNode t = o.putObject("template");
+      t.put("templateId", template.templateId());
+      t.put("version", template.version());
+      putIfNotNull(t, "opKey", template.opKey());
+      set(t, "binding", template.binding());
+    }
+  }
+
+  static ToolCall.TemplateBinding template(JsonNode t) {
+    return t == null || !t.isObject() ? null
+        : new ToolCall.TemplateBinding(t.path("templateId").asString(), t.path("version").asInt(),
+            text(t.get("opKey")), tree(t.get("binding")));
+  }
+
+  // ── Prepared actions and templates (connector modules) ──────────────────────────────────────────────────────
+
+  public static ObjectNode prepared(PreparedAction p) {
+    ObjectNode o = GppJson.object();
+    o.put("outcome", p.outcome().name());
+    if (p.preview() != null) {
+      o.set("preview", action(p.preview()));
+    }
+    set(o, "preparedState", p.preparedState());
+    putIfNotNull(o, "message", p.message());
+    return o;
+  }
+
+  public static PreparedAction prepared(JsonNode n) {
+    JsonNode preview = n.get("preview");
+    return new PreparedAction(PreparedAction.Outcome.valueOf(n.path("outcome").asString()),
+        preview == null || !preview.isObject() ? null : action(preview), tree(n.get("preparedState")),
+        text(n.get("message")));
+  }
+
+  public static ObjectNode compiled(TemplateKind.CompileResult r) {
+    ObjectNode o = GppJson.object();
+    ArrayNode tools = o.putArray("tools");
+    for (TemplateKind.CompiledTool t : r.tools()) {
+      ObjectNode one = tools.addObject();
+      putIfNotNull(one, "opKey", t.opKey());
+      one.set("definition", tool(t.definition()));
+      set(one, "binding", t.binding());
+    }
+    ArrayNode contributions = o.putArray("contributions");
+    r.contributions().forEach(c -> contributions.add(c == null ? GppJson.MAPPER.nullNode() : c.deepCopy()));
+    strings(o.putArray("errors"), r.errors());
+    strings(o.putArray("warnings"), r.warnings());
+    putIfNotNull(o, "digest", r.digest());
+    return o;
+  }
+
+  public static TemplateKind.CompileResult compiled(JsonNode n) {
+    List<TemplateKind.CompiledTool> tools = new ArrayList<>();
+    for (JsonNode t : n.path("tools")) {
+      tools.add(new TemplateKind.CompiledTool(text(t.get("opKey")), tool(t.path("definition")),
+          tree(t.get("binding"))));
+    }
+    List<JsonNode> contributions = new ArrayList<>();
+    n.path("contributions").forEach(c -> contributions.add(c.deepCopy()));
+    return new TemplateKind.CompileResult(List.copyOf(tools), List.copyOf(contributions), strings(n.path("errors")),
+        strings(n.path("warnings")), text(n.get("digest")));
   }
 
   public static ObjectNode limits(Limits l) {

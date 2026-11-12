@@ -1,0 +1,10 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : "h32",
+  "result" : {
+    "tree" : {
+      "customer" : "‹masked›",
+      "total" : 41.5
+    }
+  }
+}

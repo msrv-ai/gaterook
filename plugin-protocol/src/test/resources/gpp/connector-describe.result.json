@@ -1,0 +1,13 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 74,
+  "result" : {
+    "value" : {
+      "labels" : [ "Order" ],
+      "properties" : {
+        "id" : "INTEGER",
+        "status" : "STRING"
+      }
+    }
+  }
+}

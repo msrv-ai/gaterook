@@ -120,9 +120,32 @@ public final class Messages {
     }
   }
 
-  /** {@code plugin/load} result: the tools the plugin's code reports, and the sandbox it runs in. */
+  /** The tools the code of one connector type reports at load. */
+  public record TypeTools(String type, List<ToolDefinition> tools) {
+
+    public TypeTools {
+      tools = List.copyOf(tools);
+    }
+  }
+
+  /**
+   * {@code plugin/load} result: the tools the package's code reports, and the sandbox it runs in. A plugin has one
+   * connector type, {@code type} with {@code tools}. A module may have several: {@code types} lists each with its
+   * tools, and {@code type} and {@code tools} are the first one's. {@code types} travels only when it says more than
+   * {@code type} and {@code tools} do.
+   */
   public record Loaded(String generation, String type, String connectorApi, long loadMs, List<ToolDefinition> tools,
-      String sandbox) {
+      String sandbox, List<TypeTools> types) {
+
+    public Loaded {
+      types = types == null || types.isEmpty() ? List.of(new TypeTools(type, tools)) : List.copyOf(types);
+    }
+
+    /** A package with one connector type. */
+    public Loaded(String generation, String type, String connectorApi, long loadMs, List<ToolDefinition> tools,
+        String sandbox) {
+      this(generation, type, connectorApi, loadMs, tools, sandbox, null);
+    }
 
     public ObjectNode write() {
       ObjectNode o = GppJson.object();
@@ -132,13 +155,25 @@ public final class Messages {
       o.put("loadMs", loadMs);
       o.set("tools", WireCodec.tools(tools));
       o.put("sandbox", sandbox);
+      if (types.size() > 1) {
+        ArrayNode all = o.putArray("types");
+        for (TypeTools t : types) {
+          ObjectNode one = all.addObject();
+          one.put("type", t.type());
+          one.set("tools", WireCodec.tools(t.tools()));
+        }
+      }
       return o;
     }
 
     public static Loaded read(JsonNode n) {
+      List<TypeTools> types = new ArrayList<>();
+      for (JsonNode t : n.path("types")) {
+        types.add(new TypeTools(t.path("type").asString(), WireCodec.tools(t.path("tools"))));
+      }
       return new Loaded(n.path("generation").asString(), n.path("type").asString(),
           n.path("connectorApi").asString(), n.path("loadMs").asLong(0), WireCodec.tools(n.path("tools")),
-          WireCodec.text(n.get("sandbox")));
+          WireCodec.text(n.get("sandbox")), types);
     }
   }
 
@@ -198,7 +233,16 @@ public final class Messages {
    */
   public record Execute(String generation, String callToken, ToolCall call, ConnectionConfig connection,
       long timeoutMs, boolean approved, String approvalId, JsonNode preparedState, JsonNode approvedPayload,
-      Limits limits, String traceId, String traceparent, EgressGrant egress) {
+      Limits limits, String traceId, String traceparent, EgressGrant egress, boolean wantsProgress,
+      String clientLogLevel) {
+
+    /** A call whose client asked for neither progress nor log messages. */
+    public Execute(String generation, String callToken, ToolCall call, ConnectionConfig connection, long timeoutMs,
+        boolean approved, String approvalId, JsonNode preparedState, JsonNode approvedPayload, Limits limits,
+        String traceId, String traceparent, EgressGrant egress) {
+      this(generation, callToken, call, connection, timeoutMs, approved, approvalId, preparedState, approvedPayload,
+          limits, traceId, traceparent, egress, false, null);
+    }
 
     public ObjectNode write() {
       ObjectNode o = GppJson.object();
@@ -207,6 +251,7 @@ public final class Messages {
       o.put("callToken", callToken);
       o.put("tool", call.tool());
       o.set("arguments", call.arguments() == null ? GppJson.object() : call.arguments().deepCopy());
+      WireCodec.template(o, call.template());
       o.set("connection", WireCodec.connection(connection));
       o.put("timeoutMs", timeoutMs);
       o.put("approved", approved);
@@ -227,6 +272,12 @@ public final class Messages {
         o.put("traceparent", traceparent);
       }
       o.set("egress", egress.write());
+      if (wantsProgress) {
+        o.put("wantsProgress", true);
+      }
+      if (clientLogLevel != null) {
+        o.put("clientLogLevel", clientLogLevel);
+      }
       return o;
     }
 
@@ -234,12 +285,13 @@ public final class Messages {
       ConnectionConfig cfg = WireCodec.connection(n.path("connection"));
       JsonNode args = n.get("arguments");
       ToolCall call = new ToolCall(n.path("callId").asString(), n.path("tool").asString(), cfg.name(),
-          args instanceof ObjectNode obj ? obj.deepCopy() : GppJson.object(), null);
+          args instanceof ObjectNode obj ? obj.deepCopy() : GppJson.object(), WireCodec.template(n.get("template")));
       return new Execute(n.path("generation").asString(), n.path("callToken").asString(), call, cfg,
           n.path("timeoutMs").asLong(10_000), n.path("approved").asBoolean(false), WireCodec.text(n.get("approvalId")),
           WireCodec.tree(n.get("preparedState")), WireCodec.tree(n.get("approvedPayload")),
           WireCodec.limits(n.path("limits")), WireCodec.text(n.get("traceId")), WireCodec.text(n.get("traceparent")),
-          EgressGrant.read(n.get("egress")));
+          EgressGrant.read(n.get("egress")), n.path("wantsProgress").asBoolean(false),
+          WireCodec.text(n.get("clientLogLevel")));
     }
   }
 
@@ -318,21 +370,184 @@ public final class Messages {
     }
   }
 
-  /** {@code connector/tools} params: one endpoint's view of the plugin's connections. */
-  public record Tools(String generation, String callToken, EndpointView endpoint) {
+  /**
+   * {@code connector/tools} params: one endpoint's view of the plugin's connections. {@code type} names the connector
+   * type of a module that is asked; a plugin has one and the field is absent.
+   */
+  public record Tools(String generation, String callToken, EndpointView endpoint, String type) {
+
+    public Tools(String generation, String callToken, EndpointView endpoint) {
+      this(generation, callToken, endpoint, null);
+    }
 
     public ObjectNode write() {
       ObjectNode o = GppJson.object();
       o.put("generation", generation);
       o.put("callToken", callToken);
+      if (type != null) {
+        o.put("type", type);
+      }
       o.set("endpoint", WireCodec.endpoint(endpoint));
       return o;
     }
 
     public static Tools read(JsonNode n) {
       return new Tools(n.path("generation").asString(), n.path("callToken").asString(),
-          WireCodec.endpoint(n.path("endpoint")));
+          WireCodec.endpoint(n.path("endpoint")), WireCodec.text(n.get("type")));
     }
+  }
+
+  // ── Connector modules: the rest of the SPI ──────────────────────────────────────────────────────────────────
+
+  /**
+   * {@code connector/prepare} params: what {@code connector/execute} carries before a request exists. No approval
+   * yet; the connector may dry-run within {@code timeoutMs}, with the connection's secrets and its egress.
+   */
+  public record Prepare(String generation, String callToken, ToolCall call, ConnectionConfig connection,
+      long timeoutMs, Limits limits, String traceId, String traceparent, EgressGrant egress) {
+
+    public ObjectNode write() {
+      ObjectNode o = GppJson.object();
+      o.put("generation", generation);
+      o.put("callToken", callToken);
+      o.set("call", WireCodec.call(call));
+      o.set("connection", WireCodec.connection(connection));
+      o.put("timeoutMs", timeoutMs);
+      o.set("limits", WireCodec.limits(limits));
+      if (traceId != null) {
+        o.put("traceId", traceId);
+      }
+      if (traceparent != null) {
+        o.put("traceparent", traceparent);
+      }
+      o.set("egress", egress.write());
+      return o;
+    }
+
+    public static Prepare read(JsonNode n) {
+      return new Prepare(n.path("generation").asString(), n.path("callToken").asString(),
+          WireCodec.call(n.path("call")), WireCodec.connection(n.path("connection")),
+          n.path("timeoutMs").asLong(5_000), WireCodec.limits(n.path("limits")), WireCodec.text(n.get("traceId")),
+          WireCodec.text(n.get("traceparent")), EgressGrant.read(n.get("egress")));
+    }
+  }
+
+  /** {@code connector/describe} params: those of {@code connector/test} and the object to narrow to, if any. */
+  public record DescribeConnection(Test test, String object) {
+
+    public ObjectNode write() {
+      ObjectNode o = test.write();
+      if (object != null) {
+        o.put("object", object);
+      }
+      return o;
+    }
+
+    public static DescribeConnection read(JsonNode n) {
+      return new DescribeConnection(Test.read(n), WireCodec.text(n.get("object")));
+    }
+  }
+
+  /** {@code connector/supportsTool} params: the tools asked about for one connection; no secrets, no token. */
+  public record SupportsTool(String generation, ConnectionConfig connection, List<String> tools) {
+
+    public SupportsTool {
+      tools = List.copyOf(tools);
+    }
+
+    public ObjectNode write() {
+      ObjectNode o = GppJson.object();
+      o.put("generation", generation);
+      o.set("connection", WireCodec.connection(connection));
+      WireCodec.strings(o.putArray("tools"), tools);
+      return o;
+    }
+
+    public static SupportsTool read(JsonNode n) {
+      return new SupportsTool(n.path("generation").asString(), WireCodec.connection(n.path("connection")),
+          WireCodec.strings(n.path("tools")));
+    }
+
+    /** The answer: the tools of the request the connection supports. */
+    public static ObjectNode result(List<String> supported) {
+      ObjectNode o = GppJson.object();
+      WireCodec.strings(o.putArray("supported"), supported);
+      return o;
+    }
+
+    /** Reads the answer. */
+    public static List<String> supported(JsonNode result) {
+      return WireCodec.strings(result.path("supported"));
+    }
+  }
+
+  /**
+   * {@code template/compile} and {@code template/preview} params: the template kind of the connection's type, the
+   * definition, and for a preview the arguments. No secrets, no token.
+   */
+  public record Template(String generation, String kind, JsonNode definition, ObjectNode arguments,
+      ConnectionConfig runsOn) {
+
+    public ObjectNode write() {
+      ObjectNode o = GppJson.object();
+      o.put("generation", generation);
+      o.put("kind", kind);
+      o.set("definition", definition == null ? GppJson.MAPPER.nullNode() : definition.deepCopy());
+      if (arguments != null) {
+        o.set("arguments", arguments.deepCopy());
+      }
+      o.set("runsOn", WireCodec.connection(runsOn));
+      return o;
+    }
+
+    public static Template read(JsonNode n) {
+      return new Template(n.path("generation").asString(), n.path("kind").asString(),
+          WireCodec.tree(n.get("definition")), n.get("arguments") instanceof ObjectNode a ? a.deepCopy() : null,
+          WireCodec.connection(n.path("runsOn")));
+    }
+  }
+
+  /** {@code quota/acquire} params: a permit of a quota every connector of the same account shares. */
+  public static ObjectNode quota(String callToken, String key, int permitsPerMinute) {
+    ObjectNode o = GppJson.object();
+    o.put("callToken", callToken);
+    o.put("key", key);
+    o.put("permitsPerMinute", permitsPerMinute);
+    return o;
+  }
+
+  /** {@code mask/preview} params: a tree to mask as the call's answer will be. */
+  public static ObjectNode mask(String callToken, JsonNode tree) {
+    ObjectNode o = GppJson.object();
+    o.put("callToken", callToken);
+    o.set("tree", tree == null ? GppJson.MAPPER.nullNode() : tree.deepCopy());
+    return o;
+  }
+
+  /** {@code call/progress}. */
+  public static ObjectNode progress(String callToken, double progress, Double total, String message) {
+    ObjectNode o = GppJson.object();
+    o.put("callToken", callToken);
+    o.put("progress", progress);
+    if (total != null) {
+      o.put("total", total);
+    }
+    if (message != null) {
+      o.put("message", message);
+    }
+    return o;
+  }
+
+  /** {@code call/clientLog}. */
+  public static ObjectNode clientLog(String callToken, String level, String logger, JsonNode data) {
+    ObjectNode o = GppJson.object();
+    o.put("callToken", callToken);
+    o.put("level", level);
+    if (logger != null) {
+      o.put("logger", logger);
+    }
+    o.set("data", data == null ? GppJson.MAPPER.nullNode() : data.deepCopy());
+    return o;
   }
 
   // ── Small ones ──────────────────────────────────────────────────────────────────────────────────────────────

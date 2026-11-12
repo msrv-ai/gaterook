@@ -1,0 +1,31 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 77,
+  "method" : "template/compile",
+  "params" : {
+    "generation" : "neo4j@1.0.0",
+    "kind" : "cypher-query",
+    "definition" : {
+      "name" : "ship_order",
+      "statement" : "MATCH (o:Order {id: $id}) SET o.status = 'shipped'",
+      "parameters" : {
+        "id" : {
+          "type" : "integer"
+        }
+      }
+    },
+    "runsOn" : {
+      "id" : "9d2e",
+      "name" : "graph-dev",
+      "type" : "neo4j",
+      "env" : "dev",
+      "version" : 2,
+      "configHash" : "sha256:31229bddb792a3e5bd33c964dc8b5166b5d7556879368055892b04d7ea9e43a3",
+      "config" : {
+        "uri" : "neo4j+s://graph.example.com:7687",
+        "database" : "neo4j"
+      },
+      "secretFields" : [ "/password" ]
+    }
+  }
+}

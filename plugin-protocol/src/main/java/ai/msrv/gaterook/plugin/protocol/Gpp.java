@@ -30,6 +30,23 @@ public final class Gpp {
   public static final String CONNECTOR_CLASSIFY = "connector/classify";
   public static final String CONNECTOR_DESCRIBE_ACTION = "connector/describeAction";
   public static final String CONNECTOR_EXECUTE = "connector/execute";
+  /**
+   * The calls below carry the rest of the connector SPI for connector modules, whose connectors are GateRook's own
+   * ({@code manifestVersion 2}). A plugin's host answers them too, but the core never asks a plugin: it trusts a
+   * plugin's classification, action text and prepared state no further than {@code RemoteConnector} says.
+   *
+   * <p>{@code connector/prepare}: {@code Connector.prepare}, with a call token (secrets), the egress grant and the
+   * call's budget, as {@code connector/execute} has them; the answer is a {@code PreparedAction}.
+   */
+  public static final String CONNECTOR_PREPARE = "connector/prepare";
+  /** {@code Connector.describe}: the connector's part of describe_connection, with a test's params and the object. */
+  public static final String CONNECTOR_DESCRIBE = "connector/describe";
+  /** {@code Connector.supportsTool} for several tools of one connection at once; no secrets. */
+  public static final String CONNECTOR_SUPPORTS_TOOL = "connector/supportsTool";
+  /** {@code TemplateKind.compile} of one of the type's template kinds; no secrets. */
+  public static final String TEMPLATE_COMPILE = "template/compile";
+  /** {@code TemplateKind.preview}; no secrets, no I/O. */
+  public static final String TEMPLATE_PREVIEW = "template/preview";
   /** Notification: the request {@code id} should stop ({@code reason}: deadline, cancelled, shutdown). */
   public static final String CANCEL = "$/cancel";
   /** Notification: a connection changed or went away; the plugin drops what it pooled for it. */
@@ -50,6 +67,17 @@ public final class Gpp {
   public static final String LOG = "log";
   /** Notification: the plugin's tools changed (dynamic tools only). */
   public static final String TOOLS_CHANGED = "connector/toolsChanged";
+  /**
+   * {@code ExecContext.acquire} of a module's call: a remote quota is shared by every connector that reaches the same
+   * account, so the core counts it, not the host. A plugin's quotas stay its host's own.
+   */
+  public static final String QUOTA_ACQUIRE = "quota/acquire";
+  /** {@code ExecContext.masked} of a module's call: the tree as the core will mask the answer. */
+  public static final String MASK_PREVIEW = "mask/preview";
+  /** Notification: {@code ExecContext.progress} of a call, for the client that asked to hear it. */
+  public static final String PROGRESS = "call/progress";
+  /** Notification: {@code ExecContext.clientLog} of a call. */
+  public static final String CLIENT_LOG = "call/clientLog";
 
   // ── Error codes (report 16 §4.3) ────────────────────────────────────────────────────────────────────────────
 

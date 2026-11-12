@@ -1,0 +1,10 @@
+{
+  "jsonrpc" : "2.0",
+  "method" : "call/progress",
+  "params" : {
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "progress" : 2000.0,
+    "total" : 10000.0,
+    "message" : "2,000 of 10,000 nodes"
+  }
+}
