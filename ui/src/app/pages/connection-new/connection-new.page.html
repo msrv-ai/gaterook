@@ -57,7 +57,7 @@
             }
           } @else {
             <h1 class="gw-page-header__title" id="page-title">Add connection</h1>
-            <p class="gw-page-header__description">Connect a resource once: choose its type, fill in where it is, test it, then pick the endpoints whose agents may use it. Nothing is saved until the last step.</p>
+            <p class="gw-page-header__description">Connect a resource or an MCP server once: choose it, fill in where it is, check it, then pick the endpoints whose agents may use it. @if (flow() === 'mcp') {An MCP server is saved when it first connects, with its tools Off until you add them to an endpoint.} @else {Nothing is saved until the last step.}</p>
           }
         }
       }
@@ -69,7 +69,10 @@
           <a class="gw-btn gw-btn--ghost" routerLink="/overview">Cancel<span class="gw-sr-only"> and go back to Overview</span></a>
         }
       } @else if (m !== 'edit') {
-        <a class="gw-btn gw-btn--ghost" routerLink="/connections">Cancel</a>
+        <!-- An MCP server that connected is saved: Cancel would undo nothing, Not now in step 4 ends here. -->
+        @if (!mcpServer()) {
+          <a class="gw-btn gw-btn--ghost" routerLink="/connections">Cancel</a>
+        }
       } @else if (detail()) {
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: activityQuery(name()!) }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of {{ name() }}</span></a>
       }
@@ -181,14 +184,17 @@
     }
   </ol>
 
-  <!-- ───────────── Step 1 · Choose type ───────────── -->
+  <!-- ───────────── Step 1 · Choose (connector types, then MCP servers, in one picker) ─────────────
+       One search for everything: it filters the connector types and the MCP section as you type, asks the Official MCP
+       Registry from three characters, and reads a pasted MCP configuration or connection string. The Show switch narrows
+       the list to one kind; one radio group spans every card. -->
   <section class="gw-section" id="step-1" aria-labelledby="step-1-title" [hidden]="step() !== 1 || !!done">
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="step-1-title" tabindex="-1">Choose a connector type</h2>
+      <h2 class="gw-section__title" id="step-1-title" tabindex="-1">Choose what to connect</h2>
       @if (first) {
-        <p class="gw-section__description">The type decides what you fill in next and what your AI apps can do with it.</p>
+        <p class="gw-section__description">A database, a cloud, a service or an MCP server. What you choose decides what you fill in next and what your AI apps can do with it.</p>
       } @else {
-        <p class="gw-section__description">The type decides the fields and the tools agents get. Need another one? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
+        <p class="gw-section__description">A connector type, an MCP server from the catalog, or your own server. Search by name, or paste a server’s configuration from its docs. Need another connector type? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
       }
     </header>
     @switch (catalogState()) {
@@ -203,47 +209,105 @@
         </div>
       }
       @case ('ready') {
-        @if (groups().length) {
+        <!-- With no connector type enabled, the MCP section still offers its servers. -->
+        @if (!groups().length && showKind() !== 'mcp') {
+          <div class="gw-alert gw-alert--neutral gw-alert--compact">
+            <svg lucideIcon="puzzle" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">No connector types</p><p class="gw-alert__body">This core has no connector enabled: enable or install one in <a class="gw-link" routerLink="/connectors">Connectors</a>. MCP servers can still be added below.</p></div>
+          </div>
+        }
           <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-1-title" (submit)="$event.preventDefault(); continueFromType()">
-            <search class="gw-connector-card__search">
-              <div class="gw-search">
-                <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
-                <input class="gw-search__input" type="search" id="type-search" #typeSearch placeholder="Search connector types" aria-label="Search connector types" aria-keyshortcuts="/" aria-controls="type-picker" autocomplete="off" spellcheck="false" [value]="typeQuery()" (input)="typeQuery.set(typeSearch.value)" (keydown.enter)="onTypeSearchEnter($event)">
-                <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
-                <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+            @if (existingNotOn(); as n) {
+              <!-- From Overview's Add service: services that exist already join its endpoint from Connections. -->
+              <div class="gw-alert gw-alert--info gw-alert--compact" id="existing-services">
+                <svg lucideIcon="plug" class="gw-icon gw-alert__icon"></svg>
+                <div class="gw-alert__content"><p class="gw-alert__body">{{ n }} {{ n === 1 ? 'service you already have isn’t' : 'services you already have aren’t' }} on <span class="gw-mono">{{ endpoint() }}</span> yet.</p></div>
+                <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" routerLink="/connections" [queryParams]="{ notConnectedTo: endpoint() }">Connect existing services</a></div>
               </div>
+            }
+            <search class="gw-connector-card__search">
+              <div class="gw-toolbar">
+                <div class="gw-toolbar__start">
+                  <div class="gw-search">
+                    <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+                    <input class="gw-search__input" type="search" id="type-search" #typeSearch placeholder="Search connectors and MCP servers, or paste a configuration" aria-label="Search connectors and MCP servers, or paste a configuration" aria-keyshortcuts="/" aria-controls="type-picker" aria-describedby="type-search-hint" autocomplete="off" spellcheck="false" [value]="typeQuery()" (input)="typeQuery.set(typeSearch.value)" (keydown.enter)="onTypeSearchEnter($event)">
+                    <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+                    <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+                  </div>
+                </div>
+                <div class="gw-toolbar__end">
+                  <fieldset class="gw-segmented" aria-controls="type-picker">
+                    <legend class="gw-sr-only">Show</legend>
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="type-show" value="all" [checked]="showKind() === 'all'" (change)="setShow('all')"><span class="gw-segmented__label">All</span></label>
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="type-show" value="connectors" [checked]="showKind() === 'connectors'" (change)="setShow('connectors')"><span class="gw-segmented__label"><svg lucideIcon="database" class="gw-icon gw-icon--sm"></svg>Connectors</span></label>
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="type-show" value="mcp" [checked]="showKind() === 'mcp'" (change)="setShow('mcp')"><span class="gw-segmented__label"><svg lucideIcon="plug" class="gw-icon gw-icon--sm"></svg>MCP servers</span></label>
+                  </fieldset>
+                </div>
+              </div>
+              <p class="gw-field__hint" id="type-search-hint">Also searches {{ registryWords() }}. A pasted MCP configuration, <span class="gw-mono">claude mcp add</span> command, URL or PostgreSQL connection string fills in the rest.</p>
               <p class="gw-sr-only" role="status">{{ typeCountText() }}</p>
             </search>
+            @if (pasteRead(); as read) {
+              @if (read.kind === 'error') {
+                <div class="gw-alert gw-alert--warning gw-alert--compact" role="alert" id="paste-error">
+                  <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+                  <div class="gw-alert__content"><p class="gw-alert__title">GateRook can’t read this paste</p><p class="gw-alert__body">{{ read.message }} Or search by name.</p></div>
+                  <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" gwSearchClear="#type-search">Clear search</button></div>
+                </div>
+              }
+            }
             <fieldset gwConnectorPicker id="type-picker" [hidden]="!pickerGroups().length" [groups]="pickerGroups()" [value]="selected()" [error]="pickError()" (valueChange)="onPick($event)"></fieldset>
-            @if (!pickerGroups().length) {
+            @if (registryAsked()) {
+              <!-- The MCP registry's part of the search (the Official MCP Registry unless the core is set to another), under its results (the picker's last group). -->
+              <div class="gw-stack gw-stack--sm" id="registry-search">
+                @if (finder.searching()) {
+                  @if (!registryGroup()) {<h3 class="gw-connector-card__group-title gw-text-overline">{{ registryTitle() }}</h3>}
+                  <p class="gw-text-small gw-fg-muted" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Searching {{ registryWords() }} for “{{ typeQuery().trim() }}”…</p>
+                  @if (!registryGroup()) {
+                    <div class="gw-grid gw-grid--auto" aria-hidden="true">
+                      <span class="gw-skeleton gw-skeleton--block"></span>
+                      <span class="gw-skeleton gw-skeleton--block"></span>
+                      <span class="gw-skeleton gw-skeleton--block"></span>
+                    </div>
+                  }
+                } @else if (finder.error(); as e) {
+                  <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content"><p class="gw-alert__title">The registry search didn’t work</p><p class="gw-alert__body">{{ e }}</p></div>
+                    <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="finder.retry()">Try again</button></div>
+                  </div>
+                } @else if (finder.searched() !== null && !finder.results().length && pickerGroups().length) {
+                  <p class="gw-text-small gw-fg-muted">No server in {{ registryWords() }} matches “{{ finder.searched() }}”.</p>
+                }
+                @if (registryGroup()) {
+                  @if (finder.nextCursor()) {
+                    <div><button class="gw-btn gw-btn--sm" type="button" (click)="moreRegistry()" [attr.aria-busy]="finder.moreBusy() ? 'true' : null" [attr.aria-disabled]="finder.moreBusy() ? 'true' : null">@if (finder.moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Show more<span class="gw-sr-only"> results from {{ registryWords() }}</span></button></div>
+                  }
+                  <p class="gw-text-caption gw-fg-muted">From {{ registryWords() }}, searched by name. Nothing connects or starts before you review it.</p>
+                }
+              </div>
+            }
+            @if (nothingMatches() && !pasteRead()) {
               <div class="gw-empty gw-empty--compact">
                 <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
-                <p class="gw-empty__title">No connector type matches “{{ typeQuery().trim() }}”</p>
-                <p class="gw-empty__text">Try another name, or a category such as NoSQL. Need another type? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
-                <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button" gwSearchClear="#type-search">Clear search</button></div>
+                <p class="gw-empty__title">Nothing matches “{{ typeQuery().trim() }}”</p>
+                <p class="gw-empty__text">Try another name, or a category such as NoSQL. An MCP server that isn’t in the registry can still be entered by its command or URL. Need another connector type? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
+                <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="enterByHand()">Enter an MCP server by hand</button><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwSearchClear="#type-search">Clear search</button></div>
               </div>
             }
             <div class="gw-form__actions">
-              @if (mcpServerPicked()) {
-                <p class="gw-form__note"><svg lucideIcon="plug" class="gw-icon"></svg>An MCP server is added in Connectors › MCP servers: you review it, sign in if it asks, and add its tools to an endpoint.</p>
+              @if (mcpNote(); as note) {
+                <p class="gw-form__note"><svg lucideIcon="shield-check" class="gw-icon"></svg>{{ note }}</p>
+              } @else if (!selected() && showKind() === 'mcp') {
+                <p class="gw-form__note"><svg lucideIcon="plug" class="gw-icon"></svg>Choose a server, or enter one by hand with External MCP server.</p>
               } @else if (installPicked(); as p) {
                 <p class="gw-form__note"><svg lucideIcon="download" class="gw-icon"></svg>The {{ p.name }} plugin isn't installed yet: Continue shows what it is and installs it from the catalog.</p>
               } @else if (usage(); as u) {
                 <p class="gw-form__note"><svg [lucideIcon]="card()?.icon ?? 'database'" class="gw-icon"></svg>{{ u }}</p>
               }
-              <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="checkingPlugin() ? 'true' : null" (click)="continueFromType()">@if (checkingPlugin()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Continue<span class="gw-sr-only"> {{ mcpServerPicked() ? 'to add the MCP server' : installPicked() ? 'to review and install the plugin' : 'to configure' }}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+              <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="checkingPlugin() || resolvingMcp() ? 'true' : null" (click)="continueFromType()">@if (checkingPlugin() || resolvingMcp()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Continue<span class="gw-sr-only"> {{ mcpServerPicked() ? 'to configure the MCP server' : installPicked() ? 'to review and install the plugin' : 'to configure' }}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
             </div>
           </form>
-        } @else {
-          <div class="gw-card gw-card--dashed">
-            <div class="gw-empty gw-empty--compact">
-              <span class="gw-empty__icon"><svg lucideIcon="puzzle" class="gw-icon"></svg></span>
-              <p class="gw-empty__title">No connector types</p>
-              <p class="gw-empty__text">This core has no connector enabled. Enable or install one in Connectors, then add the connection.</p>
-              <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/connectors">Open Connectors</a></div>
-            </div>
-          </div>
-        }
       }
       @default {
         <div class="gw-stack" aria-busy="true">
@@ -268,7 +332,7 @@
     </div>
   }
   <div id="connection-settings" class="gw-stack gw-stack--lg" [class.gw-tabs__panel]="m === 'edit'" [attr.role]="m === 'edit' ? 'tabpanel' : null" [attr.aria-labelledby]="m === 'edit' ? 'connection-settings-tab' : null" [attr.tabindex]="m === 'edit' ? 0 : null">
-  <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && (step() !== 2 || !!done)">
+  <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && (step() !== 2 || !!done || flow() === 'mcp')">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-title" tabindex="-1">@if (m === 'edit') {Settings} @else {Configure {{ typeName() }}}</h2>
       @if (first && m !== 'edit' && !databaseSetup()) {
@@ -388,7 +452,7 @@
 
 @if (m !== 'edit') {
   <!-- ───────────── Step 3 · Test ───────────── -->
-  <section class="gw-section" id="step-3" aria-labelledby="step-3-title" [hidden]="step() !== 3 || !!done">
+  <section class="gw-section" id="step-3" aria-labelledby="step-3-title" [hidden]="step() !== 3 || !!done || flow() === 'mcp'">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-3-title" tabindex="-1">Test <span class="gw-mono">{{ connName }}</span></h2>
       @if (first) {
@@ -444,7 +508,7 @@
   </section>
 
   <!-- ───────────── Step 4 · Add to endpoint ───────────── -->
-  <section class="gw-section" id="step-4" aria-labelledby="step-4-title" [hidden]="step() !== 4 || !!done">
+  <section class="gw-section" id="step-4" aria-labelledby="step-4-title" [hidden]="step() !== 4 || !!done || flow() === 'mcp'">
     <header class="gw-section__header">
       @if (first) {
         <h2 class="gw-section__title" id="step-4-title" tabindex="-1">Make <span class="gw-mono">{{ connName }}</span> available to your AI apps</h2>
@@ -596,6 +660,32 @@
         <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || endpointsState() === 'loading' || endpointsState() === 'idle' || toolPreviewState() !== 'ready' ? 'true' : null" [attr.aria-describedby]="toolPreviewState() !== 'ready' ? 'tools-preview-status' : endpointsState() === 'loading' || endpointsState() === 'idle' ? 'endpoints-loading' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save connection</button>
       </div>
     </form>
+  </section>
+
+  <!-- ═════════════ MCP server: the same wizard, steps 2–4 ═════════════
+       Configure (nothing runs) → Review (what runs, its secrets, the sign-in; connecting saves the server with its tools
+       Off everywhere) → Add to endpoint (Not now leaves them Off). Rendered from the start, shown while an MCP server's
+       steps run. -->
+  <section class="gw-section" id="step-2-mcp" aria-labelledby="step-2-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 2">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="step-2-mcp-title" tabindex="-1">Configure {{ mcpChoice()?.origin === 'external' ? 'your MCP server' : (card()?.name ?? mcpReviewed()?.name ?? 'the MCP server') }}</h2>
+      <p class="gw-section__description">Name it, pick its environment and check how GateRook reaches it. Nothing runs or connects until you confirm the review in the next step.</p>
+    </header>
+    <form gwMcpConfigure aria-labelledby="step-2-mcp-title" (reviewed)="onMcpReviewed($event)" (back)="go(1)"></form>
+  </section>
+  <section class="gw-section" id="step-3-mcp" aria-labelledby="step-3-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 3">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="step-3-mcp-title" tabindex="-1">Review <span class="gw-mono">{{ mcpReviewed()?.name }}</span></h2>
+      <p class="gw-section__description">What GateRook will run and pass, before anything does. {{ mcpReviewed()?.transport === 'http' ? 'Connecting' : 'Starting' }} saves it with its tools Off everywhere; the next step adds them to endpoints.</p>
+    </header>
+    <form gwMcpReview aria-labelledby="step-3-mcp-title" (back)="go(2)" (connected)="onMcpConnected($event)"></form>
+  </section>
+  <section class="gw-section" id="step-4-mcp" aria-labelledby="step-4-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 4">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="step-4-mcp-title" tabindex="-1">Add <span class="gw-mono">{{ mcpServer()?.name }}</span> to an endpoint</h2>
+      <p class="gw-section__description">Agents reach its tools only through an endpoint. They appear there in safe starting modes you can change later.</p>
+    </header>
+    <form gwMcpEndpoints aria-labelledby="step-4-mcp-title" (finished)="onMcpFinished($event)"></form>
   </section>
 
   <!-- The tools a connection brings to an endpoint: tool-policy-list element, read-only form (gw-mode instead of the picker). -->

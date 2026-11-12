@@ -12,7 +12,6 @@ import { InstalledView, installedViews, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
-import { GwMcpSetupFlow } from './mcp-setup-flow';
 import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
 import { GwPluginReviewDialog } from './dialogs/plugin-review.dialog';
@@ -60,7 +59,6 @@ export const SKELETON_DELAY_MS = 300;
     GwPluginInstallDialog,
     GwPluginReviewDialog,
     GwPluginUpdateDialog,
-    GwMcpSetupFlow,
     GwMcpSignInDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
@@ -81,15 +79,12 @@ export class ConnectorsPage {
   private readonly doc = inject(DOCUMENT);
   private readonly fragment = toSignal(this.route.fragment);
 
-  /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
+  /** `?add=mcp-server` (an older link to Add MCP server): Add connection, on its MCP servers. */
   readonly add = input<string | null>(null);
-  /** Overview's service chooser opens the matching real MCP source form. */
-  readonly source = input<string | null>(null);
 
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
   private readonly updateDialog = viewChild.required(GwPluginUpdateDialog);
-  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
   private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
@@ -136,17 +131,7 @@ export class ConnectorsPage {
     });
     effect(() => {
       if (this.add() !== 'mcp-server') return;
-      const source = this.source();
-      untracked(() =>
-        afterNextRender(
-          () => {
-            this.mcpSetup().open(null, source === 'registry' || source === 'url' ? source : 'manual');
-            // Once: a reload or Back doesn't open it again.
-            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null, source: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
-          },
-          { injector: this.injector },
-        ),
-      );
+      untracked(() => void this.router.navigate(['/connections/new'], { queryParams: { show: 'mcp' }, replaceUrl: true }));
     });
     // The core came back (it was away, or another instance answers): everything may be stale.
     let wasRunning = this.core.running();
@@ -174,8 +159,9 @@ export class ConnectorsPage {
     this.installDialog().open(this.triggerOf(e));
   }
 
-  protected openAddServer(e: Event): void {
-    this.mcpSetup().open(this.triggerOf(e));
+  /** Add MCP server: Add connection, on its MCP servers (External MCP server first, then the catalog). */
+  protected openAddServer(): void {
+    void this.router.navigate(['/connections/new'], { queryParams: { show: 'mcp' } });
   }
 
   // ── Plugins ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -337,24 +323,9 @@ export class ConnectorsPage {
         this.templateInstallDialog().show(e, a.opener);
         return;
       case 'install-server':
-        return this.runBusy(
-          view.key,
-          async () => {
-            const source = { catalog: `${e.id}@${e.version}` } as const;
-            const review = await this.data.reviewServer(source);
-            this.mcpSetup().showReviewed({
-              review,
-              source,
-              name: review.name || e.id,
-              transport: review.transport ?? 'stdio',
-              target: '',
-              variables: [],
-              opener: a.opener,
-            });
-          },
-          `${e.name} wasn't reviewed`,
-          'This build of the gateway core can’t run MCP servers yet.',
-        );
+        // Add connection sets it up: its environment, the review of what runs, then its endpoints.
+        void this.router.navigate(['/connections/new'], { queryParams: { catalog: `${e.id}@${e.version}` } });
+        return;
       default:
         return;
     }
@@ -412,21 +383,23 @@ export class ConnectorsPage {
 
   // ── MCP servers ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** A server to add opens Add connection on its Configure (the catalog cards) or on the MCP servers (Add MCP server). */
   protected onServerAction(a: McpServerAction): void {
     if (a.type === 'use-registry') {
-      this.mcpSetup().openRegistryResult(a.opener, a.result);
+      // The result the person chose, from the registry it was found in; a Popular shortcut trusts only the official one.
+      void this.router.navigate(['/connections/new'], { queryParams: { registryServer: a.result.server.name } });
       return;
     }
     if (a.type === 'add-registry') {
-      this.mcpSetup().openRegistry(a.opener, a.registryName);
+      void this.router.navigate(['/connections/new'], { queryParams: { registry: a.registryName } });
       return;
     }
     if (a.type === 'add-profile') {
-      this.mcpSetup().openProfile(a.opener, a.profile);
+      void this.router.navigate(['/connections/new'], { queryParams: { profile: a.profile.id } });
       return;
     }
     if (a.type === 'add' || !a.server) {
-      this.mcpSetup().open(a.opener);
+      this.openAddServer();
       return;
     }
     const s = a.server;

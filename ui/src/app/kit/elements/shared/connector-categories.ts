@@ -18,9 +18,15 @@ export const CONNECTOR_CATEGORIES = [
   'Remote access',
   'Kubernetes',
   'Cloud',
-  'HTTP and MCP',
+  'HTTP and APIs',
   ...COMPATIBLE_CATEGORIES,
 ] as const;
+
+/**
+ * The core's group of HTTP and the generic MCP server type: MCP servers have a section of their own after the
+ * categories, so the HTTP API and the API plugins go under "HTTP and APIs".
+ */
+const CORE_GROUP_RENAMES: Readonly<Record<string, string>> = { 'HTTP and MCP': 'HTTP and APIs' };
 
 const CATEGORY_OF: Readonly<Record<string, string>> = {
   postgres: 'SQL databases',
@@ -192,7 +198,7 @@ export function connectorMark(type: string, variant: string | null = null): stri
 export function connectorCategory(type: string, group: string, variant: string | null = null): string {
   const service = compatibleService(type, variant);
   if (service?.group) return service.group;
-  return (variant && CATEGORY_OF[variant]) || CATEGORY_OF[type] || (group === 'Databases' ? 'Other databases' : group);
+  return (variant && CATEGORY_OF[variant]) || CATEGORY_OF[type] || (group === 'Databases' ? 'Other databases' : CORE_GROUP_RENAMES[group] ?? group);
 }
 
 /**
@@ -223,6 +229,8 @@ function searchWords(text: string): string[] {
  * A description isn't matched: Cosmos DB's mentions SQL queries, and "sql" must not find NoSQL databases.
  */
 export function connectorSearchWords(card: ConnectorCard, category: string): string[] {
+  // An MCP server card names its own words: its type and variant would match every other MCP card.
+  if (card.searchWords != null) return searchWords([card.name, card.searchWords, category].join(' '));
   const service = compatibleService(card.type, card.variant);
   // A service's variant id ("azure", "aws") is no type: its other names would be the cloud's, not the service's.
   const variantAliases = service ? null : ALIASES[card.variant ?? ''];

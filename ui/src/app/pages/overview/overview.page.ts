@@ -13,7 +13,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { isApiError } from '../../core/api/api-error';
 import { ConnectionsApi } from '../../core/api/connections.api';
@@ -31,8 +31,6 @@ import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
 import { safeStorage } from '../../kit/storage';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
-import { ConnectorsData } from '../connectors/connectors.data';
-import { GwMcpSetupFlow, McpSetupSource } from '../connectors/mcp-setup-flow';
 import { OverviewConnectionTools } from './overview-connection-tools';
 import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
@@ -68,13 +66,12 @@ export const VISIBLE_SERVICES = 6;
     GwSearchClear,
     GwOverviewSetup,
     GwOverviewSummary,
-    GwMcpSetupFlow,
     GwOverviewWires,
     OverviewConnectionTools,
     OverviewRequestPath,
     GwEndpointCreate,
   ],
-  providers: [OverviewData, ConnectorsData],
+  providers: [OverviewData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
   templateUrl: './overview.page.html',
@@ -91,7 +88,7 @@ export class OverviewPage {
   private readonly route = inject(ActivatedRoute);
   private readonly mapTitle = viewChild<ElementRef<HTMLElement>>('mapTitle');
   protected readonly setup = viewChild.required(GwOverviewSetup);
-  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
+  private readonly router = inject(Router);
   protected readonly endpointCreate = viewChild.required(GwEndpointCreate);
   protected readonly slow = signal(false);
   protected readonly overview = this.data.overview;
@@ -429,16 +426,14 @@ export class OverviewPage {
     this.clearFilters();
     void this.data.refresh();
   }
-  protected openMcp(opener: HTMLElement | null, source: McpSetupSource = 'manual'): void {
-    this.mcpSetup().open(opener, source);
-  }
-
-  protected picker(event: Event): void {
-    this.setup().showPicker(
-      this.endpoint(),
-      this.data.connections() ?? [],
-      event.currentTarget as HTMLElement,
-    );
+  /**
+   * Add service: Add connection, where every kind of service is chosen (connector types and MCP servers), with the
+   * selected endpoint chosen first in its last step.
+   */
+  protected addService(): void {
+    if (this.loading() || this.data.error()) return;
+    const endpoint = this.endpoint();
+    void this.router.navigate(['/connections/new'], { queryParams: endpoint ? { endpoint: endpoint.slug } : {} });
   }
   protected connectService(c: MapConnection, event: Event): void {
     const endpoint = this.endpoint();

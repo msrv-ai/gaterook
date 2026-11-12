@@ -5,7 +5,7 @@
       <p class="gw-text-small gw-fg-secondary">Connect local or remote MCP servers. Their tools go through modes, approvals and audit.</p>
     </div>
     <div class="gw-toolbar__end">
-      <button class="gw-btn gw-btn--primary" type="button" aria-haspopup="dialog" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon"></svg> Add MCP server</button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon"></svg> Add MCP server</button>
     </div>
   </div>
 
@@ -130,7 +130,7 @@
                 <div class="gw-connector-card__identity">
                   <span class="gw-icon-tile gw-icon-tile--lg">@if (profileLogo(p); as logo) {<img [src]="logo" width="32" height="32" alt="" loading="lazy">} @else {<svg lucideIcon="cloud" class="gw-icon" aria-hidden="true"></svg>}</span>
                   <div class="gw-card__heading">
-                    <h3 class="gw-card__title"><button class="gw-card__link" type="button" aria-haspopup="dialog" [attr.aria-label]="'Add ' + p.name + ' with GateRook’s verified profile'" (click)="addProfile(p, $event)">{{ p.name }}</button></h3>
+                    <h3 class="gw-card__title"><button class="gw-card__link" type="button" [attr.aria-label]="'Add ' + p.name + ' with GateRook’s verified profile'" (click)="addProfile(p, $event)">{{ p.name }}</button></h3>
                     <p class="gw-card__description">{{ p.category }}</p>
                   </div>
                 </div>
@@ -161,7 +161,7 @@
               <div class="gw-connector-card__identity">
                 <span class="gw-icon-tile gw-icon-tile--lg"><img [src]="s.logo" width="32" height="32" alt="" loading="lazy"></span>
                 <div class="gw-card__heading">
-                  <h3 class="gw-card__title"><button class="gw-card__link" type="button" aria-haspopup="dialog" [attr.aria-label]="'Add ' + s.name + (profile ? ' with GateRook’s verified profile' : ' from Official MCP Registry')" (click)="addFeatured(s.registryName, $event)">{{ s.name }}</button></h3>
+                  <h3 class="gw-card__title"><button class="gw-card__link" type="button" [attr.aria-label]="'Add ' + s.name + (profile ? ' with GateRook’s verified profile' : ' from Official MCP Registry')" (click)="addFeatured(s.registryName, $event)">{{ s.name }}</button></h3>
                   <p class="gw-card__description">{{ s.category }}</p>
                 </div>
               </div>

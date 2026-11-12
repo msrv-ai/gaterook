@@ -11,7 +11,7 @@ import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetai
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
-import { PluginCheck, PluginsApi } from '../../core/api/plugins.api';
+import { McpProfile, McpRegistryServer, McpServerReview, McpServerSource, McpServerStarted, McpServersApi, PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { JsonObject, ToolMode } from '../../core/api/types';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
@@ -256,6 +256,28 @@ class FakeCore {
   /** `GET /api/insights` for the edit view's "Calls, last 30 days", and what it was asked. */
   insights: Insights | ApiError = busyMonth(NOW);
   insightQueries: InsightsQuery[] = [];
+  /** GateRook's verified MCP profiles, what the Official MCP Registry holds and was asked, the servers reviewed and started. */
+  mcpProfiles: McpProfile[] = [];
+  registryServers: McpRegistryServer[] = [];
+  registrySearches: string[] = [];
+  /** The registry the core searches (its answer names it) and a failure its next search answers with. */
+  registryHost = 'registry.modelcontextprotocol.io';
+  registryFails: ApiError | null = null;
+  mcpReviews: McpServerSource[] = [];
+  nextMcpReview: McpServerReview = {
+    argv: ['npx', '-y', '@modelcontextprotocol/server-filesystem@2026.1.14', '/srv/docs'],
+    resolvedCommand: 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs',
+    node: '24.10.0',
+    env: [],
+    notPinned: false,
+    catalogEntry: null,
+    protocol: '2025-11-25',
+    sandbox: 'sandbox-exec',
+    name: 'docs',
+    transport: 'stdio',
+  };
+  mcpStarted: (McpServerSource & { readonly acknowledge: true })[] = [];
+  nextMcpStart: McpServerStarted = { name: 'docs', state: 'running', tools: 3 };
 }
 
 const row = (name: string, mode: ToolMode): ToolRow => ({
@@ -294,6 +316,25 @@ beforeEach(() => {
         })) };
       }
       return {};
+    }),
+  };
+  const mcp: Partial<McpServersApi> = {
+    profiles: vi.fn(async () => structuredClone(core.mcpProfiles)),
+    searchRegistry: vi.fn(async (search: string) => {
+      core.registrySearches.push(search);
+      const fail = core.registryFails;
+      core.registryFails = null;
+      if (fail) throw fail;
+      const servers = core.registryServers.filter((s) => `${s.name} ${s.title ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+      return { registry: core.registryHost, servers: structuredClone(servers), nextCursor: null };
+    }),
+    review: vi.fn(async (source: McpServerSource) => {
+      core.mcpReviews.push(structuredClone(source));
+      return structuredClone(core.nextMcpReview);
+    }),
+    create: vi.fn(async (source: McpServerSource & { readonly acknowledge: true }) => {
+      core.mcpStarted.push(structuredClone(source));
+      return structuredClone(core.nextMcpStart);
     }),
   };
   const types: Partial<ConnectorTypesApi> = {
@@ -359,7 +400,7 @@ beforeEach(() => {
       return { ...core.detail, usedBy: [], badges: [], secretSource: 'encrypted', host: null };
     }),
     list: vi.fn(async () =>
-      (core.empty ? { items: [], facets: {}, total: 0 } : { items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app' }], facets: {}, total: 1 }) as never,
+      (core.empty ? { items: [], facets: {}, total: 0 } : { items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app', usedBy: ['dev'] }], facets: {}, total: 1 }) as never,
     ),
     update: vi.fn(async (_name: string, r: UpdateConnectionRequest) => {
       core.updates.push(structuredClone(r));
@@ -441,6 +482,7 @@ beforeEach(() => {
       { provide: MasterKeyApi, useValue: masterKey },
       { provide: InsightsApi, useValue: insights },
       { provide: PluginsApi, useValue: plugins },
+      { provide: McpServersApi, useValue: mcp },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
   });
@@ -578,22 +620,240 @@ describe('setup helpers', () => {
   });
 });
 
-describe('Redis production connections', () => {
-  it('adds an External MCP server through Add MCP server, which reviews, signs in and ends on an endpoint', async () => {
+describe('Add connection: MCP servers', () => {
+  type Opened = Awaited<ReturnType<typeof open>>;
+  const titles = (p: Opened) => Array.from(p.el.querySelectorAll('#type-picker .gw-connector-card__group-title')).map((h) => text(h));
+  const values = (p: Opened) => Array.from(p.el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]')).map((r) => r.value);
+  const status = (p: Opened) => text(p.el.querySelector('#step-1 search [role=status]'));
+  const isMcp = (value: string) => value === 'mcp-server' || value.startsWith('mcp-server:');
+  const mcpField = (p: Opened, suffix: string) => p.q<HTMLInputElement>(`#step-2-mcp [id$="${suffix}"]`)!;
+  /** Typing waits for the registry: it is asked a moment after the last key. */
+  const search = async (p: Opened, query: string) => {
+    await p.type('type-search', query);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await p.settle();
+  };
+  const show = async (p: Opened, kind: 'all' | 'connectors' | 'mcp') => {
+    p.q<HTMLInputElement>(`#step-1 .gw-segmented input[value="${kind}"]`)!.click();
+    await p.settle();
+  };
+  const SUPABASE: McpProfile = {
+    id: 'supabase', name: 'Supabase', publisher: 'Supabase', category: 'Databases', description: 'Supabase’s own server, read only.',
+    documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', checked: '2026-11-11',
+    transport: 'http', url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true', headers: [], command: [],
+    placeholders: [{ name: 'project_ref', description: 'Your project’s reference.' }], pins: [], signIn: 'OAuth in your browser.',
+    notes: [], tools: [],
+  };
+
+  it('lists the MCP servers after the connector types, External MCP server first; Show narrows the list to one kind', async () => {
+    core.mcpProfiles = [SUPABASE];
+    const p = await open();
+    const groups = titles(p);
+    const mcpAt = groups.indexOf('Any MCP server');
+    expect(mcpAt).toBeGreaterThan(0);
+    expect(groups.slice(mcpAt)).toEqual(['Any MCP server', 'Verified MCP servers', 'Popular MCP servers']);
+    const all = values(p);
+    const firstMcp = all.findIndex(isMcp);
+    expect(all[firstMcp]).toBe('mcp-server');
+    expect(all.slice(firstMcp).every(isMcp)).toBe(true);
+    // A vendor with a verified profile shows once, as its verified card.
+    expect(all).toContain('mcp-server:profile.supabase');
+    expect(all).not.toContain('mcp-server:featured.com-supabase-mcp');
+    expect(all).toContain('mcp-server:featured.io-github-github-github-mcp-server');
+    expect(text(p.q('#type-picker input[value="mcp-server:profile.supabase"]')!.closest('label'))).toContain('Verified profile');
+    const types = firstMcp;
+    const servers = all.length - firstMcp;
+    expect(status(p)).toBe(`${types} connector types and ${servers} MCP servers`);
+
+    await show(p, 'mcp');
+    expect(titles(p)).toEqual(['Any MCP server', 'Verified MCP servers', 'Popular MCP servers']);
+    expect(values(p)).toHaveLength(servers);
+    expect(status(p)).toBe(`${servers} MCP servers`);
+    await show(p, 'connectors');
+    expect(titles(p)).toEqual(groups.slice(0, mcpAt));
+    expect(status(p)).toBe(`${types} connector types`);
+    // The connector types alone never ask the registry.
+    await search(p, 'post');
+    expect(core.registrySearches).toEqual([]);
+  });
+
+  it('opens on the MCP servers with nothing chosen for Add MCP server (?show=mcp)', async () => {
+    const p = await open('/connections/new?show=mcp');
+    expect(titles(p)).toEqual(['Any MCP server', 'Popular MCP servers']);
+    expect(values(p)[0]).toBe('mcp-server');
+    expect(p.page().selected()).toBeNull();
+    expect(text(p.q('#step-1 .gw-form__note'))).toBe('Choose a server, or enter one by hand with External MCP server.');
+  });
+
+  it('searches the Official MCP Registry from three characters and adds its servers last', async () => {
+    core.registryServers = [{
+      name: 'io.github.example/docs-mcp', title: 'Docs MCP', description: 'Search the team’s docs.', version: '1.4.0', status: 'active',
+      remotes: [{ type: 'streamable-http', url: 'https://docs.example.test/mcp', headers: [], variables: [] }], packages: [],
+    }];
+    const p = await open();
+    await search(p, 'do');
+    expect(core.registrySearches).toEqual([]);
+    await search(p, 'docs');
+    expect(core.registrySearches).toContain('docs');
+    expect(titles(p).at(-1)).toBe('Official MCP Registry');
+    expect(values(p).at(-1)).toBe('mcp-server:registry.io-github-example-docs-mcp');
+    expect(status(p)).toMatch(/; 1 in the Official MCP Registry$/);
+  });
+
+  it('reads a pasted MCP configuration as one card, chosen, never sent to the registry, and Configure starts from it', async () => {
+    const p = await open();
+    await search(p, '{"mcpServers":{"docs":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem@2026.1.14","/srv/docs"]}}}');
+    expect(titles(p)).toEqual(['From your paste']);
+    expect(values(p)).toEqual(['mcp-server:paste']);
+    expect(p.page().selected()).toBe('mcp-server:paste');
+    expect(status(p)).toBe('Read from your paste: one card, chosen');
+    expect(core.registrySearches).toEqual([]);
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(mcpField(p, '-name').value).toBe('docs');
+    expect(mcpField(p, '-command').value).toBe('npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+  });
+
+  it('reads a pasted PostgreSQL connection string into Configure, without its password', async () => {
+    const p = await open();
+    await search(p, 'postgres://app_rw:s3cret@db.dev.internal:6432/orders');
+    expect(titles(p)).toEqual(['From your paste']);
+    expect(values(p)).toEqual(['postgres:paste']);
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('db.dev.internal');
+    expect(p.q<HTMLInputElement>('#cf-connection-port')!.value).toBe('6432');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('app_rw');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('');
+  });
+
+  it('adds an External MCP server in the wizard: Configure, the review that starts it, then its endpoint', async () => {
+    // The core's own External MCP server card isn't repeated: MCP servers have their section after the connector types.
     const card = { ...structuredClone(CATALOG.groups[0].cards[0]), type: 'mcp-server', name: 'External MCP server', icon: 'plug', description: 'Put any MCP server behind modes, approvals and audit.', tools: null, connections: 0 };
     core.catalog = { groups: [{ name: 'HTTP and MCP', cards: [card] }], installed: [] };
     const p = await open();
-    expect(p.q('#step-1')?.textContent).toContain('An MCP server is added in Connectors › MCP servers');
+    expect(text(p.q('#step-1 .gw-alert__title'))).toBe('No connector types');
+    expect(titles(p)).toEqual(['Any MCP server', 'Popular MCP servers']);
+    p.q<HTMLInputElement>('#type-picker input[value="mcp-server"]')!.click();
+    await p.settle();
     p.button('Continue').click();
     await p.settle();
-    expect(TestBed.inject(Router).url).toBe('/connectors?add=mcp-server#mcp-servers');
+    expect(TestBed.inject(Router).url).toBe('/connections/new');
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(text(p.q('#step-2-mcp-title'))).toBe('Configure your MCP server');
+    expect(p.steps()).toEqual(['complete:Choose, completed External MCP server', 'current:2 Configure', 'upcoming:3 Review', 'upcoming:4 Add to endpoint']);
+
+    await p.type(mcpField(p, '-name').id, 'docs');
+    await p.type(mcpField(p, '-command').id, 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    // The review runs nothing: the core only reads what would run.
+    expect(core.mcpReviews).toHaveLength(1);
+    expect(core.mcpStarted).toEqual([]);
+    expect(p.visible()).toEqual(['step-3-mcp']);
+    expect(text(p.q('#step-3-mcp-title'))).toBe('Review docs');
+
+    const start = p.button('Start MCP server docs', p.q('#step-3-mcp')!);
+    expect(start.getAttribute('aria-disabled')).toBe('true');
+    p.q<HTMLInputElement>('#step-3-mcp input[type=checkbox][id$="-ack"]')!.click();
+    await p.settle();
+    start.click();
+    await p.settle();
+    // Starting saves it, tools Off: the wizard can't go back past this point, and Cancel goes.
+    expect(core.mcpStarted).toHaveLength(1);
+    expect(p.visible()).toEqual(['step-4-mcp']);
+    expect(text(p.q('#step-4-mcp-title'))).toBe('Add docs to an endpoint');
+    expect(p.q('.gw-page-header__actions a')).toBeNull();
+
+    p.button('Add to endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.added).toEqual(['dev']);
+    expect(TestBed.inject(Router).url).toBe('/connections/docs');
   });
 
-  it('sends a link to the External MCP server type straight to Add MCP server', async () => {
-    await open('/connections/new?type=mcp-server');
-    expect(TestBed.inject(Router).url).toBe('/connectors?add=mcp-server#mcp-servers');
+  const LINEAR_ENTRY: McpRegistryServer = {
+    name: 'app.linear/linear', title: 'Linear', description: 'Issues, projects and cycles.', version: '1.0.2', status: 'active',
+    remotes: [{ type: 'streamable-http', url: 'https://mcp.linear.app/mcp', headers: [], variables: [] }], packages: [],
+  };
+
+  it('opens a search result from Connectors on its Configure, from the registry the core searches (?registryServer=)', async () => {
+    core.registryHost = 'registry.example.test';
+    core.registryServers = [{ ...LINEAR_ENTRY, name: 'io.github.example/docs-mcp', title: 'Docs MCP', status: 'deprecated' }];
+    const p = await open('/connections/new?registryServer=io.github.example/docs-mcp');
+    expect(core.registrySearches).toEqual(['io.github.example/docs-mcp']);
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    const origin = p.q('#step-2-mcp [id$="-origin"]')!;
+    expect(text(origin.querySelector('.gw-alert__title'))).toBe('Filled in from the MCP registry at registry.example.test: Docs MCP');
+    expect(text(origin)).toContain('Its publisher marked this entry deprecated.');
   });
 
+  it('keeps a Popular shortcut to the Official MCP Registry: another registry’s entry never stands in (?registry=)', async () => {
+    core.registryHost = 'registry.example.test';
+    core.registryServers = [LINEAR_ENTRY];
+    const p = await open('/connections/new?registry=app.linear/linear');
+    expect(p.visible()).toEqual(['step-1']);
+    expect(p.page().selected()).toBe('mcp-server:featured.app-linear-linear');
+    expect(text(p.q('#type-picker'))).toContain(
+      'Linear can’t be set up from the registry: This shortcut requires the Official MCP Registry. Search your configured registry or enter the server by hand.',
+    );
+  });
+
+  it('tries a Popular pick again after its registry lookup failed, and Configure fills from the official entry', async () => {
+    core.registryServers = [LINEAR_ENTRY];
+    core.registryFails = new ApiError('network', 0, {});
+    const p = await open('/connections/new?show=mcp');
+    p.q<HTMLInputElement>('#type-picker input[value="mcp-server:featured.app-linear-linear"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-1']);
+    expect(text(p.q('#type-picker'))).toContain('Linear can’t be set up from the registry:');
+    p.button('Continue').click();
+    await p.settle();
+    expect(core.registrySearches).toEqual(['app.linear/linear', 'app.linear/linear']);
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(text(p.q('#step-2-mcp [id$="-origin"] .gw-alert__title'))).toBe('Filled in from the Official MCP Registry: Linear');
+  });
+
+  it('keeps what Configure holds when the review goes Back, and reviews it again', async () => {
+    const p = await open('/connections/new?type=mcp-server');
+    await p.type(mcpField(p, '-name').id, 'docs');
+    await p.type(mcpField(p, '-command').id, 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3-mcp']);
+    p.button('Back', p.q('#step-3-mcp')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(mcpField(p, '-name').value).toBe('docs');
+    expect(mcpField(p, '-command').value).toBe('npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    expect(core.mcpReviews).toHaveLength(2);
+    expect(core.mcpStarted).toEqual([]);
+    expect(p.visible()).toEqual(['step-3-mcp']);
+  });
+
+  it('opens a link to the External MCP server type on its Configure, in the wizard (?type=mcp-server)', async () => {
+    const p = await open('/connections/new?type=mcp-server');
+    expect(TestBed.inject(Router).url).toBe('/connections/new?type=mcp-server');
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(p.page().selected()).toBe('mcp-server');
+    expect(text(p.q('#step-2-mcp-title'))).toBe('Configure your MCP server');
+  });
+
+  it('offers the services that exist already when it comes from Overview’s Add service (?endpoint=)', async () => {
+    const p = await open('/connections/new?endpoint=stage-readonly');
+    const alert = p.q('#existing-services')!;
+    expect(text(alert)).toContain('1 service you already have isn’t on stage-readonly yet.');
+    const link = alert.querySelector<HTMLAnchorElement>('a')!;
+    expect([text(link), link.getAttribute('href')]).toEqual(['Connect existing services', '/connections?notConnectedTo=stage-readonly']);
+  });
+});
+
+describe('Redis production connections', () => {
   it('tests and saves Without TLS with a warning and no confirmation', async () => {
     core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'] };
     core.catalog = { groups: [{ name: 'Databases', cards: [{
@@ -1062,22 +1322,24 @@ describe('Add connection: wizard', () => {
     expect(core.tests).toEqual([]);
   });
 
-  it('opens on Choose type with the catalog by group, the first usable type picked and how many use it', async () => {
+  it('opens on Choose with the catalog by group, the first usable type picked and how many use it', async () => {
     const { el, steps, visible } = await open();
     expect(visible()).toEqual(['step-1']);
-    expect(steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Add to endpoint']);
-    const radios = Array.from(el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]'));
+    expect(steps()).toEqual(['current:1 Choose', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Add to endpoint']);
+    const radios = Array.from(el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]'));
     // ClickHouse isn't installed but the signed catalog offers it: it can be chosen, and Continue installs it.
     expect(radios.filter((r) => !r.value.includes(':')).map((r) => [r.value, r.checked, r.getAttribute('aria-disabled')])).toEqual([
       ['postgres', true, null],
       ['clickhouse', false, null],
+      // External MCP server leads the MCP section, after the connector types; it is never the first choice.
+      ['mcp-server', false, null],
     ]);
     expect(radios.some((r) => r.value === 'postgres:supabase')).toBe(true);
     expect(text(el.querySelector('#step-1 .gw-form__note'))).toBe('3 connections use PostgreSQL');
     expect(document.activeElement).toBe(document.body);
   });
 
-  it('groups the types by category with vendor marks; the search filters them and Enter picks a lone match', async () => {
+  it('groups the types by category with vendor marks, the MCP servers after them; the search filters both and Enter picks a lone match', async () => {
     const pg = CATALOG.groups[0].cards[0];
     core.catalog = { groups: [
       { name: 'Databases', cards: [
@@ -1090,42 +1352,53 @@ describe('Add connection: wizard', () => {
       ] },
     ], installed: [] };
     const p = await open();
-    const titles = () => Array.from(p.el.querySelectorAll('#step-1 .gw-connector-card__group-title')).map((h) => text(h));
-    const radios = () => Array.from(p.el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]')).map((r) => r.value);
+    const titles = () => Array.from(p.el.querySelectorAll('#type-picker .gw-connector-card__group-title')).map((h) => text(h));
+    const radios = () => Array.from(p.el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]')).map((r) => r.value);
+    const types = () => radios().filter((v) => v !== 'mcp-server' && !v.startsWith('mcp-server:'));
     const status = () => text(p.el.querySelector('#step-1 search [role=status]'));
-    // The base types first, then the services that speak a base type's protocol.
+    // Three characters ask the Official MCP Registry a moment after the last key; its answer ends the status.
+    const search = async (query: string) => {
+      await p.type('type-search', query);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await p.settle();
+    };
+    // The base types first, then the services that speak a base type's protocol, then the MCP servers.
     expect(titles()).toEqual(['SQL databases', 'NoSQL databases', 'Data warehouses', 'Remote access', 'PostgreSQL-compatible',
-      'MongoDB-compatible']);
+      'MongoDB-compatible', 'Any MCP server', 'Popular MCP servers']);
     const mark = p.el.querySelector<HTMLImageElement>('#step-1 input[value="postgres"] ~ .gw-choice-card__mark img')!;
     expect(mark.getAttribute('src')).toBe('assets/integrations/postgresql.svg');
     expect(mark.getAttribute('alt')).toBe('');
     expect(p.el.querySelector('#step-1 input[value="ssh"] ~ .gw-choice-card__icon')).not.toBeNull();
-    const total = radios().length;
-    expect(status()).toBe(`${total} connector types`);
+    const total = types().length;
+    const all = radios().length;
+    expect(status()).toBe(`${total} connector types and ${all - total} MCP servers`);
 
     // A compatible service's name finds its own card; "sql" finds the SQL databases and their family, never NoSQL.
-    await p.type('type-search', 'cockroach');
+    await search('cockroach');
     expect(titles()).toEqual(['PostgreSQL-compatible']);
     expect(radios()).toEqual(['postgres:cockroachdb']);
-    expect(status()).toBe(`1 of ${total} connector types`);
-    await p.type('type-search', 'sql');
+    expect(status()).toBe('1 connector type and 0 MCP servers match “cockroach”; 0 in the Official MCP Registry');
+    await search('sql');
     expect(titles()).toEqual(['SQL databases', 'PostgreSQL-compatible']);
     expect(radios()).not.toContain('mongodb');
+    // An MCP server's own words find it beside the connectors: "postgres" finds Supabase's and Neon's servers too.
+    await search('postgres');
+    expect(radios()).toEqual(expect.arrayContaining(['postgres', 'mcp-server:featured.com-supabase-mcp', 'mcp-server:featured.com-neon-mcp']));
 
     // Enter never submits the step: with one usable match it picks it.
-    await p.type('type-search', 'ssh');
+    await search('ssh');
     const input = document.getElementById('type-search') as HTMLInputElement;
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     await p.settle();
     expect(p.page().selected()).toBe('ssh');
     expect(p.visible()).toEqual(['step-1']);
 
-    await p.type('type-search', 'zzz');
+    await search('zzz');
     expect(p.q<HTMLElement>('#type-picker')!.hidden).toBe(true);
-    expect(text(p.el.querySelector('#step-1 .gw-empty__title'))).toBe('No connector type matches “zzz”');
+    expect(text(p.el.querySelector('#step-1 .gw-empty__title'))).toBe('Nothing matches “zzz”');
     p.button('Clear search').click();
     await p.settle();
-    expect(radios()).toHaveLength(total);
+    expect(radios()).toHaveLength(all);
     expect(document.activeElement).toBe(input);
   });
 
@@ -1195,7 +1468,7 @@ describe('Add connection: wizard', () => {
     expect(text(p.q('#step-2-title'))).toBe('Configure PostgreSQL');
     expect(document.activeElement?.id).toBe('step-2-title');
     expect(announce).toHaveBeenCalledWith('Step 2 of 4: Configure');
-    expect(p.steps()[0]).toBe('complete:Choose type, completed PostgreSQL');
+    expect(p.steps()[0]).toBe('complete:Choose, completed PostgreSQL');
     expect(document.getElementById('cf-connection-host')).not.toBeNull();
   });
 
@@ -1503,8 +1776,8 @@ describe('Add connection: wizard', () => {
     core.catalog = structuredClone(CATALOG);
     p.button('Try again').click();
     await p.settle();
-    const base = Array.from(p.el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]')).filter((r) => !r.value.includes(':'));
-    expect(base).toHaveLength(2);
+    const base = Array.from(p.el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]')).filter((r) => !r.value.includes(':'));
+    expect(base.map((r) => r.value)).toEqual(['postgres', 'clickhouse', 'mcp-server']);
   });
 });
 
@@ -1520,7 +1793,7 @@ describe('Add connection: duplicate', () => {
     expect((document.getElementById('cf-name') as HTMLInputElement).value).toBe('dev-db-copy');
     expect((document.getElementById('cf-connection-host') as HTMLInputElement).value).toBe('db.dev.internal');
     expect((document.getElementById('cf-credentials-password') as HTMLInputElement).value).toBe('');
-    expect(p.steps()[0]).toBe('complete:Choose type, completed PostgreSQL');
+    expect(p.steps()[0]).toBe('complete:Choose, completed PostgreSQL');
   });
 });
 
@@ -2669,8 +2942,10 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     );
     const cancel = p.q<HTMLAnchorElement>('.gw-page-header__actions a')!;
     expect([text(cancel), cancel.getAttribute('href')]).toEqual(['Cancel and go back to Overview', '/overview']);
-    expect(text(p.q('#step-1 .gw-section__description'))).toBe('The type decides what you fill in next and what your AI apps can do with it.');
-    expect(p.steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
+    expect(text(p.q('#step-1 .gw-section__description'))).toBe(
+      'A database, a cloud, a service or an MCP server. What you choose decides what you fill in next and what your AI apps can do with it.',
+    );
+    expect(p.steps()).toEqual(['current:1 Choose', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
   });
 
   it("Configure in plain words; the secret stays encrypted here unless its field's menu picks a store", async () => {
@@ -2742,7 +3017,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     // Every step done, no panel left, the header's Cancel gone; the card has the focus and the ways on.
     expect(p.visible()).toEqual([]);
     expect(p.steps()).toEqual([
-      'complete:Choose type, completed PostgreSQL',
+      'complete:Choose, completed PostgreSQL',
       'complete:Configure, completed qa-db · dev',
       'complete:Test, completed Connected · 12 ms',
       'complete:Create endpoint, completed Endpoint dev',

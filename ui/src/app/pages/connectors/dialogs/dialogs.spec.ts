@@ -1,11 +1,11 @@
 import { ApiError } from '../../../core/api/api-error';
 import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
-import { mcpRequest } from './mcp-add.dialog';
+import { mcpRequest } from '../../connection-new/mcp/mcp-configure';
 import { registryResult } from '../mcp-registry-results';
-import { connectedToast } from './mcp-endpoint.dialog';
+import { connectedToast } from '../../connection-new/mcp/mcp-endpoints';
 import { McpServerAuthConfig } from '../../../core/api/plugins.api';
-import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
+import { mcpReviewView, mcpSecretValues, signInConfig } from '../../connection-new/mcp/mcp-review';
 import { accessText, connectionFormText, pluginFacts } from './plugin-facts';
 
 describe('plugin review facts', () => {
