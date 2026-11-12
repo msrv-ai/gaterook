@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
@@ -23,12 +26,14 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.core.connectors.internal.persistence.ConnectorTypeEntity;
 import ai.msrv.gaterook.core.connectors.internal.persistence.ConnectorTypeRepository;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginRepository;
+import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.MasterKeyLock;
 import ai.msrv.gaterook.core.platform.RowMac;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,7 +51,8 @@ import tools.jackson.databind.node.ObjectNode;
  * GateRook's own connector types that a source delivers (connector modules, docs/connector-delivery.md): they
  * register as built-in types before any foreign type, a compiled-in connector of the same id comes first, and their
  * tool names are closed to plugins. A module that is only listed closes its names to new plugins, not to one that is
- * installed already. A type that isn't here is asked for where something reaches for it.
+ * installed already. A type that isn't here is asked for where something reaches for it, and a type an earlier build
+ * compiled in stays registered from its row until its module arrives.
  */
 class ConnectorRegistryDeliveredTypesTest {
 
@@ -136,23 +142,75 @@ class ConnectorRegistryDeliveredTypesTest {
     };
   }
 
-  @SuppressWarnings("unchecked")
   private static ConnectorRegistry registry(List<Connector> compiledIn, ConnectorSource source) {
+    return registry(compiledIn, source, List.of(), null, mock(ApplicationEventPublisher.class));
+  }
+
+  /**
+   * A registry over the rows an earlier build left, told what makes a type arrive before it first looks at them.
+   * Rows verify unless their id is {@code tampered}.
+   */
+  @SuppressWarnings("unchecked")
+  private static ConnectorRegistry registry(List<Connector> compiledIn, ConnectorSource source,
+      List<ConnectorTypeEntity> earlier, ConnectorRegistry.MissingTypes handler,
+      ApplicationEventPublisher publisher) {
     ConnectorTypeRepository rows = mock(ConnectorTypeRepository.class);
-    when(rows.findAllById(any())).thenReturn(List.of());
-    when(rows.findById(anyString())).thenReturn(Optional.empty());
+    when(rows.findAll()).thenReturn(earlier);
+    when(rows.findById(anyString())).thenAnswer(call -> earlier.stream()
+        .filter(row -> row.getId().equals(call.getArgument(0))).findFirst());
     when(rows.saveAndFlush(any(ConnectorTypeEntity.class))).thenAnswer(call -> call.getArgument(0));
     RowMac mac = mock(RowMac.class);
     when(mac.fields()).thenAnswer(call -> JSON.createObjectNode());
     when(mac.sign(anyString(), anyString(), anyLong(), any())).thenReturn(new byte[] {1});
+    when(mac.verify(anyString(), anyString(), anyLong(), any(), any())).thenReturn(true);
+    when(mac.verify(anyString(), eq("tampered"), anyLong(), any(), any())).thenReturn(false);
     PluginRepository plugins = mock(PluginRepository.class);
     when(plugins.findById(anyString())).thenReturn(Optional.empty());
+    when(plugins.existsById(anyString())).thenReturn(true);
     ConnectorRegistry registry = new ConnectorRegistry(compiledIn, List.of(source), rows, plugins, mac,
-        mock(MasterKeyLock.class), mock(IntegrityAlerts.class), mock(ObjectProvider.class),
-        mock(ApplicationEventPublisher.class), JSON, Clock.systemUTC(), mock(PlatformTransactionManager.class),
-        false);
+        mock(MasterKeyLock.class), mock(IntegrityAlerts.class), mock(ObjectProvider.class), publisher, JSON,
+        Clock.systemUTC(), mock(PlatformTransactionManager.class), false);
+    if (handler != null) {
+      registry.missingTypes(handler);
+    }
     registry.synchronize();
     return registry;
+  }
+
+  /** The row a build leaves of a type it compiles in: its manifest, no package. */
+  @SuppressWarnings("unchecked")
+  private static ConnectorTypeEntity row(Connector connector) {
+    ConnectorManifest m = connector.manifest();
+    ObjectNode tree = ManifestCodec.write(m);
+    return new ConnectorTypeEntity(m.id(), m.kind(), m.version(), JSON.treeToValue(tree, Map.class),
+        CanonicalJson.sha256Hex(tree), null, Instant.EPOCH);
+  }
+
+  /** What makes types arrive: it records what it is asked and stands in for the types in {@link #keeps}. */
+  private static final class Arrivals implements ConnectorRegistry.MissingTypes {
+    final List<String> asked = new ArrayList<>();
+    final Map<String, Connector> standIns = new LinkedHashMap<>();
+    Set<String> keeps = Set.of();
+
+    @Override
+    public void wanted(String typeId) {
+      asked.add("wanted " + typeId);
+    }
+
+    @Override
+    public boolean await(String typeId, Duration budget) {
+      asked.add("await " + typeId + " " + budget.toSeconds());
+      return true;
+    }
+
+    @Override
+    public Optional<Connector> standIn(ConnectorManifest known) {
+      if (!keeps.contains(known.id())) {
+        return Optional.empty();
+      }
+      return Optional.of(standIns.computeIfAbsent(known.id(), id -> connector(id, known.kind(),
+          known.tools().toArray(ToolDefinition[]::new))));
+    }
   }
 
   private static ConnectionConfig of(String type) {
@@ -263,5 +321,70 @@ class ConnectorRegistryDeliveredTypesTest {
     registry.awaitInstalled(null);
     assertThat(registry.type("Not A Type")).isEmpty();
     assertThat(asked).as("only an id that could be a type's").containsExactly("await cassandra 90");
+  }
+
+  @Test
+  void aTypeAnEarlierBuildCompiledInStaysRegisteredFromItsRowUntilItsModuleArrives() {
+    Connector postgres = connector("postgres", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."));
+    Connector graph = connector("graph", ConnectorManifest.Kind.BUILT_IN, tool("graph_query", "Reads a graph."));
+    Arrivals arrivals = new Arrivals();
+    arrivals.keeps = Set.of("graph");
+    Source source = new Source().plugin(connector("graph-tools", ConnectorManifest.Kind.PLUGIN,
+        tool("graph_query", "Takes the name.")));
+    ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+    ConnectorRegistry registry = registry(List.of(postgres), source, List.of(row(postgres), row(graph)), arrivals,
+        publisher);
+
+    assertThat(registry.awaitedTypes()).containsExactly("graph");
+    assertThat(registry.type("graph")).map(t -> t.manifest().kind()).contains(ConnectorManifest.Kind.BUILT_IN);
+    assertThat(registry.usable("graph")).as("its switch is the row's").isTrue();
+    assertThat(registry.types()).extracting(t -> t.manifest().id()).contains("graph", "postgres");
+    assertThat(registry.tool("graph", "graph_query")).as("its tools as the row describes them").isPresent();
+    assertThat(registry.connectorFor(of("graph"))).containsSame(arrivals.standIns.get("graph"));
+    assertThat(registry.compiledIn("graph")).isFalse();
+    assertThat(registry.type("graph-tools")).as("its tool names stay GateRook's own meanwhile").isEmpty();
+    assertThat(registry.isReserved("graph_query")).isTrue();
+    assertThat(arrivals.asked).as("every look asks for it again").contains("wanted graph")
+        .doesNotContain("wanted postgres");
+
+    arrivals.asked.clear();
+    registry.awaitInstalled("graph");
+    assertThat(arrivals.asked).as("a request that needs the type waits for the real one")
+        .containsExactly("await graph 90");
+    verify(publisher, never()).publishEvent(new ConnectorTypeChanged("graph"));
+
+    // Its module arrives.
+    source.module("graph-module", graph);
+    registry.synchronize();
+    assertThat(registry.awaitedTypes()).isEmpty();
+    assertThat(registry.connectorFor(of("graph"))).containsSame(graph);
+    assertThat(registry.type("graph")).isPresent();
+    verify(publisher).publishEvent(new ConnectorTypeChanged("graph"));
+  }
+
+  @Test
+  void aRowIsNotKeptWhenNothingMakesItsTypeArriveOrItCannotBeHeld() {
+    Connector postgres = connector("postgres", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."));
+    Arrivals arrivals = new Arrivals();
+    arrivals.keeps = Set.of("tampered", "jira", "oracle", "wanted-by-nobody-else");
+    List<ConnectorTypeEntity> earlier = List.of(
+        // Nothing stands in for it: no module can bring it, or no connection uses it.
+        row(connector("graph", ConnectorManifest.Kind.BUILT_IN, tool("graph_query", "Reads a graph."))),
+        // Changed outside GateRook.
+        row(connector("tampered", ConnectorManifest.Kind.BUILT_IN, tool("tampered_read", "Reads."))),
+        // A plugin's type that is gone: never GateRook's own.
+        row(connector("jira", ConnectorManifest.Kind.PLUGIN, tool("jira_search", "Searches."))),
+        // Its shared tool differs from the one this build compiles in: the two couldn't share an endpoint.
+        row(connector("oracle", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Ran SQL in the build before."))));
+    ConnectorRegistry registry = registry(List.of(postgres), new Source(), earlier, arrivals,
+        mock(ApplicationEventPublisher.class));
+
+    assertThat(registry.awaitedTypes()).isEmpty();
+    for (String id : List.of("graph", "tampered", "jira", "oracle")) {
+      assertThat(registry.type(id)).as(id).isEmpty();
+      assertThat(registry.connectorFor(of(id))).as(id).isEmpty();
+    }
+    assertThat(registry.isReserved("graph_query")).isFalse();
+    assertThat(arrivals.asked).as("a type that isn't here is asked for as before").contains("wanted graph");
   }
 }

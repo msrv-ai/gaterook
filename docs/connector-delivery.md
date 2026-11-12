@@ -93,12 +93,22 @@ Nobody reviews or confirms a module. It installs when something needs one of its
 
 - a person opens the type's form in Add connection;
 - a connection of the type is created, tested, shared or imported;
-- a connection of the type exists and the type isn't registered, as after an update that turned a compiled-in connector into a module;
+- a connection of the type exists and the build doesn't have the type, as after an update that turned a compiled-in connector into a module: the start asks for the module at once;
 - a call reaches a connection whose module is installed but whose package isn't on the disk, as after a backup restored on another computer. The start notices too and downloads the package in the background.
 
 A request that is about to work with the type waits for the installation, up to 90 seconds. A call waits up to 20 seconds and otherwise answers that the connector is being downloaded. A type that something merely looked up, such as a label in an old audit row, installs nothing unless a connection uses it.
 
-The steps are: the Java runtime (downloaded once when the application doesn't carry one), the package, its checks (the pinned bytes, the manifest, the versions it needs, the connector types the index promised), a first load in a fresh host, and a signed row. One installation runs per module; whoever asks meanwhile joins it. Each step is published as a `module.state` event.
+#### A connector that was compiled in before
+
+An update that turns a compiled-in connector into a module finds connections of a type the new build doesn't carry. Such a type is awaited. It stays registered as its signed row in the database describes it, so its connections keep their tools on every endpoint, in the modes a person chose, and an agent's list of tools is the same after the update as before it.
+
+Until the module is installed, a stand-in answers for the type and runs nothing. A call waits up to 20 seconds for the module and then goes to its connector. Otherwise it is refused with the reason: the connector is being downloaded, or why it couldn't be. A classification the connector didn't give is a deny. When the module arrives, the endpoints rebuild from its own manifest.
+
+A type is awaited only while a connection uses it and its row verifies. A type whose tools this build couldn't hold beside its own, because a tool it shares with a compiled-in type differs, isn't kept either: it is absent until its module is installed.
+
+#### The steps
+
+An installation takes these steps: the Java runtime (downloaded once when the application doesn't carry one), the package, its checks (the pinned bytes, the manifest, the versions it needs, the connector types the index promised), a first load in a fresh host, and a signed row. One installation runs per module; whoever asks meanwhile joins it. Each step is published as a `module.state` event.
 
 `GET /api/modules` lists the installed and the listed modules. `POST /api/modules/{id}/install` starts an installation by module id or connector type id and answers at once. `POST /api/modules/refresh` checks the list again and starts the updates it calls for. `DELETE /api/modules/{id}` removes a module that no connection uses. The cards of `GET /api/connector-types` carry `module` for a type that a module adds.
 

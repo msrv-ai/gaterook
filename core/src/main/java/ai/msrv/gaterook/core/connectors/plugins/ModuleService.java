@@ -1,6 +1,9 @@
 package ai.msrv.gaterook.core.connectors.plugins;
 
+import ai.msrv.gaterook.connector.api.ConnectionConfig;
+import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorTypesInUse;
 import ai.msrv.gaterook.core.connectors.PluginGenerationSwitched;
@@ -261,6 +264,77 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     return connections == null || connections.inUse(typeId);
   }
 
+  // ── A type an earlier build compiled in ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * A type GateRook itself added in an earlier build and that this build gets as a module: while connections use it,
+   * it stays registered as its row describes it, and {@link AwaitedConnector} answers for it until the module is
+   * installed. The start asks for the module at once ({@link #onReady}).
+   */
+  @Override
+  public Optional<Connector> standIn(ConnectorManifest known) {
+    if (!channel.configured() || !inUse(known.id())) {
+      return Optional.empty();
+    }
+    String typeId = known.id();
+    return Optional.of(new AwaitedConnector(known, new AwaitedConnector.Arrival() {
+      @Override
+      public Optional<Connector> await(ConnectionConfig cfg, Duration budget) {
+        return arrived(typeId, cfg, budget);
+      }
+
+      @Override
+      public String problem() {
+        return awaitedProblem(known);
+      }
+    }));
+  }
+
+  /**
+   * The connector of an awaited type's connection once the type's module is here. With a budget, the module's
+   * installation is started or joined and waited for; a failed one isn't started again by every call.
+   */
+  private Optional<Connector> arrived(String typeId, ConnectionConfig cfg, Duration budget) {
+    if (registry.awaitedTypes().contains(typeId) && budget.isPositive() && !lock.locked()
+        && !failedRecently(typeId, CALL_RETRY)) {
+      try {
+        ensureAndWait(typeId, budget);
+      } catch (RuntimeException e) {
+        log.debug("Connector type {} isn't here yet: {}", typeId, e.getMessage());
+      }
+    }
+    return registry.connectorFor(cfg).filter(c -> !(c instanceof AwaitedConnector));
+  }
+
+  /** Why an awaited type's connector isn't here: on its way, failed, held up, or not to be found. */
+  private String awaitedProblem(ConnectorManifest known) {
+    String connector = "The " + known.name() + " connector";
+    Optional<ModuleChannel.Entry> entry = listedNow(known.id());
+    Run run = entry.map(e -> runs.get(e.id())).orElse(null);
+    if (run != null && run.step == Step.FAILED) {
+      return connector + " couldn't be installed: " + run.message;
+    }
+    if (run != null && !run.done.isDone()) {
+      return connector + " is being downloaded: this version of GateRook installs it when it is first needed. Try "
+          + "again in a moment.";
+    }
+    if (lock.locked()) {
+      return connector + " installs once GateRook is unlocked.";
+    }
+    if (entry.isPresent()) {
+      return connector + " isn't installed yet" + channel.installProblem().map(problem -> ": " + problem)
+          .orElse(". Try again in a moment.");
+    }
+    String problem = channel.cached().problem();
+    return connector + " isn't installed yet, and GateRook couldn't find it to download"
+        + (problem == null ? "." : ": " + problem);
+  }
+
+  /** Asks for the module of every awaited type, in the background. */
+  private void askForAwaited() {
+    registry.awaitedTypes().forEach(this::wanted);
+  }
+
   @Override
   public boolean await(String typeId, Duration budget) {
     try {
@@ -281,6 +355,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
   public void onReady() {
     if (!lock.locked()) {
       loadInstalled();
+      askForAwaited();
     }
     startUpdateChecks();
   }
@@ -293,6 +368,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     updates = Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("module-updates").factory());
     updates.scheduleWithFixedDelay(() -> {
       try {
+        askForAwaited();
         updateInstalled();
       } catch (RuntimeException e) {
         log.info("The connector modules couldn't be checked for updates: {}", e.getMessage());
@@ -312,6 +388,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
   @TransactionalEventListener
   public void onMasterKeyChanged(MasterKeyChanged event) {
     loadInstalled();
+    askForAwaited();
   }
 
   /**

@@ -2,13 +2,9 @@ package ai.msrv.gaterook.e2e.modules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ai.msrv.gaterook.connector.api.Connector;
-import ai.msrv.gaterook.e2e.modules.fixture.EchoModule;
+import ai.msrv.gaterook.e2e.modules.fixture.EchoPackages;
 import ai.msrv.gaterook.e2e.platform.CoreProcess;
-import ai.msrv.gaterook.plugin.protocol.ModuleManifests;
-import ai.msrv.gaterook.plugin.protocol.PluginManifest;
 import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -32,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import mockwebserver3.Dispatcher;
 import mockwebserver3.MockResponse;
 import mockwebserver3.MockWebServer;
@@ -351,39 +345,10 @@ class ModulesCoreProcessIT {
 
   /** Builds and releases the package of {@code version}: its bytes are what the channel serves from then on. */
   private static byte[] release(String version) throws Exception {
-    byte[] bytes = moduleJar(version);
+    byte[] bytes = EchoPackages.module(version);
     RELEASED.put(version, bytes);
     FILES.put("/modules/echo-" + version + ".jar", bytes);
     return bytes;
-  }
-
-  /**
-   * The module as it is published: its classes, the manifest written from its connectors, and the build it says it
-   * is when it answers a call.
-   */
-  private static byte[] moduleJar(String version) throws Exception {
-    List<Connector> connectors = new EchoModule().connectors(null);
-    ObjectNode descriptor = (ObjectNode) CoreProcess.JSON.readTree(EchoModule.DESCRIPTOR);
-    descriptor.put("version", version);
-    ObjectNode manifest = ModuleManifests.write(descriptor, connectors);
-    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-    try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
-      zip.putNextEntry(new ZipEntry(PluginManifest.FILE));
-      zip.write(CoreProcess.JSON.writeValueAsBytes(manifest));
-      zip.closeEntry();
-      zip.putNextEntry(new ZipEntry("META-INF/echo-build.txt"));
-      zip.write(version.getBytes(StandardCharsets.UTF_8));
-      zip.closeEntry();
-      String folder = EchoModule.class.getPackageName().replace('.', '/') + "/";
-      for (String name : List.of("EchoModule", "EchoModule$EchoDb", "EchoModule$EchoLog")) {
-        try (InputStream in = EchoModule.class.getResourceAsStream("/" + folder + name + ".class")) {
-          zip.putNextEntry(new ZipEntry(folder + name + ".class"));
-          zip.write(in.readAllBytes());
-          zip.closeEntry();
-        }
-      }
-    }
-    return bytes.toByteArray();
   }
 
   /** The channel's list at {@code sequence}: the given released versions, and the packages it revokes. */
