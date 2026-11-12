@@ -14,7 +14,7 @@ The source of a connector is the same in both cases: its Maven module, its schem
 A connector is compiled in unless one of these holds:
 
 - **It can't be.** The native image builder refuses its driver, or the driver needs native-image work that the vendor does not maintain. The Cassandra driver is the current case: its own GraalVM substitutions require JNR, which this build excludes.
-- **It is too heavy for everybody to carry.** A bundled connector may add at most the budget in `delivery.json` (3 MB of native image) unless `budget.exempt` lists it with the reason it stays compiled in.
+- **It is too heavy for everybody to carry.** A bundled connector may add at most the budget in `delivery.json` (3 MB of native image) unless `budget.exempt` lists it with the reason it stays compiled in. Neo4j is the current case: the Bolt driver brings Netty and Reactor with it.
 
 Connectors that speak HTTP through the shared egress code cost between 0.5 and 3 MB of image each, which is why they are compiled in. Vendor driver stacks cost far more: the Oracle JDBC driver alone is about 30 MB.
 
@@ -52,7 +52,12 @@ Each module has a folder under `modules/`:
 mvn -B -ntp -pl modules/cassandra -am package -DskipTests
 ```
 
-The package is `modules/cassandra/target/cassandra-<version>.jar`. `modules/cassandra` is the first one: Apache Cassandra with its Java driver, about 12 MB.
+The package is `modules/<id>/target/<id>-<version>.jar`, here `modules/cassandra/target/cassandra-<version>.jar`.
+
+| Module | Connector | Package |
+| --- | --- | --- |
+| `cassandra` | [Apache Cassandra](cassandra.md) with its Java driver | About 12 MB |
+| `neo4j` | [Neo4j](neo4j.md) with its Bolt driver | About 9 MB |
 
 ### Versions
 
