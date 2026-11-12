@@ -30,6 +30,19 @@ describe('proposeName', () => {
     expect(propose('spanner', { project: 'acme', instance: 'main-instance', database: 'ledger' })?.name).toBe('ledger');
   });
 
+  it('takes the first item of a list that names the resource', () => {
+    expect(propose('gcp', { scopes: ['projects/acme-stage', 'folders/123456789012'] })).toEqual(
+      { name: 'acme-stage', from: 'the resource scope' });
+    expect(propose('gcp', { scopes: ['folders/123456789012'] })).toBeNull();
+    expect(propose('s3', { buckets: ['invoices-archive'] })?.name).toBe('invoices-archive');
+    expect(propose('http', { baseUrls: ['https://api.acme.example/v2'] })?.name).toBe('acme');
+    // A log group names the resource better than the profile that reads it.
+    expect(propose('cloudwatch', { region: 'eu-west-1', logGroups: ['/aws/lambda/orders'],
+      credentials: { source: 'profile', profile: 'staging' } })?.name).toBe('orders');
+    expect(propose('cloudwatch', { region: 'eu-west-1', credentials: { source: 'profile', profile: 'staging' } })?.name)
+      .toBe('staging');
+  });
+
   it('names a database file by its name without the extension', () => {
     expect(propose('sqlite', { connection: { file: '~/projects/shop/inventory.sqlite3' } })).toEqual(
       { name: 'inventory', from: 'the database file' });
