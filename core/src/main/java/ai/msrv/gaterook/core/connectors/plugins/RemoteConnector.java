@@ -17,6 +17,7 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.egress.EgressClients;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
+import ai.msrv.gaterook.core.connectors.PluginBuild;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.plugin.protocol.Gpp;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
@@ -47,7 +48,7 @@ import tools.jackson.databind.JsonNode;
  * <p>The manifest comes from the database, so the registry and {@code tools/list} never start a host. A timeout on an
  * approved change is {@code OUTCOME_UNKNOWN} — the core never resends it; a stuck host is replaced by the supervisor.
  */
-final class RemoteConnector implements Connector {
+final class RemoteConnector implements Connector, PluginBuild {
 
   private static final Logger log = LoggerFactory.getLogger(RemoteConnector.class);
   private static final Duration CLASSIFY_TIMEOUT = Duration.ofSeconds(2);
@@ -74,6 +75,11 @@ final class RemoteConnector implements Connector {
 
   private String generation() {
     return supervisor.spec() == null ? pluginId + "@" + manifest.version() : supervisor.spec().generation();
+  }
+
+  @Override
+  public boolean signed() {
+    return signed;
   }
 
   @Override

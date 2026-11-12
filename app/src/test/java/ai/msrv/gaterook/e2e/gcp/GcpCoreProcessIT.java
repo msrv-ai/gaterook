@@ -251,13 +251,17 @@ class GcpCoreProcessIT {
     JsonNode tools = mcp("{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/list\",\"params\":{}}")
         .at("/result/tools");
     List<JsonNode> logTools = new ArrayList<>();
+    List<JsonNode> tails = new ArrayList<>();
     tools.forEach(t -> {
       if (t.path("name").asString().equals("logs_search")) {
         logTools.add(t);
       }
-      assertThat(t.path("name").asString()).isNotEqualTo("logs_tail");
+      if (t.path("name").asString().equals("logs_tail")) {
+        tails.add(t);
+      }
     });
     assertThat(logTools).as("a single shared tool survives catalog merging").hasSize(1);
+    assertThat(tails).as("logs_tail is a read: on by default, one shared tool too").hasSize(1);
     assertThat(logTools.getFirst().path("description").asString()).contains("Connections: gcp-dev (", "gcp-logs (");
     assertThat(logTools.getFirst().path("description").asString()).contains("Logs Explorer");
 

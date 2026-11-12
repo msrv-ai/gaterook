@@ -430,7 +430,7 @@ public final class FakeSqlConnector implements Connector {
   private static final String POLICY = """
       {"type":"object","x-policy-section":"sql","additionalProperties":false,"properties":{
        "rowLimit":{"type":"integer","minimum":1,"default":1000,"x-stricter":"min","x-env-default":{"prod":100}},
-       "denyDdl":{"type":"boolean","default":false,"x-stricter":"or","x-env-default":{"stage":true,"prod":true}}}}""";
+       "denyDdl":{"type":"boolean","default":false,"x-stricter":"or"}}}""";
 
   private static final String DEFINITION = """
       {"type":"object","additionalProperties":false,"required":["name","sql"],"properties":{

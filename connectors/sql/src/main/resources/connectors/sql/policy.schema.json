@@ -42,11 +42,7 @@
       "title": "Block DDL",
       "default": false,
       "x-stricter": "or",
-      "x-env-default": {
-        "stage": true,
-        "prod": true
-      },
-      "description": "CREATE, ALTER, DROP and TRUNCATE are denied instead of waiting for approval."
+      "description": "Off: CREATE, ALTER, DROP and TRUNCATE wait for approval like other changes. On: they are denied instead."
     },
     "allowlist": {
       "type": "array",

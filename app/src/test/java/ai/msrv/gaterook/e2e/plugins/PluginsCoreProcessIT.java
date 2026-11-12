@@ -201,7 +201,7 @@ class PluginsCoreProcessIT {
 
   @Test
   @Order(3)
-  void theUpdateTo130FromTheCatalogRejectsTheWaitingRequestAndItsNewToolStartsOff() throws Exception {
+  void theUpdateTo130FromTheCatalogRejectsTheWaitingRequestAndItsNewToolJoinsInReadOnly() throws Exception {
     // A release the catalog lists as unsigned loads only with the acknowledgement, as an unsigned install (§9).
     publish(index(2, List.of(), "jira-service-desk"));
     Answer unsigned = admin("POST", "/api/plugins/jira-service-desk/update", "{\"to\":\"1.3.0\"}");
@@ -236,8 +236,15 @@ class PluginsCoreProcessIT {
     JsonNode rejected = json(admin("GET", "/api/approvals/" + pending, null), 200);
     assertThat(rejected.path("status").asString()).as(rejected.toString()).isEqualTo("rejected");
     assertThat(rejected.toString()).contains("Plugin updated to 1.3.0, ask again");
+    // The new read of the signed build joins the endpoint in Read only once the core reconciled the type's
+    // connections (after the update's commit); what was there keeps its mode.
     Map<String, String> modes = modes("jsm", "acme-jsm");
-    assertThat(modes).containsEntry("jira_request_sla", "OFF").containsEntry("jira_add_comment", "APPROVAL")
+    long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+    while (!"READ_ONLY".equals(modes.get("jira_request_sla")) && System.nanoTime() < deadline) {
+      Thread.sleep(200);
+      modes = modes("jsm", "acme-jsm");
+    }
+    assertThat(modes).containsEntry("jira_request_sla", "READ_ONLY").containsEntry("jira_add_comment", "APPROVAL")
         .hasSize(6);
 
     JsonNode type = installed("jira-service-desk");
@@ -433,22 +440,9 @@ class PluginsCoreProcessIT {
         }
       }
       assertThat(query).isNotNull();
-      // A plugin declares h2_query read only; a person confirms it before it may run without approval.
-      ObjectNode confirm = CoreProcess.JSON.createObjectNode().put("toolKey", query.path("toolKey").asString())
-          .put("connection", "orders-h2").put("definitionHash", query.path("definitionHash").asString())
-          .put("reason", "h2_query reads through a user with SELECT rights only");
-      json(admin("POST", "/api/endpoints/orders/tools/confirm-read-only", confirm.toString()), 200);
-      for (JsonNode g : json(admin("GET", "/api/endpoints/orders/tools", null), 200)) {
-        for (JsonNode t : g.path("tools")) {
-          if (t.path("name").asString().equals("h2_query")) {
-            query = t;
-          }
-        }
-      }
-      ObjectNode readOnly = CoreProcess.JSON.createObjectNode().put("toolKey", query.path("toolKey").asString())
-          .put("connection", "orders-h2").put("mode", "READ_ONLY").put("version", query.path("version").asLong())
-          .put("definitionHash", query.path("definitionHash").asString());
-      json(admin("PUT", "/api/endpoints/orders/tools", readOnly.toString()), 200);
+      // The catalog signed this build: h2_query declares that it only reads and starts in Read only, no confirmation.
+      assertThat(query.path("mode").asString()).as(query.toString()).isEqualTo("READ_ONLY");
+      assertThat(query.path("declaredBy").isNull()).as(query.toString()).isTrue();
       String ordersToken = json(admin("POST", "/api/endpoints/orders/tokens", "{\"name\":\"h2-e2e\",\"ttlDays\":1}"),
           201).path("token").asString();
       mcp("orders", ordersToken, """

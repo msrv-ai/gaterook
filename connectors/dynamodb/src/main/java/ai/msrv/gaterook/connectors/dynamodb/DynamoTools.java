@@ -26,19 +26,17 @@ final class DynamoTools {
   static List<ToolDefinition> definitions(SchemaResources schemas) {
     return List.of(
         read(schemas, LIST_TABLES, "List DynamoDB tables",
-            "Names of the tables agents may use in the connection's region.", Mode.READ_ONLY),
+            "Names of the tables agents may use in the connection's region."),
         read(schemas, DESCRIBE_TABLE, "Describe a DynamoDB table",
-            "Key schema, secondary indexes, item count, size, billing mode, stream and TTL of one table.",
-            Mode.READ_ONLY),
+            "Key schema, secondary indexes, item count, size, billing mode, stream and TTL of one table."),
         read(schemas, QUERY, "Query items by key",
             "Items of one partition key value, optionally narrowed by sort key, filter and projection; a table or "
-                + "a secondary index. Pages with nextCursor.", Mode.READ_ONLY),
+                + "a secondary index. Pages with nextCursor."),
         read(schemas, SCAN, "Scan a table",
             "Reads items of a whole table or index with an optional filter: it uses read capacity for every item "
-                + "it reads. Prefer dynamodb_query when you know the key.", Mode.APPROVAL),
+                + "it reads. Prefer dynamodb_query when you know the key."),
         read(schemas, PARTIQL, "Run a PartiQL SELECT",
-            "One PartiQL SELECT with ? parameters. Without a key condition DynamoDB scans the table.",
-            Mode.READ_ONLY),
+            "One PartiQL SELECT with ? parameters. Without a key condition DynamoDB scans the table."),
         // No outputSchema: the answer may be an approval handle (report 01).
         ToolDefinition.builder(EXECUTE)
             .title("Change items (needs approval)")
@@ -51,15 +49,14 @@ final class DynamoTools {
             .build());
   }
 
-  private static ToolDefinition read(SchemaResources schemas, String name, String title, String description,
-      Mode prod) {
+  private static ToolDefinition read(SchemaResources schemas, String name, String title, String description) {
     return ToolDefinition.builder(name)
         .title(title)
         .description(description)
         .inputSchema(schemas.load(name + ".input"))
         .annotations(Annotations.read())
         .nature(Nature.READ)
-        .defaultMode(Mode.READ_ONLY, prod)
+        .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
         .resultShape(ResultShape.JSON)
         .build();
   }

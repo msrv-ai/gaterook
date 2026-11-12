@@ -555,7 +555,7 @@
             </div>
           } @else {
           @if (first) {
-            <!-- The starter endpoint's initial modes (prod: nothing waits for approval). -->
+            <!-- The starter endpoint's initial modes: reads run at once, changes wait for approval. -->
             <ng-container [ngTemplateOutlet]="toolCard" [ngTemplateOutletContext]="{ slug: firstEndpointSlug(), preview: firstPreview() }" />
           }
           @for (p of first ? [] : previews(); track p.choice.slug) {

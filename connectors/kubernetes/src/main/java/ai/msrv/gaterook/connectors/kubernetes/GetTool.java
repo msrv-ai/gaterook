@@ -47,7 +47,8 @@ final class GetTool {
   private static ToolResult list(Get plan, K8sApi api, ConnectionConfig cfg, ExecContext ctx)
       throws ConnectorException {
     int limit = Math.max(1, Math.min(plan.limit(), Math.max(1, ctx.limits().maxRows())));
-    // Only a cluster-scoped kind is listed without a namespace; a namespaced one without any lists nothing.
+    // A cluster-scoped kind, or a namespaced one across every namespace, is listed as the whole collection (null); a
+    // namespaced one without any allowed namespace lists nothing.
     List<String> namespaces = scope(plan);
     String query = queryKey(cfg, plan);
     int start = 0;
@@ -87,7 +88,7 @@ final class GetTool {
       try {
         answer = api.get(plan.kind().path(ns, null), q, K8sApi.ACCEPT_TABLE, ctx);
       } catch (StatusException e) {
-        if (plan.allNamespaces() && (e.code == 403 || e.code == 404)) {
+        if (plan.allNamespaces() && ns != null && (e.code == 403 || e.code == 404)) {
           notes.add("Skipped " + ns + ": " + (e.code == 403 ? "forbidden by RBAC" : "not found") + ".");
           continue;
         }
@@ -127,7 +128,7 @@ final class GetTool {
           ArrayNode cells = row.putArray("cells");
           List<String> text = new ArrayList<>();
           if (plan.allNamespaces()) {
-            text.add(String.valueOf(ns));
+            text.add(ns != null ? ns : meta.path("namespace").asString(""));
           }
           for (int c : wanted) {
             JsonNode cell = r.path("cells").path(c);
@@ -156,7 +157,7 @@ final class GetTool {
           row.putArray("cells").add(name).add(status).add(age);
           List<String> text = new ArrayList<>();
           if (plan.allNamespaces()) {
-            text.add(String.valueOf(ns));
+            text.add(ns != null ? ns : meta.path("namespace").asString(""));
           }
           text.addAll(List.of(name, status, age));
           textRows.add(text);
@@ -205,9 +206,12 @@ final class GetTool {
     return cursor == null ? result : result.truncated("row_limit");
   }
 
-  /** The namespaces to request: {@code [null]} (the whole collection) only for a cluster-scoped kind. */
+  /**
+   * The namespaces to request: {@code [null]} (the whole collection) for a cluster-scoped kind, and for a namespaced
+   * one listed across every namespace ({@link K8sPolicy#ALL}).
+   */
   private static List<String> scope(Get plan) throws ConnectorException {
-    if (!plan.kind().namespaced()) {
+    if (!plan.kind().namespaced() || everyNamespace(plan)) {
       return java.util.Collections.singletonList(null);
     }
     if (plan.namespaces().isEmpty()) {
@@ -216,9 +220,16 @@ final class GetTool {
     return plan.namespaces();
   }
 
+  private static boolean everyNamespace(Get plan) {
+    return plan.allNamespaces() && plan.namespaces().equals(List.of(K8sPolicy.ALL));
+  }
+
   private static String where(Get plan) {
-    if (plan.namespaces().isEmpty()) {
+    if (plan.namespaces().isEmpty() || !plan.kind().namespaced()) {
       return "";
+    }
+    if (everyNamespace(plan)) {
+      return " in all namespaces";
     }
     return plan.allNamespaces() ? " in " + String.join(", ", plan.namespaces()) : " in " + plan.namespaces().get(0);
   }

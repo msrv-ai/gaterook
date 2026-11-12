@@ -317,7 +317,7 @@
     <header class="gw-dialog__header">
       <span class="gw-icon-tile gw-icon-tile--brand"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="import-create-endpoint-title">Create endpoint</h2>
-      <p class="gw-dialog__description" id="import-create-endpoint-description">Create an empty endpoint with every tool off. It will be selected for {{ endpointCandidate()?.name }}. The connection is added only when you confirm the import.</p>
+      <p class="gw-dialog__description" id="import-create-endpoint-description">Create an empty endpoint: connections added to it bring their tools, reads running at once and changes waiting for approval. It will be selected for {{ endpointCandidate()?.name }}. The connection is added only when you confirm the import.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" [disabled]="creatingEndpoint()" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body gw-stack">

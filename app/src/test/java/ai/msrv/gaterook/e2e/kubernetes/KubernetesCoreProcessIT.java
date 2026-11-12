@@ -119,21 +119,16 @@ class KubernetesCoreProcessIT {
     JsonNode settings = json(admin("GET", "/api/endpoints/k8s/settings", null), 200);
     json(admin("PUT", "/api/endpoints/k8s/settings", "{\"approvalWait\":{\"firstWaitSeconds\":0},\"version\":"
         + settings.path("version").asLong() + "}"), 200);
-    // k8s_apply starts Off (the kit's tool list); a person switches it to Approval for this cluster.
-    JsonNode apply = null;
+    // Nothing starts Off: the reads (k8s_get, k8s_logs) run at once, k8s_apply and k8s_rollout_restart wait for a
+    // person.
+    Map<String, String> modes = new LinkedHashMap<>();
     for (JsonNode g : json(admin("GET", "/api/endpoints/k8s/tools", null), 200)) {
       for (JsonNode t : g.path("tools")) {
-        if (t.path("name").asString().equals("k8s_apply")) {
-          apply = t;
-        }
+        modes.put(t.path("name").asString(), t.path("mode").asString());
       }
     }
-    assertThat(apply).isNotNull();
-    assertThat(apply.path("mode").asString()).isEqualTo("OFF");
-    ObjectNode on = CoreProcess.JSON.createObjectNode().put("toolKey", apply.path("toolKey").asString())
-        .put("connection", "dev-cluster").put("mode", "APPROVAL").put("version", apply.path("version").asLong())
-        .put("reason", "Config changes through the gateway");
-    json(admin("PUT", "/api/endpoints/k8s/tools", on.toString()), 200);
+    assertThat(modes).containsEntry("k8s_get", "READ_ONLY").containsEntry("k8s_logs", "READ_ONLY")
+        .containsEntry("k8s_rollout_restart", "APPROVAL").containsEntry("k8s_apply", "APPROVAL");
     token = json(admin("POST", "/api/endpoints/k8s/tokens", "{\"name\":\"k8s-e2e\",\"ttlDays\":1}"), 201)
         .path("token").asString();
     mcp("""
@@ -149,8 +144,7 @@ class KubernetesCoreProcessIT {
         Thread.sleep(200);
       }
     }
-    // k8s_logs is Off by default, like in the kit.
-    assertThat(names).contains("k8s_get", "k8s_rollout_restart", "k8s_apply").doesNotContain("k8s_logs");
+    assertThat(names).contains("k8s_get", "k8s_logs", "k8s_rollout_restart", "k8s_apply");
   }
 
   // ── Reads ───────────────────────────────────────────────────────────────────────────────────────────────────

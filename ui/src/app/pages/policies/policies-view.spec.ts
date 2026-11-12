@@ -80,8 +80,9 @@ describe('Policies page words', () => {
     expect(hint('stage', 'limits', 'maxResponseKb')).toBe('Set on stage · dev: 512 KB');
     expect(hint('stage', 'approvals', 'timeoutMinutes')).toBe('Stage default · dev: 5 min');
     expect(hint('stage', 'approvals', 'comment')).toBe('Inherited from dev: optional');
-    // Never inherited: what it does, as on dev.
-    expect(hint('stage', 'k8s', 'namespaces')).toBe('Per environment, never inherited. Agents see nothing outside these namespaces.');
+    // Never inherited: what it does, as on dev. Empty, agents see the whole cluster.
+    expect(hint('stage', 'k8s', 'namespaces')).toBe('Per environment, never inherited. Empty: agents see every namespace of the cluster.');
+    expect(hint('stage', 'k8s', 'namespaces', { value: ['app-stage'] })).toBe('Per environment, never inherited. Agents see nothing outside these namespaces.');
   });
 
   it('compares prod with dev, since prod inherits nothing', () => {

@@ -251,8 +251,10 @@ class SshCoreProcessIT {
 
   @Test
   @Order(5)
-  void sshExecIsOffAndTheLogIsClean() throws Exception {
+  void sshExecWaitsForAPersonAndTheLogIsClean() throws Exception {
+    // ssh_exec starts in Approval and the policy allows it: the command waits for a person and nothing runs yet.
     JsonNode exec = call(6, "ssh_exec", "{\"connection\":\"dev-vm\",\"command\":\"id\"}");
+    assertThat(exec.at("/result/structuredContent/status").asString()).as(exec.toString()).isEqualTo("pending");
     assertThat(exec.toString()).doesNotContain("uid=");
     assertThat(COMMANDS).containsExactly("cd '" + bin.getParent() + "' && docker compose ps",
         "docker compose restart 'api'");

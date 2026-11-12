@@ -74,8 +74,8 @@ class GcpConnectorTest {
       }
       assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
       boolean tail = t.name().equals("logs_tail");
-      assertThat(t.defaultMode()).isEqualTo(tail ? Mode.OFF : Mode.READ_ONLY);
-      assertThat(t.prodDefaultMode()).isEqualTo(tail ? Mode.OFF : Mode.READ_ONLY);
+      assertThat(t.defaultMode()).as(t.name() + ": every read starts in Read only").isEqualTo(Mode.READ_ONLY);
+      assertThat(t.prodDefaultMode()).as(t.name()).isEqualTo(Mode.READ_ONLY);
       assertThat(t.outputSchema()).isNotNull();
       assertThat(t.annotations()).isEqualTo(tail ? new ToolDefinition.Annotations(true, false, false, false)
           : ToolDefinition.Annotations.read());

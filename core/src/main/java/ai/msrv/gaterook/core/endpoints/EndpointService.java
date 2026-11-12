@@ -3,7 +3,6 @@ package ai.msrv.gaterook.core.endpoints;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
-import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
@@ -98,13 +97,13 @@ public class EndpointService {
 
   /** How a new endpoint starts (kit "Start from"). */
   public enum StartFrom {
-    /** No connections, every tool off. */
+    /** No connections; GateRook's own reads (list_connections, describe_connection) on. */
     EMPTY(Env.DEV, EndpointAccess.STANDARD),
     /** Selected dev connections with their read-only tools on; the endpoint is read only. */
     READ_ONLY_DEV(Env.DEV, EndpointAccess.READ_ONLY),
     /** Selected stage connections with their read-only tools on; the endpoint is read only. */
     READ_ONLY_STAGE(Env.STAGE, EndpointAccess.READ_ONLY),
-    /** Selected prod connections: reads on, tools that only change data off, runbooks through approval. */
+    /** Selected prod connections: reads on, everything that changes data or runs commands through approval. */
     INCIDENT_RESPONSE(Env.PROD, EndpointAccess.STANDARD);
 
     private final Env env;
@@ -284,11 +283,11 @@ public class EndpointService {
       EndpointEntity e = new EndpointEntity(slug, env, access, rows.map(defaultSettings()), clock.instant());
       e.setDescription(description);
       e = rows.save(e);
-      wiring.ensureCoreTools(e, startFrom == StartFrom.EMPTY ? Mode.OFF : Mode.READ_ONLY);
+      wiring.ensureCoreTools(e, Mode.READ_ONLY);
       boolean readOnly = access == EndpointAccess.READ_ONLY;
       for (ConnectionConfigs.Stored c : selected) {
         wiring.wire(e, c, registry.type(c.config().type()).orElseThrow().manifest(),
-            offered -> startMode(startFrom, offered, readOnly));
+            offered -> ToolPairs.initial(offered, startFrom.env, readOnly));
       }
       e.setEnv(wiring.deriveEnv(e.getId(), env));
       e = rows.save(e);
@@ -341,13 +340,6 @@ public class EndpointService {
     return available;
   }
 
-  /** The mode a start gives an offered tool: the type's default, clamped on a read-only endpoint; incidents never write. */
-  private static Mode startMode(StartFrom startFrom, ToolPairs.Offered offered, boolean readOnly) {
-    Mode mode = ToolPairs.initial(offered, startFrom.env, readOnly);
-    return startFrom == StartFrom.INCIDENT_RESPONSE
-        && offered.definition().nature() == ToolDefinition.Nature.MUTATION ? Mode.OFF : mode;
-  }
-
   /**
    * One "Start from" card of New endpoint: the eligible connections and tool counts if all were selected.
    *
@@ -363,7 +355,7 @@ public class EndpointService {
   public StartPreview previewStart(StartFrom startFrom) {
     boolean readOnly = startFrom.access == EndpointAccess.READ_ONLY;
     Env env = startFrom.env;
-    Mode core = startFrom == StartFrom.EMPTY ? Mode.OFF : Mode.READ_ONLY;
+    Mode core = Mode.READ_ONLY;
     int[] counts = new int[Mode.values().length];
     for (int i = 0; i < ai.msrv.gaterook.core.endpoints.CoreTools.WITH_MODE.size(); i++) {
       counts[core.ordinal()]++;
@@ -375,7 +367,7 @@ public class EndpointService {
         : pairs.offered(members, "new-endpoint", env);
     for (List<ToolPairs.Offered> tools : offered.values()) {
       for (ToolPairs.Offered t : tools == null ? List.<ToolPairs.Offered>of() : tools) {
-        counts[startMode(startFrom, t, readOnly).ordinal()]++;
+        counts[ToolPairs.initial(t, env, readOnly).ordinal()]++;
       }
     }
     return new StartPreview(KebabCaseEnumConverter.idOf(startFrom), env, readOnly ? "read-only" : "standard",

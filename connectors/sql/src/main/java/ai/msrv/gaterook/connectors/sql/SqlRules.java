@@ -2,7 +2,6 @@ package ai.msrv.gaterook.connectors.sql;
 
 import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connectors.sql.IdentifierRules.TableRef;
 import ai.msrv.gaterook.connectors.sql.SqlClassifier.Analysis;
@@ -56,8 +55,7 @@ final class SqlRules {
     }
 
     static SqlPolicy of(PolicyView view, ConnectionConfig cfg, SqlSyntax syntax, ConnectionSettings s) {
-      Env env = view.env() == null ? cfg.env() : view.env();
-      return new SqlPolicy(view, syntax, view.flag("denyDdl", env != Env.DEV),
+      return new SqlPolicy(view, syntax, view.flag("denyDdl", false),
           Allowlist.of(view.strings("allowlist"), s.schemaAllowlist(), syntax, DatabaseSelection.selected(cfg)),
           view.strings("deniedFunctions"),
           s.allowedFunctions(), FunctionRules.fromMetadata(cfg.metadata()), s.defaultSchema());
@@ -69,10 +67,6 @@ final class SqlRules {
 
     boolean sqlServer() {
       return syntax == SqlSyntax.SQLSERVER;
-    }
-
-    boolean prod() {
-      return view.env() == Env.PROD;
     }
 
     String rule(String id) {
@@ -109,7 +103,7 @@ final class SqlRules {
     if (tables != null) {
       return tables;
     }
-    return functions(a, p, "sql_query");
+    return functions(a, p);
   }
 
   // ── sql_execute ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -169,7 +163,7 @@ final class SqlRules {
       return tables;
     }
     if (a.kind() == Kind.READ) {
-      return functions(a, p, tool);
+      return functions(a, p);
     }
     return Classification.mutation(tool + " runs " + a.statements().getFirst().type() + ", which changes data",
         facts(a));
@@ -291,8 +285,11 @@ final class SqlRules {
         + p.env() + ".", "Call sql_list_schemas to see the tables you can use.");
   }
 
-  /** Reads call built-in functions; another function may change data, so a person decides (refused on prod). */
-  private static Classification functions(Analysis a, SqlPolicy p, String tool) {
+  /**
+   * Reads call built-in functions; another function may change data, so a person decides, on prod too. An approved
+   * read still runs in a read-only transaction. SQL Server has none to contain it, so there it is refused.
+   */
+  private static Classification functions(Analysis a, SqlPolicy p) {
     FunctionRules.Verdict v = FunctionRules.check(a.functions(), p.syntax(), p.builtIns(), p.deniedFunctions(),
         p.allowedFunctions());
     if (v.notBuiltIn().isEmpty()) {
@@ -303,11 +300,6 @@ final class SqlRules {
       return Classification.deny(p.rule("function-not-built-in"), names + " cannot run as a SQL Server read: "
           + "SQL Server has no read-only transactions to contain an unknown function.",
           "Use supported built-in functions.");
-    }
-    if (p.prod()) {
-      return Classification.deny(p.rule("function-not-built-in"), names + (v.notBuiltIn().size() == 1 ? " isn't a "
-          + "built-in function" : " aren't built-in functions") + ", and on prod " + tool + " runs only built-in "
-          + "ones.", "If it only reads, a person can add it to the connection's allowed functions.");
     }
     ObjectNode facts = facts(a);
     ArrayNode fns = facts.putArray("functions");

@@ -45,7 +45,7 @@ class HttpConnectorTest {
 
     assertThat(tools).extracting(ToolDefinition::name)
         .containsExactly("http_get", "http_request");
-    assertTool(tools.get(0), "http_get", Nature.READ, Mode.READ_ONLY, Mode.OFF, true);
+    assertTool(tools.get(0), "http_get", Nature.READ, Mode.READ_ONLY, Mode.READ_ONLY, true);
     assertTool(tools.get(1), "http_request", Nature.MIXED, Mode.APPROVAL, Mode.APPROVAL, false);
   }
 

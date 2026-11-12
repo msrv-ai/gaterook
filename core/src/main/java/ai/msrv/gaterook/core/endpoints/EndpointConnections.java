@@ -10,6 +10,7 @@ import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
+import ai.msrv.gaterook.core.connectors.ConnectorTypeChanged;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
 import ai.msrv.gaterook.core.endpoints.internal.TemporaryBypass;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
@@ -248,9 +249,24 @@ public class EndpointConnections implements SmartInitializingSingleton {
   }
 
   /**
+   * A connector type changed (a plugin update, a gateway build that changes a built-in's tools, the type switched on
+   * or off): every connection of the type is reconciled, so a tool it starts offering joins the endpoints of those
+   * connections in its default mode instead of staying out of them.
+   */
+  @Async
+  @TransactionalEventListener
+  public void onConnectorTypeChanged(ConnectorTypeChanged event) {
+    for (ConnectionConfigs.Stored c : connections.all()) {
+      if (c.config().type().equals(event.typeId())) {
+        reconcile(c.config().id(), null);
+      }
+    }
+  }
+
+  /**
    * Brings the pairs of {@code connectionId} on every endpoint in line with what it offers now: new tools get a row
-   * (Off, or the defaults while the first version of a template is new), tools that went away lose theirs, a tool
-   * that changes data now leaves Read only for Approval. Each endpoint's env is derived again.
+   * in their default mode ({@link ToolPairs#initial}: reads in Read only, the rest in Approval), tools that went away
+   * lose theirs, a tool that changes data now leaves Read only for Approval. Each endpoint's env is derived again.
    */
   public void reconcile(String connectionId, String reason) {
     ConnectionConfigs.Stored c = connections.byId(connectionId).orElse(null);
@@ -318,9 +334,7 @@ public class EndpointConnections implements SmartInitializingSingleton {
         if (external && rowCount >= MAX_SERVER_ROWS) {
           continue;
         }
-        boolean freshTemplate = offered.template() != null && offered.template().version() == 1;
-        Mode mode = freshTemplate || offered.automaticReadOnly()
-            ? ToolPairs.initial(offered, e.getEnv(), readOnly) : Mode.OFF;
+        Mode mode = ToolPairs.initial(offered, e.getEnv(), readOnly);
         EndpointToolEntity created = new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant());
         created.setReviewedDefinition(ToolPairs.reviewedDefinition(offered), clock.instant());
         rows.save(created);

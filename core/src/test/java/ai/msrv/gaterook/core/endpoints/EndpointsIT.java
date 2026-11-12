@@ -121,7 +121,7 @@ class EndpointsIT {
     EndpointService.Summary created = endpoints.create("empty-ep", "for tests", EndpointService.StartFrom.EMPTY, null);
     assertThat(created.env()).isEqualTo(Env.DEV);
     assertThat(created.connections()).isZero();
-    assertThat(created.tools()).isEqualTo(new EndpointService.ToolCounts(0, 0, 2));
+    assertThat(created.tools()).as("GateRook's own reads").isEqualTo(new EndpointService.ToolCounts(2, 0, 0));
     assertThat(created.url()).endsWith("/mcp/empty-ep");
 
     core.connection("e1-prod", "pgfake", Env.PROD, "db.test");
@@ -155,7 +155,8 @@ class EndpointsIT {
     ToolCatalog.Catalog list = catalog.forEndpoint(s);
     assertThat(list.tools()).extracting(ToolCatalog.PublishedTool::name)
         .containsExactly("approval_card", "approval_card_action", "approval_status", "connection_import_progress", "connection_import_schema",
-            "open_connection_import", "sql_execute", "sql_query", "submit_connection_import");
+            "describe_connection", "list_connections", "open_connection_import", "sql_execute", "sql_query",
+            "submit_connection_import");
     ToolCatalog.PublishedTool query = list.tool("sql_query").orElseThrow();
     assertThat(query.inputSchema().at("/properties/connection/enum")).extracting(n -> n.asString())
         .containsExactly("m-my", "m-pg");
@@ -245,9 +246,10 @@ class EndpointsIT {
     assertThat(incident.tools()).isEqualTo(incidentPreview.tools());
     EndpointSnapshot p = snapshots.bySlug("s-incident").orElseThrow();
     assertThat(p.connections()).extracting(w -> w.config().env()).containsOnly(Env.PROD);
-    assertThat(mode(p, "sql_execute", "s-prod-db")).isEqualTo(Mode.OFF);
+    assertThat(mode(p, "sql_execute", "s-prod-db")).as("changes wait for a person").isEqualTo(Mode.APPROVAL);
     assertThat(mode(p, "ssh_run", "s-prod-vm")).isEqualTo(Mode.READ_ONLY);
-    assertThat(mode(p, "ssh_exec", "s-prod-vm")).isEqualTo(Mode.OFF);
+    assertThat(mode(p, "ssh_exec", "s-prod-vm")).isEqualTo(Mode.APPROVAL);
+    assertThat(p.pairs()).as("nothing starts Off on an incident endpoint").noneMatch(x -> x.mode() == Mode.OFF);
 
     // A standard endpoint that becomes read only loses everything that could change data.
     endpoints.create("s-standard", null, EndpointService.StartFrom.EMPTY, null);
@@ -272,7 +274,12 @@ class EndpointsIT {
 
     endpoints.create("r-contained", null, EndpointService.StartFrom.EMPTY, null);
     wiring.add("r-contained", "r-db", null);
-    wiring.add("r-contained", "r-vm", null);
+    EndpointSnapshot contained = wiring.add("r-contained", "r-vm", null);
+    // ssh_exec starts in Approval: any shell command is a way out until the person turns it off.
+    assertThat(endpoints.risk("r-contained").state()).isEqualTo("present");
+    EndpointSnapshot.Pair exec = contained.pairs().stream().filter(p -> p.tool().name().equals("ssh_exec"))
+        .findFirst().orElseThrow();
+    tools.setMode("r-contained", exec.toolKey(), "r-vm", Mode.OFF, null, null, exec.rowVersion(), "runbooks only");
     assertThat(endpoints.risk("r-contained").state()).isEqualTo("limited");
 
     // A runbook with a free-text parameter turns ssh_run into a full channel.
@@ -770,7 +777,7 @@ class EndpointsIT {
     endpoints.create("w3-ep", null, EndpointService.StartFrom.EMPTY, null);
     wiring.add("w3-ep", "w3-a", null);
     EndpointSnapshot warm = wiring.add("w3-ep", "w3-b", null);
-    core.jdbc().update("update endpoint_tool set mode = 'READ_ONLY' where tool_key = 'list_connections' and "
+    core.jdbc().update("update endpoint_tool set mode = 'APPROVAL' where tool_key = 'list_connections' and "
         + "endpoint_id = (select id from endpoint where slug = 'w3-ep')");
     assertThatThrownBy(() -> endpoints.duplicate("w3-ep", "w3-copy", null))
         .isInstanceOfSatisfying(ProblemException.class, e -> {
@@ -794,7 +801,7 @@ class EndpointsIT {
     assertThat(still.blocked()).isTrue();
     assertThat(still.readOnly()).isFalse();
     assertThat(still.coreTool("list_connections").orElseThrow().storedMode()).as("as edited, still unsigned")
-        .isEqualTo(Mode.READ_ONLY);
+        .isEqualTo(Mode.APPROVAL);
 
     // The person reviews it: kept as stored, its env derived again from what is left.
     endpoints.confirmIntegrity("w-ep", "I made it standard");
@@ -826,7 +833,7 @@ class EndpointsIT {
     assertThat(ro.coreTool("list_connections").orElseThrow().storedMode()).isEqualTo(Mode.OFF);
     assertThat(core.jdbc().queryForList("select change_from, change_to from setup_change where what = 'mode' and "
         + "subject = 'list_connections, endpoint ro-ep' order by id")).extracting(r -> r.get("change_from") + "→"
-        + r.get("change_to")).containsExactly("Off→Approval", "Approval→Off");
+        + r.get("change_to")).containsExactly("Read only→Approval", "Approval→Off");
 
     // A read-only endpoint holds its core tools Off or Read only, like every pair.
     long coreVersion = ro.coreTool("list_connections").orElseThrow().rowVersion();
@@ -1267,7 +1274,8 @@ class EndpointsIT {
       EndpointSnapshot s = snapshots.bySlug(choice.getKey()).orElseThrow();
       assertThat(pair(s, "gh_search").storedMode()).isEqualTo(choice.getValue());
       assertThat(pair(s, "gh_search").mode()).isEqualTo(choice.getValue());
-      assertThat(pair(s, "gh_new_write").mode()).isEqualTo(Mode.OFF);
+      assertThat(pair(s, "gh_new_write").mode()).as("a tool listed later joins in Approval, Off where nothing waits")
+          .isEqualTo(choice.getKey().equals("mcp-read-endpoint") ? Mode.OFF : Mode.APPROVAL);
     }
 
     ((ObjectNode) config.get("connection")).put("note", "3.0.0");

@@ -53,10 +53,10 @@ class BuiltInConnectorCatalogTest {
       "redis", Map.of("redis_get", Mode.READ_ONLY, "redis_scan", Mode.READ_ONLY,
           "redis_set", Mode.APPROVAL, "redis_hset", Mode.APPROVAL, "redis_lpush", Mode.APPROVAL,
           "redis_rpush", Mode.APPROVAL, "redis_sadd", Mode.APPROVAL, "redis_zadd", Mode.APPROVAL),
-      "ssh", Map.of("ssh_run", Mode.READ_ONLY, "ssh_exec", Mode.OFF),
-      "logs", Map.of("logs_search", Mode.READ_ONLY, "logs_tail", Mode.OFF),
-      "kubernetes", Map.of("k8s_get", Mode.READ_ONLY, "k8s_logs", Mode.OFF, "k8s_rollout_restart", Mode.APPROVAL,
-          "k8s_apply", Mode.OFF),
+      "ssh", Map.of("ssh_run", Mode.READ_ONLY, "ssh_exec", Mode.APPROVAL),
+      "logs", Map.of("logs_search", Mode.READ_ONLY, "logs_tail", Mode.READ_ONLY),
+      "kubernetes", Map.of("k8s_get", Mode.READ_ONLY, "k8s_logs", Mode.READ_ONLY, "k8s_rollout_restart", Mode.APPROVAL,
+          "k8s_apply", Mode.APPROVAL),
       "aws", Map.of("aws_describe", Mode.READ_ONLY, "aws_metrics", Mode.READ_ONLY, "aws_api_read", Mode.READ_ONLY,
           "aws_api_change", Mode.APPROVAL),
       "http", Map.of("http_get", Mode.OFF, "http_request", Mode.APPROVAL));
@@ -151,9 +151,9 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void devEndpointUsesTheCurrentDefaultModes() {
-    // The demo endpoint has 32 tools, 15 read only · 12 approval · 5 off. Defaults of its 8 connection types, then the
-    // Setup change of 10:40 (http_get on billing-api: Read only → Off), plus the core tools list_connections and
-    // describe_connection, both Read only.
+    // The demo endpoint has 32 tools, 17 read only · 14 approval · 1 off. Defaults of its 8 connection types (none
+    // Off), then the Setup change of 10:40 (http_get on billing-api: Read only → Off), plus the core tools
+    // list_connections and describe_connection, both Read only.
     Map<Mode, Integer> modes = new EnumMap<>(Mode.class);
     DEV_ENDPOINT.forEach((type, expected) -> {
       Map<String, Mode> defaults = byId.get(type).tools().stream()
@@ -174,7 +174,7 @@ class BuiltInConnectorCatalogTest {
     modes.merge(Mode.READ_ONLY, 2, Integer::sum);
 
     assertThat(modes).containsExactlyInAnyOrderEntriesOf(
-        Map.of(Mode.READ_ONLY, 15, Mode.APPROVAL, 12, Mode.OFF, 5));
+        Map.of(Mode.READ_ONLY, 17, Mode.APPROVAL, 14, Mode.OFF, 1));
   }
 
   @Test

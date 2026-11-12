@@ -89,15 +89,15 @@ class VerifiedProfileToolsTest {
   }
 
   @Test
-  void aDelegatingToolStartsOffAndOneThatReturnsCredentialsWaitsForApproval() {
+  void aDelegatingToolAndOneThatReturnsCredentialsWaitForApproval() {
     Connector harness = connector("https://harness-runtime.mcp.digitalocean.com/mcp",
         tool("harness-runtime-send-input", false), tool("harness-runtime-list-sessions", true));
     Connector doks = connector("https://doks.mcp.digitalocean.com/mcp", tool("doks-get-kubeconfig", true),
         tool("doks-list-clusters", true));
 
     ToolDefinition sendInput = definition(harness, "harness-runtime-send-input");
-    assertThat(sendInput.defaultMode()).isEqualTo(Mode.OFF);
-    assertThat(sendInput.prodDefaultMode()).isEqualTo(Mode.OFF);
+    assertThat(sendInput.defaultMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(sendInput.prodDefaultMode()).isEqualTo(Mode.APPROVAL);
     assertThat(sendInput.nature()).isEqualTo(Nature.MUTATION);
     assertThat(definition(harness, "harness-runtime-list-sessions").defaultMode()).isEqualTo(Mode.READ_ONLY);
     ToolDefinition kubeconfig = definition(doks, "doks-get-kubeconfig");
@@ -116,6 +116,6 @@ class VerifiedProfileToolsTest {
     assertThat(definition(vercelDocs, "buy_domain").defaultMode()).as("Vercel's docs server is another server")
         .isEqualTo(Mode.READ_ONLY);
     assertThat(definition(connector("https://mcp.vercel.com", tool("buy_domain", true)), "buy_domain")
-        .defaultMode()).isEqualTo(Mode.OFF);
+        .defaultMode()).isEqualTo(Mode.APPROVAL);
   }
 }

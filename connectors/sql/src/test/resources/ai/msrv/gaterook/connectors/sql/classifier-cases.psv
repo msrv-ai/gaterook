@@ -60,7 +60,7 @@ pg | query | dev | EXPLAIN ANALYZE UPDATE orders SET status = 'x' | DENY query-w
 # EXPLAIN ANALYZE runs the statement, so functions inside it are seen (review 2026-10-26): the parser recurses into it.
 pg | query | dev | EXPLAIN ANALYZE SELECT dblink_exec('x', 'DROP TABLE orders') | DENY function-denied
 pg | query | dev | EXPLAIN ANALYZE SELECT my_wrapper() | MUTATION
-pg | query | prod | EXPLAIN ANALYZE SELECT my_wrapper() | DENY function-not-built-in
+pg | query | prod | EXPLAIN ANALYZE SELECT my_wrapper() | MUTATION
 pg | query | dev | SELECT 1; SELECT 2 | DENY multi-statement
 pg | query | dev | SELECT 1; DROP TABLE orders | DENY multi-statement
 #
@@ -142,7 +142,7 @@ pg | query | dev | SELECT md5(email) FROM customers | DENY function-denied | den
 pg | execute | dev | UPDATE orders SET note = pg_terminate_backend(1)::text | DENY function-denied
 pg | query | dev | SELECT my_wrapper() | MUTATION
 pg | query | stage | SELECT my_wrapper() | MUTATION
-pg | query | prod | SELECT my_wrapper() | DENY function-not-built-in
+pg | query | prod | SELECT my_wrapper() | MUTATION
 pg | query | dev | SELECT public.f_write() | MUTATION
 pg | query | dev | SELECT f_read() | READ | allowed=f_read
 pg | query | prod | SELECT f_read() | READ | allowed=f_read
@@ -153,7 +153,7 @@ pg | query | dev | SELECT myschema.now() | MUTATION
 pg | query | dev | SELECT * FROM orders WHERE id = f_lookup(1) | MUTATION
 pg | query | dev | SELECT (SELECT f_write()) | MUTATION
 pg | query | dev | SELECT * FROM f_rows() | MUTATION
-pg | query | prod | SELECT * FROM f_rows() | DENY function-not-built-in
+pg | query | prod | SELECT * FROM f_rows() | MUTATION
 pg | execute | dev | UPDATE orders SET note = f_write() | MUTATION
 pg | execute | prod | UPDATE orders SET note = f_write() WHERE id = 1 | MUTATION
 #
@@ -171,8 +171,8 @@ pg | query | dev | SELECT string_agg(status, ',' ORDER BY pg_terminate_backend(1
 pg | query | dev | SELECT array_agg(id ORDER BY dblink('dbname=app', 'SELECT 1')) FROM orders | DENY function-denied
 pg | query | dev | SELECT pg_terminate_backend(1) IS UNKNOWN | DENY function-denied
 pg | query | dev | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | MUTATION
-pg | query | prod | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | DENY function-not-built-in
-pg | query | prod | SELECT now() AT TIME ZONE public.f_write() | DENY function-not-built-in
+pg | query | prod | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | MUTATION
+pg | query | prod | SELECT now() AT TIME ZONE public.f_write() | MUTATION
 # A name before a column list (an alias, a CTE) isn't a call there; another use of the same name is.
 pg | query | dev | WITH dblink_exec(x) AS (SELECT 1) SELECT count(*) OVER (PARTITION BY dblink_exec('dbname=app', 'x')) FROM dblink_exec | DENY function-denied
 pg | query | dev | SELECT count(*) OVER (PARTITION BY dblink_exec('dbname=app', 'x')) FROM generate_series(1, 2) AS dblink_exec(n) | DENY function-denied
@@ -196,8 +196,9 @@ pg | query | dev | WITH recent AS MATERIALIZED (SELECT id FROM orders) SELECT co
 pg | query | dev | SELECT E'\'' | DENY unparsed
 pg | query | dev | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
 pg | execute | dev | DO $$ BEGIN DELETE FROM orders; END $$ | MUTATION
-pg | execute | stage | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
-pg | execute | prod | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
+pg | execute | stage | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed | ddl=deny
+pg | execute | prod | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed | ddl=deny
+pg | execute | prod | DO $$ BEGIN DELETE FROM orders; END $$ | MUTATION
 pg | execute | dev | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed | allowlist=public.*
 pg | query | dev | SELECT 'unclosed | DENY unparsed
 #
@@ -219,15 +220,16 @@ pg | execute | dev | SELECT * FROM orders; SELECT 2 | DENY execute-read
 pg | execute | dev | CREATE TABLE t (id int) | MUTATION
 pg | execute | dev | GRANT SELECT ON orders TO bob | MUTATION
 pg | execute | dev | CREATE TABLE t (id int) | DENY block_ddl | ddl=deny
-pg | execute | stage | CREATE TABLE t (id int) | DENY block_ddl
+pg | execute | stage | CREATE TABLE t (id int) | DENY block_ddl | ddl=deny
 pg | execute | stage | CREATE TABLE t (id int) | MUTATION | ddl=allow
-pg | execute | prod | DROP TABLE orders | DENY block_ddl
-pg | execute | prod | TRUNCATE orders | DENY block_ddl
-pg | execute | prod | ALTER TABLE orders ADD COLUMN x int | DENY block_ddl
-pg | execute | prod | CREATE INDEX i ON orders (status) | DENY block_ddl
-pg | execute | prod | GRANT SELECT ON orders TO bob | DENY block_ddl
-pg | execute | prod | UPDATE orders SET status = 'x'; DROP TABLE orders | DENY block_ddl
-pg | execute | prod | SELECT * INTO copy_of_orders FROM orders | DENY block_ddl
+pg | execute | prod | DROP TABLE orders | DENY block_ddl | ddl=deny
+pg | execute | prod | DROP TABLE orders | MUTATION
+pg | execute | prod | TRUNCATE orders | DENY block_ddl | ddl=deny
+pg | execute | prod | ALTER TABLE orders ADD COLUMN x int | DENY block_ddl | ddl=deny
+pg | execute | prod | CREATE INDEX i ON orders (status) | DENY block_ddl | ddl=deny
+pg | execute | prod | GRANT SELECT ON orders TO bob | DENY block_ddl | ddl=deny
+pg | execute | prod | UPDATE orders SET status = 'x'; DROP TABLE orders | DENY block_ddl | ddl=deny
+pg | execute | prod | SELECT * INTO copy_of_orders FROM orders | DENY block_ddl | ddl=deny
 # Temporary objects and cursors that outlive the transaction stay in the pooled session: never run.
 pg | execute | dev | CREATE TEMP TABLE orders (id int) | DENY forbidden
 pg | execute | dev | CREATE TEMPORARY TABLE t AS SELECT * FROM orders | DENY forbidden
@@ -324,14 +326,14 @@ my | query | dev | SELECT BENCHMARK(1000000, MD5('a')) | DENY function-denied
 my | query | dev | SELECT RELEASE_ALL_LOCKS() | DENY function-denied
 my | query | dev | SELECT app.f_write() | MUTATION
 my | query | dev | SELECT f_write() | MUTATION
-my | query | prod | SELECT f_write() | DENY function-not-built-in
+my | query | prod | SELECT f_write() | MUTATION
 #
 # ── MySQL: calls in every expression position ──────────────────────────────────────────────────────────────
 my | query | dev | SELECT GROUP_CONCAT(id ORDER BY LOAD_FILE('/etc/passwd')) FROM orders | DENY function-denied
 my | query | dev | SELECT GROUP_CONCAT(LOAD_FILE('/etc/passwd')) FROM orders | DENY function-denied
 my | query | dev | SELECT id FROM orders WHERE MATCH(note) AGAINST (LOAD_FILE('/etc/passwd')) | DENY function-denied
 my | query | dev | SELECT count(*) OVER (PARTITION BY GET_LOCK('a', 10)) FROM orders | DENY function-denied
-my | query | prod | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | DENY function-not-built-in
+my | query | prod | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | MUTATION
 my | query | dev | SELECT GROUP_CONCAT(DISTINCT status ORDER BY id SEPARATOR ',') FROM orders | READ
 my | query | dev | SELECT id FROM orders WHERE MATCH(note) AGAINST ('x' IN BOOLEAN MODE) | READ
 my | query | dev | SELECT CAST(total AS DECIMAL(10, 2)), CONVERT(note, CHAR(20)), CONVERT(note USING utf8mb4) FROM orders | READ
@@ -345,8 +347,9 @@ my | execute | dev | REPLACE INTO orders (id) VALUES (1) | MUTATION
 my | execute | dev | DELETE FROM orders WHERE id = 1 | MUTATION
 my | execute | dev | UPDATE orders SET a = 1; UPDATE order_items SET b = 2 | DENY multi-statement
 my | execute | dev | CREATE TABLE t (id int) | MUTATION
-my | execute | prod | DROP TABLE orders | DENY block_ddl
-my | execute | stage | ALTER TABLE orders ADD COLUMN x int | DENY block_ddl
+my | execute | prod | DROP TABLE orders | DENY block_ddl | ddl=deny
+my | execute | prod | DROP TABLE orders | MUTATION
+my | execute | stage | ALTER TABLE orders ADD COLUMN x int | DENY block_ddl | ddl=deny
 my | execute | dev | SET @a = 1 | DENY forbidden
 my | execute | dev | SET SESSION sql_mode = 'ANSI_QUOTES' | DENY forbidden
 my | execute | dev | USE other | DENY forbidden

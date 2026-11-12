@@ -14,7 +14,8 @@ let nextId = 0;
 /**
  * `<dialog gwPluginUpdateDialog>` (kit `dlg-update-jira`): the same checks as an install plus what changes in the
  * manifest, as a diff (`GET /api/plugins/{id}/update-preview`). Only the confirm loads the new code, side by side:
- * calls in flight finish on the old version, new tools start Off on every endpoint (§7.5). Focus starts on Cancel.
+ * calls in flight finish on the old version, new tools join the endpoints it is on in their default modes (§7.5).
+ * Focus starts on Cancel.
  * Decision 2 (ARCHITECTURE §8.6.5): "in a new plugin process", not "in a new classloader".
  *
  * An unsigned release (the catalog can list one: `signed: false`) loads unverified code like an unsigned install, so
@@ -37,7 +38,7 @@ let nextId = 0;
         @if (p.signed) {
           <span class="gw-icon-tile gw-icon-tile--success"><svg lucideIcon="badge-check" class="gw-icon"></svg></span>
           <h2 class="gw-dialog__title" [id]="uid + '-t'">Update {{ p.name }} to {{ to() }}</h2>
-          <p class="gw-dialog__description" [id]="uid + '-d'">Loads without a restart, in a new plugin process; calls in flight finish on {{ from() }}. New tools start Off on every endpoint.</p>
+          <p class="gw-dialog__description" [id]="uid + '-d'">Loads without a restart, in a new plugin process; calls in flight finish on {{ from() }}. New tools join the endpoints it is on: reads as Read only, the others as Approval.</p>
         } @else {
           <span class="gw-icon-tile"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
           <h2 class="gw-dialog__title" [id]="uid + '-t'">Update {{ p.name }} to unsigned {{ to() }}?</h2>
@@ -113,8 +114,9 @@ export class GwPluginUpdateDialog {
   protected readonly size = computed(() => formatBytes(this.preview()?.package?.size));
 
   /**
-   * The paragraph under the diff (kit): the new tools start Off and come in as Approval (their annotations are the
-   * plugin's word), the existing ones keep their modes, removed ones leave every endpoint; and who uses the plugin.
+   * The paragraph under the diff (kit): the new tools join the endpoints the plugin is on — reads as Read only when the
+   * catalog key signed the build, the rest as Approval (an unsigned build's annotations are the plugin's word) — the
+   * existing ones keep their modes, removed ones leave every endpoint; and who uses the plugin.
    */
   protected readonly consequence = computed(() => {
     const p = this.preview();
@@ -130,7 +132,9 @@ export class GwPluginUpdateDialog {
     });
     if (added.length) {
       say(
-        `${added.length === 1 ? ' starts' : ' start'} Off on every endpoint; added to one, ${added.length === 1 ? 'it starts' : 'each starts'} as Approval: ${added.length === 1 ? 'its annotations are' : 'their annotations are'} declared by the plugin, not verified. `,
+        p.signed
+          ? `${added.length === 1 ? ' joins' : ' join'} the endpoints the plugin is on: reads as Read only, the others as Approval. `
+          : `${added.length === 1 ? ' joins' : ' join'} the endpoints the plugin is on as Approval: ${added.length === 1 ? 'its annotations are' : 'their annotations are'} declared by the plugin, not verified. `,
       );
     }
     if (p.toolsRemoved.length) say(`${joinAnd(p.toolsRemoved)} ${p.toolsRemoved.length === 1 ? 'leaves' : 'leave'} every endpoint. `);

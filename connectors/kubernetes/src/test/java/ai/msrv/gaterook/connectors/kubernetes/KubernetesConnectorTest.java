@@ -60,9 +60,9 @@ class KubernetesConnectorTest {
     assertThat(tools).extracting(ToolDefinition::name)
         .containsExactly("k8s_get", "k8s_logs", "k8s_rollout_restart", "k8s_apply");
     assertTool(tools.get(0), "k8s_get", Nature.READ, Mode.READ_ONLY, Mode.READ_ONLY, true);
-    assertTool(tools.get(1), "k8s_logs", Nature.READ, Mode.OFF, Mode.OFF, false);
-    assertTool(tools.get(2), "k8s_rollout_restart", Nature.MUTATION, Mode.APPROVAL, Mode.OFF, false);
-    assertTool(tools.get(3), "k8s_apply", Nature.MUTATION, Mode.OFF, Mode.OFF, false);
+    assertTool(tools.get(1), "k8s_logs", Nature.READ, Mode.READ_ONLY, Mode.READ_ONLY, false);
+    assertTool(tools.get(2), "k8s_rollout_restart", Nature.MUTATION, Mode.APPROVAL, Mode.APPROVAL, false);
+    assertTool(tools.get(3), "k8s_apply", Nature.MUTATION, Mode.APPROVAL, Mode.APPROVAL, false);
     assertThat(tools.get(0).outputSchema().at("/properties/cursor/type").toString()).contains("null");
   }
 

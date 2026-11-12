@@ -455,7 +455,7 @@ final class OpenApiTemplateKind implements TemplateKind, TemplateImporter {
           .risk(new Risk(true, true, Egress.CHANNEL));
       if (read) {
         tool.nature(Nature.READ).annotations(new Annotations(true, false, readMethod, true))
-            .defaultMode(Mode.READ_ONLY, Mode.OFF);
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY);
       } else {
         // Report 10 §3: POST/PATCH destructive, PUT/DELETE destructive and idempotent; a GET marked as changing
         // state has unknown side effects.

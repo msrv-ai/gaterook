@@ -228,11 +228,10 @@ class SqlEndToEndIT {
 
   @Test
   @Order(6)
-  void theSameCallIsDeniedOnProd() throws Exception {
+  void theSameCallWaitsForAPersonOnProd() throws Exception {
     JsonNode r = call("prod", "sql_query", sql("prod-db", "SELECT f_write()"));
 
-    assertThat(r.path("isError").asBoolean()).isTrue();
-    assertThat(r.at("/content/0/text").asString()).startsWith("Denied by policy prod.sql.function-not-built-in");
+    assertThat(r.at("/structuredContent/status").asString()).as(r.toString()).isEqualTo("pending");
   }
 
   @Test

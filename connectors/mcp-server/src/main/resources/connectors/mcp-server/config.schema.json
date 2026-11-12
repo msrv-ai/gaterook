@@ -82,7 +82,7 @@
       "properties": {
         "resources": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "title": "Its resources and resource templates"
         },
         "prompts": {

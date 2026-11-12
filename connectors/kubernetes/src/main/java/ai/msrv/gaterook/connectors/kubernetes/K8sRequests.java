@@ -56,8 +56,8 @@ final class K8sRequests {
   sealed interface Plan permits Get, Logs, Restart, Apply {}
 
   /**
-   * @param namespaces where to look: one namespace, every allowed one for {@code allNamespaces}, none for a
-   *     cluster-scoped kind
+   * @param namespaces where to look: one namespace, every allowed one for {@code allNamespaces} ({@link K8sPolicy#ALL}
+   *     when the policy allows every namespace), none for a cluster-scoped kind
    * @param events whether the events of the object are wanted and allowed ({@code describe})
    */
   record Get(KindInfo kind, String name, List<String> namespaces, boolean allNamespaces, String labelSelector,
@@ -294,17 +294,18 @@ final class K8sRequests {
   }
 
   private static void allowed(KindInfo kind, K8sPolicy policy) throws Refusal {
-    if (!kind.namespaced() && !policy.named(kind)) {
-      throw new Refusal(new Problem(policy.rule("cluster-scoped"), kind.plural() + " is cluster-scoped: agents "
-          + "reach it only when Allowed resources names it.", null));
+    if (policy.resource(kind)) {
+      return;
     }
-    if (!policy.resource(kind)) {
-      String name = kind.plainGroup() ? kind.plural() : kind.rbacName();
-      String reason = K8sPolicy.secret(kind) ? "secrets is not on the list, so agents can't read Kubernetes Secrets."
-          : name + " is not on the list of Allowed resources of the " + policy.env().id() + " policy: "
-              + policy.resourcesText() + ".";
-      throw new Refusal(new Problem(policy.rule("resource-not-allowed"), reason, null));
+    String name = kind.plainGroup() ? kind.plural() : kind.rbacName();
+    if (!kind.namespaced()) {
+      throw new Refusal(new Problem(policy.rule("cluster-scoped"), name + " is cluster-scoped and not on the list of "
+          + "Allowed resources of the " + policy.env().id() + " policy: " + policy.resourcesText() + ".", null));
     }
+    String reason = K8sPolicy.secret(kind) ? "secrets is not on the list, so agents can't read Kubernetes Secrets."
+        : name + " is not on the list of Allowed resources of the " + policy.env().id() + " policy: "
+            + policy.resourcesText() + ".";
+    throw new Refusal(new Problem(policy.rule("resource-not-allowed"), reason, null));
   }
 
   private static void verb(String verb, K8sPolicy policy) throws Refusal {

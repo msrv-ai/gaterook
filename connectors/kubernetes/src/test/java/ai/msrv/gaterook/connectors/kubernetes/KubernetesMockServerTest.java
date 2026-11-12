@@ -155,6 +155,26 @@ class KubernetesMockServerTest {
   }
 
   @Test
+  void byDefaultAllNamespacesIsOneRequestForTheWholeCluster() throws Exception {
+    api.json("GET", "/api/v1/pods", PODS_TABLE.formatted("", "kube-system", "app-dev"));
+    ToolCall all = call("tc_cluster", "k8s_get", "{\"kind\":\"pods\",\"allNamespaces\":true}");
+    ToolCall system = call("k8s_get", "{\"kind\":\"pods\",\"namespace\":\"kube-system\"}");
+
+    Classification c = connector.classify(all, cfg, policy(Env.DEV, "{}"));
+    ToolResult r = run(all, ctx(Env.DEV));
+
+    assertThat(c.kind()).isEqualTo(Classification.Kind.READ);
+    assertThat(connector.classify(system, cfg, policy(Env.DEV, "{}")).kind()).isEqualTo(Classification.Kind.READ);
+    assertThat(api.requests).extracting(FakeApiServer.Request::path).containsExactly("/api/v1/pods");
+    JsonNode out = r.structuredContent();
+    assertThat(out.path("columns").get(0).asString()).isEqualTo("Namespace");
+    assertThat(out.at("/rows/0/namespace").asString()).isEqualTo("kube-system");
+    assertThat(out.at("/rows/1/namespace").asString()).isEqualTo("app-dev");
+    assertThat(r.content().get(0).text()).startsWith("pods in all namespaces on ").contains("kube-system", "app-dev")
+        .doesNotContain("null");
+  }
+
+  @Test
   void anExecuteWithoutItsClassificationListsTheConnectionsNamespaceOnly() throws Exception {
     api.json("GET", "/api/v1/namespaces/app-dev/pods", PODS_TABLE.formatted("", "app-dev", "app-dev"));
 

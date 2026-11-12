@@ -85,7 +85,8 @@ class EndpointCreationApiIT {
             """.formatted(slug, env.id()));
         assertThat(created.path("env").asString()).isEqualTo(env.id());
         assertThat(created.at("/connections/total").asInt()).isZero();
-        assertThat(endpoints.snapshot(slug).coreTools()).allSatisfy(tool -> assertThat(tool.mode()).isEqualTo(Mode.OFF));
+        assertThat(endpoints.snapshot(slug).coreTools()).as("GateRook's own reads are on")
+            .allSatisfy(tool -> assertThat(tool.mode()).isEqualTo(Mode.READ_ONLY));
         assertThat(api.ok("/api/endpoints/" + slug).at("/endpoint/env").asString()).isEqualTo(env.id());
         assertThat(core.jdbc().queryForObject("select env from endpoint where slug = ?", String.class, slug)).isEqualTo(env.id());
       }
@@ -174,7 +175,8 @@ class EndpointCreationApiIT {
       var selected = snapshots.bySlug("selected-prod").orElseThrow();
       assertThat(selected.connections()).extracting(w -> w.config().name()).containsExactly("selected-prod-vm");
       assertThat(selected.pairs()).filteredOn(p -> "selected-prod-vm".equals(p.connectionName()))
-          .filteredOn(p -> p.tool().name().equals("ssh_exec")).extracting(p -> p.mode()).containsExactly(Mode.OFF);
+          .filteredOn(p -> p.tool().name().equals("ssh_exec")).extracting(p -> p.mode())
+          .containsExactly(Mode.APPROVAL);
       assertThat(snapshots.bySlug("existing-prod").orElseThrow().connections())
           .extracting(w -> w.config().name()).containsExactly("existing-prod-db", "selected-prod-vm");
       assertThat(snapshots.bySlug("new-incident-response").orElseThrow().connections()).isEmpty();

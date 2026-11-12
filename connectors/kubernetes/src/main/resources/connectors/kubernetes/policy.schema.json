@@ -28,15 +28,7 @@
         "apply"
       ],
       "x-stricter": "intersect",
-      "x-empty": "all",
-      "x-env-default": {
-        "prod": [
-          "get",
-          "list",
-          "describe",
-          "logs"
-        ]
-      }
+      "x-empty": "all"
     },
     "resources": {
       "type": "array",
@@ -47,24 +39,10 @@
         "type": "string",
         "pattern": "^[a-z0-9]+(\\.[a-z0-9.-]+)?$"
       },
-      "default": [
-        "deployments",
-        "pods",
-        "services",
-        "configmaps",
-        "events",
-        "jobs"
-      ],
+      "default": [],
       "x-stricter": "intersect",
       "x-empty": "connector-default",
-      "x-env-default": {
-        "prod": [
-          "deployments",
-          "pods",
-          "events"
-        ]
-      },
-      "description": "RBAC names: plural, <plural>.<group> for CRDs. Without secrets, agents can't read Kubernetes Secrets."
+      "description": "RBAC names: plural, <plural>.<group> for CRDs. Empty: every resource but secrets, cluster-scoped ones included. Without secrets, agents can't read Kubernetes Secrets."
     },
     "namespaces": {
       "type": "array",
@@ -78,9 +56,9 @@
       },
       "default": [],
       "x-stricter": "intersect",
-      "x-empty": "connector-default",
+      "x-empty": "all",
       "x-inherit": false,
-      "description": "Per environment, never inherited."
+      "description": "Empty: every namespace of the cluster. Per environment, never inherited."
     },
     "applyMaxObjects": {
       "type": "integer",
@@ -107,10 +85,7 @@
       "type": "boolean",
       "title": "Deny privileged pods in k8s_apply",
       "default": false,
-      "x-stricter": "or",
-      "x-env-default": {
-        "prod": true
-      }
+      "x-stricter": "or"
     }
   }
 }

@@ -15,7 +15,7 @@ GateRook's **Azure** connector gives AI clients bounded access to Azure subscrip
 | `azure_servicebus_read` | [Peek the dead-letter queue](#service-bus-dead-letters) of a queue or topic subscription | Read only |
 | `azure_servicebus_change` | Resubmit dead-lettered messages by sequence number | Approval |
 | `azure_keyvault_read` | [Names, versions and expiry](#key-vault-names-and-expiry) of a vault's secrets, keys and certificates, never values | Read only |
-| `logs_search`, `logs_tail` | KQL over the connection's Log Analytics workspaces and Application Insights components | Read only; tail Off |
+| `logs_search`, `logs_tail` | KQL over the connection's Log Analytics workspaces and Application Insights components | Read only |
 
 The Azure Monitor Logs connector publishes the same log tools as `azure_logs_search` and `azure_logs_tail`.
 

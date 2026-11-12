@@ -87,7 +87,9 @@ class SshConnectorTest {
     assertThat(m.name()).isEqualTo("SSH");
     assertThat(m.group()).isEqualTo("Remote access");
     assertThat(m.icon()).isEqualTo("terminal");
-    assertThat(m.configSchema().at("/properties/runbooksOnly/x-env-default/prod").asBoolean()).isTrue();
+    assertThat(m.configSchema().at("/properties/runbooksOnly/default").asBoolean(true)).isFalse();
+    assertThat(m.configSchema().at("/properties/runbooksOnly/x-env-default").isMissingNode())
+        .as("runbooks only on no environment by default: ssh_exec waits for approval instead").isTrue();
     assertThat(m.policySchema()).isNotNull();
     assertThat(connector.templateKinds()).extracting(TemplateKind::kind).containsExactly("ssh-runbook");
   }
@@ -98,7 +100,7 @@ class SshConnectorTest {
 
     assertThat(tools).extracting(ToolDefinition::name).containsExactly("ssh_run", "ssh_exec");
     assertTool(tools.get(0), "ssh_run", Nature.MIXED, Mode.READ_ONLY, Mode.READ_ONLY);
-    assertTool(tools.get(1), "ssh_exec", Nature.MUTATION, Mode.OFF, Mode.OFF);
+    assertTool(tools.get(1), "ssh_exec", Nature.MUTATION, Mode.APPROVAL, Mode.APPROVAL);
   }
 
   private static void assertTool(ToolDefinition t, String name, Nature nature, Mode dev, Mode prod) {
@@ -210,12 +212,15 @@ class SshConnectorTest {
 
   @Test
   void sshExecNeedsThePolicyAndIsAlwaysAMutation() {
-    Classification off = connector.classify(exec("uptime"), dev, policy(Env.DEV, null));
+    Classification off = connector.classify(exec("uptime"), dev, policy(Env.DEV, "{\"allowExec\":false}"));
+    Classification byDefault = connector.classify(exec("uptime"), dev, policy(Env.DEV, null));
     Classification on = connector.classify(exec("uptime"), dev, policy(Env.DEV, "{\"allowExec\":true}"));
     Classification nul = connector.classify(exec("id\u0000rm"), dev, policy(Env.DEV, "{\"allowExec\":true}"));
     Classification escape = connector.classify(exec("echo \u001b[2J"), dev, policy(Env.DEV, "{\"allowExec\":true}"));
 
     assertThat(off.ruleId()).isEqualTo("dev.ssh.exec-not-allowed");
+    assertThat(byDefault.kind()).as("allowed by default: each command waits for approval")
+        .isEqualTo(Classification.Kind.MUTATION);
     assertThat(on.kind()).isEqualTo(Classification.Kind.MUTATION);
     assertThat(on.facts().path("freeText").asBoolean()).isTrue();
     assertThat(nul.ruleId()).isEqualTo("dev.ssh.command-invalid");
@@ -223,14 +228,14 @@ class SshConnectorTest {
   }
 
   @Test
-  void prodConnectionsRunOnlyRunbooksUnlessTheSwitchIsOff() {
+  void prodConnectionsWaitForApprovalUnlessTheyRunOnlyRunbooks() {
     ConnectionConfig prod = TestConfigs.connection("c9", "prod-vm", Env.PROD, 1, TestConfigs.password(NO_SSH, null));
-    ConnectionConfig prodExec = TestConfigs.connection("c9", "prod-vm", Env.PROD, 2,
-        TestConfigs.with(TestConfigs.password(NO_SSH, null), c -> c.put("runbooksOnly", false)));
+    ConnectionConfig prodRunbooks = TestConfigs.connection("c9", "prod-vm", Env.PROD, 2,
+        TestConfigs.with(TestConfigs.password(NO_SSH, null), c -> c.put("runbooksOnly", true)));
     PolicyView allow = policy(Env.PROD, "{\"allowExec\":true}");
 
-    assertThat(connector.classify(exec("uptime"), prod, allow).ruleId()).isEqualTo("prod.ssh.runbooks-only");
-    assertThat(connector.classify(exec("uptime"), prodExec, allow).kind()).isEqualTo(Classification.Kind.MUTATION);
+    assertThat(connector.classify(exec("uptime"), prod, allow).kind()).isEqualTo(Classification.Kind.MUTATION);
+    assertThat(connector.classify(exec("uptime"), prodRunbooks, allow).ruleId()).isEqualTo("prod.ssh.runbooks-only");
   }
 
   @Test

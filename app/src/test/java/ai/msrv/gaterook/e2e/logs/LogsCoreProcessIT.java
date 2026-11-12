@@ -153,12 +153,12 @@ class LogsCoreProcessIT {
     for (String c : List.of("app-logs", "gcp-logs", "aws-logs", "search-logs")) {
       json(admin("POST", "/api/endpoints/logs/connections/" + c, "{}"), 200);
     }
-    // logs_tail starts Off on every connection (the kit's tool list); a person switches it to Read only for Loki.
+    // logs_tail is a read: it starts in Read only on every connection, like logs_search.
     JsonNode tail = null;
     for (JsonNode g : json(admin("GET", "/api/endpoints/logs/tools", null), 200)) {
       for (JsonNode t : g.path("tools")) {
         if (t.path("name").asString().equals("logs_tail")) {
-          assertThat(t.path("mode").asString()).as(g.path("connection").asString()).isEqualTo("OFF");
+          assertThat(t.path("mode").asString()).as(g.path("connection").asString()).isEqualTo("READ_ONLY");
           if (g.path("connection").asString("").equals("app-logs")) {
             tail = t;
           }
@@ -166,10 +166,6 @@ class LogsCoreProcessIT {
       }
     }
     assertThat(tail).isNotNull();
-    ObjectNode on = JsonNodeFactory.instance.objectNode().put("toolKey", tail.path("toolKey").asString())
-        .put("connection", "app-logs").put("mode", "READ_ONLY").put("version", tail.path("version").asLong())
-        .put("reason", "Follow the API's logs while it deploys");
-    json(admin("PUT", "/api/endpoints/logs/tools", on.toString()), 200);
     token = json(admin("POST", "/api/endpoints/logs/tokens", "{\"name\":\"logs-e2e\",\"ttlDays\":1}"), 201)
         .path("token").asString();
     assertThat(token).startsWith("gwt_");
@@ -203,7 +199,7 @@ class LogsCoreProcessIT {
       }
     }
     assertThat(search).as("logs_search with all four connections").isNotNull();
-    assertThat(tail).as("logs_tail, switched on").isNotNull();
+    assertThat(tail).as("logs_tail, on by default").isNotNull();
     assertThat(search.path("description").asString()).contains("describe_connection", "LogQL", "Logs Explorer",
         "Logs Insights", "Lucene");
     assertThat(search.at("/inputSchema/properties/connection").has("enum")).as("named in the description").isFalse();

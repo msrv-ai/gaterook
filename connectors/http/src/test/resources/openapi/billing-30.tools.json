@@ -94,7 +94,7 @@
     "title": "listRefunds",
     "description": "GET /v1/refunds.",
     "nature": "READ",
-    "mode": "READ_ONLY / prod OFF",
+    "mode": "READ_ONLY / prod READ_ONLY",
     "annotations": "readOnly=true destructive=false idempotent=true openWorld=true",
     "inputSchema": {
       "type": "object",
@@ -173,7 +173,7 @@
     "title": "get-refund.by id",
     "description": "GET /v1/refunds/{refundId}.",
     "nature": "READ",
-    "mode": "READ_ONLY / prod OFF",
+    "mode": "READ_ONLY / prod READ_ONLY",
     "annotations": "readOnly=true destructive=false idempotent=true openWorld=true",
     "inputSchema": {
       "type": "object",
@@ -267,7 +267,7 @@
     "title": "GET /tree",
     "description": "GET /v1/tree.",
     "nature": "READ",
-    "mode": "READ_ONLY / prod OFF",
+    "mode": "READ_ONLY / prod READ_ONLY",
     "annotations": "readOnly=true destructive=false idempotent=true openWorld=true",
     "inputSchema": {
       "type": "object",

@@ -49,7 +49,7 @@ final class SshTools {
             .inputSchema(schemas.load("ssh_exec.input"))
             .annotations(Annotations.write(true))
             .nature(Nature.MUTATION)
-            .defaultMode(Mode.OFF, Mode.OFF)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
             .resultShape(ResultShape.TEXT)
             .risk(new Risk(true, true, Egress.CHANNEL))
             .build());

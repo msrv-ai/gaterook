@@ -34,7 +34,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The review card of an AI import proposal lists every setting that differs from the connector's default for the
  * candidate's environment, checked against the real schemas of the built-in connectors: on prod, a value equal to the
- * plain default that prod overrides (TLS off, runbooks-only off) is a change, and a value that is the default of only
+ * plain default that prod overrides (TLS off) is a change, and a value that is the default of only
  * another branch of the schema is listed too.
  */
 class ImportSummaryDefaultsTest {
@@ -125,14 +125,14 @@ class ImportSummaryDefaultsTest {
   }
 
   @Test
-  void sshRunbooksOnlyOffIsListedOnProd() {
+  void sshRunbooksOnlyOnIsListedOnEveryEnvironment() {
     String off = "{\"connection\":{\"host\":\"ssh.example.test\",\"username\":\"reader\"},\"runbooksOnly\":false}";
     String on = "{\"connection\":{\"host\":\"ssh.example.test\",\"username\":\"reader\"},\"runbooksOnly\":true}";
 
-    assertThat(rows("ssh", "prod", off)).contains("runbooksOnly=false");
-    assertThat(rows("ssh", "prod", on)).noneMatch(row -> row.startsWith("runbooksOnly="));
-    assertThat(rows("ssh", "dev", on)).contains("runbooksOnly=true");
-    assertThat(rows("ssh", "dev", off)).noneMatch(row -> row.startsWith("runbooksOnly="));
+    for (String env : List.of("dev", "prod")) {
+      assertThat(rows("ssh", env, on)).as(env).contains("runbooksOnly=true");
+      assertThat(rows("ssh", env, off)).as(env).noneMatch(row -> row.startsWith("runbooksOnly="));
+    }
   }
 
   /**

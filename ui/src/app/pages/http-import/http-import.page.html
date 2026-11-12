@@ -117,7 +117,7 @@
 
   @if (step() === 3 && parsed(); as result) {
     <section class="gw-stack" aria-label="Operation selection">
-      <p>Tools run on <strong>{{ connectionName() }}</strong>. Select up to 200 operations. Reads start Off on production; changes require approval by default. Adding tools to an endpoint is a separate step.</p>
+      <p>Tools run on <strong>{{ connectionName() }}</strong>. Select up to 200 operations. Reads run at once; changes require approval by default. Adding tools to an endpoint is a separate step.</p>
       @for (warning of result.warnings; track $index) { <p class="gw-field__hint">{{ warning }}</p> }
       <div class="gw-field"><label class="gw-field__label" for="http-template-name">Template name</label><input class="gw-input" id="http-template-name" maxlength="64" [disabled]="busy()" [value]="templateName()" (input)="templateName.set(value($event))"></div>
       <div class="gw-field"><label class="gw-field__label" for="http-review-prefix">Tool prefix</label><input class="gw-input gw-input--mono" id="http-review-prefix" maxlength="16" [disabled]="busy()" [value]="prefix()" (input)="prefix.set(value($event))" aria-describedby="http-review-prefix-hint"><p class="gw-field__hint" id="http-review-prefix-hint">If a tool name is already in use, choose another prefix and refresh the preview.</p></div>
@@ -129,7 +129,7 @@
         <tbody>@for (op of rows(); track op.opKey) {
           <tr><td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="selected().has(op.opKey)" [disabled]="!!op.skipped || busy()" [attr.aria-label]="'Import ' + op.opKey" (change)="toggle(op, $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
             <th scope="row"><span class="gw-mono">{{ op.name || op.opKey }}</span><p class="gw-text-caption gw-fg-secondary">{{ op.method }} {{ op.path }}</p><p class="gw-text-small">{{ op.summary }}</p>@if (op.skipped) { <p class="gw-field__error">Skipped: {{ op.skipped }}</p> }</th>
-            <td>@if (!op.skipped) { @if (op.nature === 'read') { <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="mutations().has(op.opKey)" [disabled]="busy()" [attr.aria-label]="op.opKey + ' changes state'" (change)="markMutation(op.opKey, $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Changes state</span></label><p class="gw-text-caption">{{ mutations().has(op.opKey) ? 'Needs approval' : 'Read only · Off on prod' }}</p> } @else { <span class="gw-mode gw-mode--approval">Needs approval</span> } }</td>
+            <td>@if (!op.skipped) { @if (op.nature === 'read') { <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="mutations().has(op.opKey)" [disabled]="busy()" [attr.aria-label]="op.opKey + ' changes state'" (change)="markMutation(op.opKey, $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Changes state</span></label><p class="gw-text-caption">{{ mutations().has(op.opKey) ? 'Needs approval' : 'Read only' }}</p> } @else { <span class="gw-mode gw-mode--approval">Needs approval</span> } }</td>
           </tr>
         } @empty { <tr><td colspan="3">No matching operations.</td></tr> }</tbody>
       </table></div>

@@ -467,7 +467,8 @@ class AdminApiIT {
     // New endpoint › Start from: what each start would wire now, counted as the list counts it after Create.
     JsonNode starts = api.ok("/api/endpoint-starts");
     assertThat(each(starts, "startFrom")).containsExactly("empty", "read-only-dev", "read-only-stage", "incident-response");
-    assertThat(starts.get(0).path("tools").path("off").asInt()).as("Empty: the core tools, off").isEqualTo(2);
+    assertThat(starts.get(0).path("tools").path("read").asInt()).as("Empty: the core tools, Read only").isEqualTo(2);
+    assertThat(starts.get(0).path("tools").path("off").asInt()).as("nothing starts Off").isZero();
     JsonNode readOnlyDev = starts.get(1);
     assertThat(readOnlyDev.path("access").asString()).isEqualTo("read-only");
     assertThat(readOnlyDev.path("connections").toString()).contains("dev-db");

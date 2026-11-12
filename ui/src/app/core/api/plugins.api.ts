@@ -70,7 +70,7 @@ export interface PluginCheck {
 
 /**
  * `GET /api/plugins/{id}/update-preview?to=`: the same checks as an install plus what changes in the manifest, as a
- * diff of hunks the kit's `gw-diff` draws (§7.5: side-by-side update, new tools start Off).
+ * diff of hunks the kit's `gw-diff` draws (§7.5: side-by-side update, new tools join in their default modes).
  */
 export interface PluginUpdatePreview {
   readonly id: string;
