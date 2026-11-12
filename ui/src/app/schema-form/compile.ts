@@ -27,6 +27,8 @@ export interface Condition {
   readonly negate: boolean;
   /** A required string activates optional settings after it reaches this length (for example a bastion host). */
   readonly minLength?: number;
+  /** A required list activates a requirement once it holds this many items (Databricks: catalogs need a default). */
+  readonly minItems?: number;
 }
 
 export interface FieldOption {
@@ -240,6 +242,10 @@ function conditionOf(test: JsonValue | undefined, parent: readonly string[], neg
     if (cond['type'] === 'string' && typeof cond['minLength'] === 'number'
       && Array.isArray(test['required']) && test['required'].includes(key)) {
       return { path: [...parent, key], values: [], negate, minLength: cond['minLength'] };
+    }
+    if (nested && cond['type'] === 'array' && typeof cond['minItems'] === 'number'
+      && Array.isArray(test['required']) && test['required'].includes(key)) {
+      return { path: [...parent, key], values: [], negate, minItems: cond['minItems'] };
     }
   }
   if (!nested) return null;
@@ -644,8 +650,9 @@ export function setAt(model: JsonObject, path: readonly string[], value: JsonVal
 /** Whether one branch condition holds for this model. */
 export function conditionHolds(c: Condition, model: JsonValue): boolean {
   const v = getAt(model, c.path);
-  const hit = c.minLength === undefined ? c.values.some((x) => x === v)
-    : typeof v === 'string' && [...v].length >= c.minLength;
+  const hit = c.minItems !== undefined ? Array.isArray(v) && v.length >= c.minItems
+    : c.minLength === undefined ? c.values.some((x) => x === v)
+      : typeof v === 'string' && [...v].length >= c.minLength;
   return c.negate ? !hit : hit;
 }
 

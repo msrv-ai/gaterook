@@ -75,8 +75,9 @@ class LogsCredentialSchemasTest {
       assertThat(cloudWatch.at("/properties/region/x-suggest").isMissingNode()).as("the API needs it").isTrue();
       var gcp = new BackendConnector("gcp-logging", cloud).manifest().configSchema();
       assertThat(gcp.at("/properties/resourceNames/x-suggest").asBoolean()).isTrue();
+      // Loki's tenant is optional like every Advanced setting: its helper says when the server needs one.
       var loki = new BackendConnector("loki", cloud).manifest().configSchema();
-      assertThat(loki.at("/properties/tenant/x-advanced").asBoolean(true)).isFalse();
+      assertThat(loki.at("/properties/tenant/x-advanced").isMissingNode()).isTrue();
       var azure = new BackendConnector("azure-monitor", cloud).manifest().configSchema();
       for (String field : new String[] {"tenantId", "workspaces", "applicationInsights"}) {
         assertThat(azure.at("/properties/" + field + "/x-advanced").asBoolean(true)).as(field).isFalse();

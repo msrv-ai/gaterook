@@ -287,10 +287,24 @@ public class ConnectionTester implements DisposableBean {
           : secrets.draftResolver(cfg, references, taint);
       try (DraftSecrets resolver = new DraftSecrets(secretFields, values, fallback, taint)) {
         return use.apply(manifest, cfg, resolver, fallback, taint, draft);
+      } finally {
+        if (stored == null) {
+          // Each draft request has an id of its own: what a connector keeps per connection for it is never used again.
+          registry.connectorFor(cfg).ifPresent(connector -> forget(connector, cfg));
+        }
       }
     } finally {
       values.values().forEach(v -> java.util.Arrays.fill(v, '\0'));
       clear(typed);
+    }
+  }
+
+  /** Drops a draft's pools and clients; a connector that fails to is logged, never the answer's problem. */
+  private void forget(Connector connector, ConnectionConfig cfg) {
+    try {
+      connector.onConnectionRemoved(cfg.id());
+    } catch (RuntimeException e) {
+      log.warn("{} connector couldn't drop the draft {}: {}", cfg.type(), cfg.id(), masker.log(String.valueOf(e)));
     }
   }
 

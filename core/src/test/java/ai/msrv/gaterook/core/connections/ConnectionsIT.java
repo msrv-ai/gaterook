@@ -345,6 +345,8 @@ class ConnectionsIT {
 
     assertThat(found.fields().get("/connection/database").value()).isEqualTo("orders");
     assertThat(found.notes()).containsExactly("A password was typed.");
+    // The draft's own id is dropped by the connector afterwards, as nothing uses it again.
+    assertThat(FakeConnectors.CHANGES).anyMatch(c -> c.startsWith("removed:pgfake:draft-"));
     assertThat(password.value()).containsOnly('\0');
     assertThat(core.jdbc().queryForObject("select count(*) from connection", Integer.class)).isEqualTo(before);
 

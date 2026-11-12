@@ -110,8 +110,7 @@
           "maxLength": 150,
           "pattern": "^[A-Za-z0-9!._*'()|-]*$",
           "title": "Tenant (X-Scope-OrgID)",
-          "description": "The X-Scope-OrgID your log shippers send; several: team-a|team-b. Empty for single-tenant Loki and Grafana Cloud.",
-          "x-advanced": false
+          "description": "The X-Scope-OrgID your log shippers send; several: team-a|team-b. Empty for single-tenant Loki and Grafana Cloud."
         },
         "auth": {
           "type": "object",
