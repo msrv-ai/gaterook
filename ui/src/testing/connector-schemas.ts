@@ -2437,7 +2437,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "maxItems": 20,
         "uniqueItems": true,
         "title": "Projects, folders or organizations",
-        "description": "Include the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
+        "description": "What agents may use, with the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
         "items": {
           "type": "string",
           "title": "Resource scope",
@@ -2466,7 +2466,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "acme-stage"
           ]
         },
-        "description": "Project IDs without the projects/ prefix. Leave empty to use the project IDs from the selected resource scopes."
+        "description": "The projects whose metrics gcp_metrics reads, as project IDs without projects/. Empty: the projects among the scopes."
       },
       "credentials": {
         "type": "object",
@@ -2495,7 +2495,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
             "examples": [
               "gw-reader@acme-stage.iam.gserviceaccount.com"
-            ]
+            ],
+            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Empty: calls use the sign-in or key itself."
           },
           "delegates": {
             "type": "array",
@@ -2512,12 +2513,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
           },
           "quotaProject": {
             "type": "string",
             "title": "Billed project",
-            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
           }
         },
         "patternProperties": {
@@ -2556,7 +2558,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       "liveGet": {
         "type": "boolean",
         "default": true,
-        "title": "Read current state from service APIs"
+        "title": "Read current state from service APIs",
+        "description": "gcp_describe with a resource name reads it from its own service. Off: the inventory's snapshot, which can be minutes old."
       }
     }
   },
@@ -5248,7 +5251,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Existing Google sign-in (ADC)",
               "Service account key (JSON)"
             ],
-            "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer, from gcloud auth application-default login. A service account key signs in as that service account."
           },
           "impersonate": {
             "type": "string",
@@ -5256,7 +5259,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
             "examples": [
               "gw-bigquery@acme-analytics.iam.gserviceaccount.com"
-            ]
+            ],
+            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/bigquery.dataViewer on the datasets and roles/bigquery.jobUser on the project. Empty: calls use the sign-in or key itself."
           },
           "delegates": {
             "type": "array",
@@ -5273,12 +5277,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
           },
           "quotaProject": {
             "type": "string",
             "title": "Billed project",
-            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own. Query costs go to Project."
           }
         },
         "patternProperties": {
@@ -5413,7 +5418,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "examples": [
               "gw-firestore@acme-stage.iam.gserviceaccount.com"
             ],
-            "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes."
+            "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes. Empty: calls use the sign-in or key itself."
           },
           "lifetimeSeconds": {
             "type": "integer",
@@ -5421,12 +5426,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
           },
           "quotaProject": {
             "type": "string",
             "title": "Billed project",
-            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
           }
         },
         "patternProperties": {
@@ -5534,7 +5540,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "examples": [
               "gw-rtdb@acme-stage.iam.gserviceaccount.com"
             ],
-            "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes."
+            "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes. Empty: calls use the sign-in or key itself."
           },
           "lifetimeSeconds": {
             "type": "integer",
@@ -5542,7 +5548,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
           }
         },
         "patternProperties": {
@@ -5768,6 +5775,36 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       "subscriptions",
       "credentials"
     ],
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "credentials": {
+              "properties": {
+                "source": {
+                  "enum": [
+                    "deviceCode",
+                    "clientSecret",
+                    "clientCertificate"
+                  ]
+                }
+              },
+              "required": [
+                "source"
+              ]
+            }
+          },
+          "required": [
+            "credentials"
+          ]
+        },
+        "then": {
+          "required": [
+            "tenantId"
+          ]
+        }
+      }
+    ],
     "properties": {
       "cloud": {
         "title": "Cloud",
@@ -5791,6 +5828,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "contoso.onmicrosoft.com"
         ],
+        "x-advanced": false,
         "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
       },
       "subscriptions": {
@@ -5799,6 +5837,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "minItems": 1,
         "maxItems": 20,
         "uniqueItems": true,
+        "x-suggest": true,
         "items": {
           "type": "string",
           "title": "Subscription ID",
@@ -5924,7 +5963,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "title": "Workspace ID",
           "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
         },
-        "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL."
+        "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL. Empty: no workspace logs."
       },
       "applicationInsights": {
         "type": "array",
@@ -5942,7 +5981,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
           ]
         ],
-        "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+        "description": "Components whose requests, exceptions, dependencies and traces the log tools read. Empty: none."
       }
     }
   },
@@ -6144,6 +6183,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "0123456789abcdef0123456789abcdef"
         ],
+        "x-suggest": true,
         "description": "The 32-character ID of the Cloudflare account, shown on the dashboard's account home and in its Overview pages. Workers, Pages, KV, tunnels and Logpush are read in this account; a zone of another account is refused."
       },
       "zones": {
@@ -8329,15 +8369,17 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "description": "The Google Cloud project of the Spanner instance."
       },
       "instance": {
+        "x-suggest": true,
         "type": "string",
         "title": "Instance",
         "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
         "examples": [
           "orders-prod"
         ],
-        "description": "The instance id, as gcloud spanner instances list shows it."
+        "description": "The instance id, as gcloud spanner instances list shows it, not its display name."
       },
       "database": {
+        "x-suggest": true,
         "type": "string",
         "title": "Database",
         "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
@@ -8365,7 +8407,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Existing Google sign-in (ADC)",
               "Service account key (JSON)"
             ],
-            "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer, from gcloud auth application-default login. A service account key signs in as that service account."
           },
           "impersonate": {
             "type": "string",
@@ -8373,7 +8415,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
             "examples": [
               "gw-spanner@acme-prod.iam.gserviceaccount.com"
-            ]
+            ],
+            "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/spanner.databaseReader on the database. Empty: calls use the sign-in or key itself."
           },
           "delegates": {
             "type": "array",
@@ -8390,12 +8433,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
-            "x-unit": "s"
+            "x-unit": "s",
+            "description": "How long a borrowed token of the service account to impersonate lasts."
           },
           "quotaProject": {
             "type": "string",
             "title": "Billed project",
-            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+            "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
           }
         },
         "patternProperties": {

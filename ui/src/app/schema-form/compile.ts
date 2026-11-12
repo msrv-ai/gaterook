@@ -224,8 +224,12 @@ function orderedKeys(s: JsonObject, props: JsonObject): string[] {
   return [...order.filter((k) => keys.includes(k)), ...keys.filter((k) => !order.includes(k))];
 }
 
-/** A branch condition on a discriminator: `{properties: {kind: {const: 'a'}}}` → kind is 'a'. */
-function conditionOf(test: JsonValue | undefined, parent: readonly string[], negate: boolean): Condition | null {
+/**
+ * A branch condition on a discriminator: `{properties: {kind: {const: 'a'}}}` → kind is 'a'. With `nested`, an `if` may
+ * name a member of an object instead (`{properties: {credentials: {properties: {source: {enum: […]}}}}}`, Azure's
+ * tenant for a service principal), when none of its own properties decides.
+ */
+function conditionOf(test: JsonValue | undefined, parent: readonly string[], negate: boolean, nested = false): Condition | null {
   if (!isObject(test) || !isObject(test['properties'])) return null;
   for (const [key, cond] of Object.entries(test['properties'])) {
     if (!isObject(cond)) continue;
@@ -235,6 +239,11 @@ function conditionOf(test: JsonValue | undefined, parent: readonly string[], neg
       && Array.isArray(test['required']) && test['required'].includes(key)) {
       return { path: [...parent, key], values: [], negate, minLength: cond['minLength'] };
     }
+  }
+  if (!nested) return null;
+  for (const [key, cond] of Object.entries(test['properties'])) {
+    const inner = isObject(cond) ? conditionOf(cond, [...parent, key], negate, true) : null;
+    if (inner) return inner;
   }
   return null;
 }
@@ -355,7 +364,7 @@ function compileNode(
     };
     const addConditionals = (source: JsonObject, inherited: readonly Condition[]) => {
       for (const c of [source, ...(Array.isArray(source['allOf']) ? source['allOf'] : [])].filter(isObject)) {
-        const ifCond = conditionOf(c['if'], path, false);
+        const ifCond = conditionOf(c['if'], path, false, true);
         if (!ifCond) continue;
         for (const [branch, negate] of [
           ['then', false],

@@ -102,6 +102,14 @@ describe('setup helpers: the compiled form', () => {
     expect(isAdvanced(context, form)).toBe(false);
   });
 
+  it('requires a field when a member of another object decides (Azure tenant for a service principal)', () => {
+    const form = compileSchema(CONNECTOR_FORMS['azure']);
+    const tenant = form.all.find((n) => n.pointer === '/tenantId')!;
+    expect(isRequired(tenant, { credentials: { source: 'clientSecret' } })).toBe(true);
+    expect(isRequired(tenant, { credentials: { source: 'cli' } })).toBe(false);
+    expect(isAdvanced(tenant, form)).toBe(false);
+  });
+
   it('puts optional settings under Advanced, never credentials, choices that decide other fields or required ones', () => {
     const form = compileSchema(CONNECTOR_FORMS['kubernetes']);
     const advanced = (pointer: string) => isAdvanced(form.all.find((n) => n.pointer === pointer)!, form);
