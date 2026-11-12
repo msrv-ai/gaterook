@@ -92,7 +92,7 @@ Built-in connectors give AI structured tools for the services you already operat
 
 Open **Connectors → MCP servers** to browse developer integrations or search the **Official MCP Registry**. Add a server by URL, local command, or pasted Claude Desktop/Cursor JSON, VS Code JSON, or Codex TOML. Review its settings before connecting or starting it.
 
-For AWS Knowledge, Cloudflare, DigitalOcean, Vercel, Firebase, Supabase, Netlify, and Azure DevOps, GateRook's [verified profiles](docs/mcp-servers.md#verified-profiles-for-cloud-platforms) set up the vendor's official server. A profile turns on the vendor's read-only switch where there is one and starts tools that run code, return credentials, or hand work to another agent in **Approval** or **Off**; it can start a tool stricter, never looser.
+For AWS Knowledge, Cloudflare, DigitalOcean, Vercel, Firebase, Supabase, Netlify, and Azure DevOps, GateRook's [verified profiles](docs/mcp-servers.md#verified-profiles-for-cloud-platforms) set up the vendor's official server. A profile turns on the vendor's read-only switch where there is one and starts tools that run code, return credentials, or hand work to another agent in **Approval**; it can start a tool stricter, never looser.
 
 For servers that support OAuth, sign in through your browser; GateRook stores and renews the encrypted sign-in. GitHub's server signs in with a one-time code that you enter on GitHub, using GateRook's own GitHub app, so there is no OAuth app to create. Select the endpoints that may use the server, then control its tools individually. A registry listing or a server's read-only declaration is not a safety certification. See the [MCP server guide](docs/mcp-servers.md) for setup and trust boundaries.
 

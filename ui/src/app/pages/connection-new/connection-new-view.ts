@@ -305,20 +305,26 @@ export interface ToolPreview {
 
 /**
  * The modes a new connection's tools start in on an endpoint, by the core's rules (`endpoints.ToolPairs.initial`):
- * the manifest's default for the endpoint's env (prod has its own), Approval for plugin tools, and Read only for
- * declared MCP reads. On a read-only endpoint nothing changes data or runs in Approval. The core decides again when
- * the connection is added; this is what the person agrees to.
+ * nothing starts Off on a standard endpoint. Built-in tools take the manifest's default for the endpoint's env (prod
+ * has its own), Approval where it says Off or Bypass; declared MCP reads and the declared reads of a signed plugin start
+ * in Read only, their other tools in Approval. On a read-only endpoint nothing changes data or runs in Approval. The
+ * core decides again when the connection is added; this is what the person agrees to.
+ *
+ * @param signed for a plugin: whether the catalog key signed its build
  */
 export function toolPreview(
   tools: readonly ConnectorTool[],
   kind: ConnectorKind,
   dynamicTools: boolean,
   choice: EndpointChoice,
+  signed = false,
 ): ToolPreview {
   const rows = tools.map((t): PreviewRow => {
     let mode = toolMode(choice.env === 'prod' ? t.prodDefaultMode : t.defaultMode);
-    if ((kind !== 'built-in' && kind !== 'mcp-server') || mode === 'BYPASS') mode = 'APPROVAL';
-    if (kind === 'mcp-server') mode = readOnlyAllowed(t) && t.annotations.readOnlyHint && !t.annotations.destructiveHint ? 'READ_ONLY' : 'APPROVAL';
+    const declaredRead = readOnlyAllowed(t) && t.annotations.readOnlyHint === true && !t.annotations.destructiveHint;
+    if (kind === 'mcp-server') mode = declaredRead ? 'READ_ONLY' : 'APPROVAL';
+    else if (kind !== 'built-in') mode = signed && declaredRead && !mutating(t) ? 'READ_ONLY' : 'APPROVAL';
+    else if (mode === 'BYPASS' || mode === 'OFF') mode = 'APPROVAL';
     if (choice.readOnly) {
       // ToolPairs.clampReadOnly: never Approval, never a tool that only changes data, Read only only where allowed.
       if ((t.nature ?? '').toLowerCase() === 'mutation' || mode === 'APPROVAL') mode = 'OFF';
@@ -328,7 +334,7 @@ export function toolPreview(
     const note = locked
       ? { icon: 'lock', text: `${choice.slug} is read only` }
       : !readOnlyAllowed(t)
-        ? { icon: 'lock', text: 'Mutates data: starts in Approval or Off' }
+        ? { icon: 'lock', text: 'Mutates data: starts in Approval' }
         : null;
     return { name: t.name, description: t.description, annotations: t.annotations, mode, note };
   });
@@ -368,26 +374,12 @@ export function isFirstRun(connections: number, endpoints: number | readonly End
 }
 
 /**
- * The tools of the first endpoint, which Save reuses or creates: the type's
- * default modes for that env, and on prod nothing that waits for approval — "prod is read only by default" (kit) —
- * so a tool that changes data starts Off there.
+ * The tools of the first endpoint, which Save reuses or creates: the type's default modes for that env, the same on
+ * prod — reads run at once and anything that changes data waits for approval.
  */
-export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env, slug: string = env): ToolPreview {
+export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env, slug: string = env, signed = false): ToolPreview {
   const choice: EndpointChoice = { slug, description: '', meta: null, refusal: null, readOnly: false, published: false, env, warning: null };
-  const base = toolPreview(tools, kind, dynamicTools, choice);
-  if (env !== 'prod') return base;
-  const rows = base.rows.map((r): PreviewRow =>
-    r.mode === 'APPROVAL' ? { ...r, mode: 'OFF', note: { icon: 'lock', text: PROD_OFF_NOTE } } : r,
-  );
-  const count = (m: ToolMode) => rows.filter((r) => r.mode === m).length;
-  const parts = [
-    count('READ_ONLY') ? `${count('READ_ONLY')} read only` : null,
-    count('APPROVAL') ? `${count('APPROVAL')} approval` : null,
-    count('BYPASS') ? `${count('BYPASS')} bypass` : null,
-    count('OFF') ? `${count('OFF')} off` : null,
-  ].filter(Boolean);
-  const n = rows.length;
-  return { ...base, rows, summary: [`${formatCount(n)} ${n === 1 ? 'tool' : 'tools'}`, ...parts].join(' · ') };
+  return toolPreview(tools, kind, dynamicTools, choice, signed);
 }
 
 /** Tool names as the kit lists them: "sql_list_schemas, sql_describe_table and sql_query". */
@@ -416,9 +408,6 @@ export function firstRunToast(name: string, endpoint: string, created = true): {
   return { title: `Connection ${name} saved`, body: `${created ? `Endpoint ${endpoint} created with its tools.` : `Added to endpoint ${endpoint} with its tools.`} Next: connect your AI app.` };
 }
 
-/** The note of a tool that would wait for approval and starts Off on a first prod endpoint. */
-export const PROD_OFF_NOTE = 'Off on prod: read only by default';
-
 /** A sentence with the literals (tool names) the template sets in mono. */
 export interface Sentence {
   readonly text: string;
@@ -427,14 +416,12 @@ export interface Sentence {
 
 /**
  * "What your AI apps can do" of the first endpoint (kit): "Reads run at once. Anything that changes data, like
- * sql_execute, waits for your approval. You can change the modes later." — on prod "sql_execute is off: prod is
- * read only by default." instead of the approval line.
+ * sql_execute, waits for your approval. You can change the modes later."
  */
 export function firstRunModes(preview: ToolPreview): Sentence {
   const rows = preview.rows;
   const approval = rows.filter((r) => r.mode === 'APPROVAL').map((r) => r.name);
   const bypass = rows.filter((r) => r.mode === 'BYPASS').map((r) => r.name);
-  const prodOff = rows.filter((r) => r.note?.text === PROD_OFF_NOTE).map((r) => r.name);
   const parts: string[] = [];
   if (preview.fromServer) parts.push('Its tools come from the server once it runs, and each one waits for your approval.');
   if (rows.some((r) => r.mode === 'READ_ONLY')) parts.push('Reads run at once.');
@@ -442,23 +429,21 @@ export function firstRunModes(preview: ToolPreview): Sentence {
     ? `${list(approval)} ${approval.length === 1 ? 'waits' : 'wait'} for your approval.`
     : `Anything that changes data, like ${approval[0]}, waits for your approval.`);
   if (bypass.length) parts.push(`${list(bypass)} ${bypass.length === 1 ? 'runs' : 'run'} without approval (Bypass).`);
-  if (prodOff.length) parts.push(`${list(prodOff)} ${prodOff.length === 1 ? 'is' : 'are'} off: prod is read only by default.`);
   parts.push('You can change the modes later.');
-  return { text: parts.join(' '), literals: [...(bypass.length ? approval : approval.slice(0, 1)), ...bypass, ...prodOff] };
+  return { text: parts.join(' '), literals: [...(bypass.length ? approval : approval.slice(0, 1)), ...bypass] };
 }
 
 /**
  * The ready card's Tools (kit): "sql_list_schemas, sql_describe_table and sql_query run at once (read only);
- * sql_execute waits for your approval" — on prod "sql_execute is off: prod is read only by default". From the
- * endpoint's tools as the core answered them after Save.
+ * sql_execute waits for your approval". From the endpoint's tools as the core answered them after Save.
  */
-export function toolsSentence(line: ToolsLine, env: Env): Sentence {
+export function toolsSentence(line: ToolsLine): Sentence {
   const verb = (names: readonly string[], one: string, many: string) => (names.length === 1 ? one : many);
   const parts = [
     line.reads.length ? `${list(line.reads)} ${verb(line.reads, 'runs', 'run')} at once (read only)` : null,
     line.approval.length ? `${list(line.approval)} ${verb(line.approval, 'waits', 'wait')} for your approval` : null,
     line.bypass.length ? `${list(line.bypass)} ${verb(line.bypass, 'runs', 'run')} without approval (Bypass)` : null,
-    line.off.length ? `${list(line.off)} ${verb(line.off, 'is', 'are')} off${env === 'prod' ? ': prod is read only by default' : ''}` : null,
+    line.off.length ? `${list(line.off)} ${verb(line.off, 'is', 'are')} off` : null,
   ].filter((p): p is string => !!p);
   return {
     text: parts.length ? parts.join('; ') : 'They come from the server once it runs',

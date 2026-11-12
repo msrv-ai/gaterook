@@ -53,8 +53,8 @@ class BundledVerifiedProfilesTest {
       assertThat(VerifiedProfiles.of(VerifiedProfiles.sampleConfig(p))).as(p.id()).contains(p);
       assertThat(p.documentation()).as(p.id()).startsWith("https://");
       assertThat(p.tools()).as(p.id()).allSatisfy(t -> assertThat(t.reason()).endsWith("."));
-      assertThat(p.tools()).as(p.id()).filteredOn(t -> t.kind() == VerifiedProfiles.Kind.DELEGATING)
-          .allSatisfy(t -> assertThat(t.start()).isEqualTo(VerifiedProfiles.Start.OFF));
+      assertThat(p.tools()).as(p.id() + ": no tool it names starts Off")
+          .allSatisfy(t -> assertThat(t.start()).isEqualTo(VerifiedProfiles.Start.APPROVAL));
     }
   }
 
@@ -153,20 +153,20 @@ class BundledVerifiedProfilesTest {
   }
 
   @Test
-  void passthroughDelegatingAndCredentialToolsStartStricter() {
+  void passthroughDelegatingAndCredentialToolsStartInApproval() {
     assertThat(profile("cloudflare-api").rule("execute")).get().extracting(VerifiedProfiles.ToolRule::start)
         .isEqualTo(VerifiedProfiles.Start.APPROVAL);
     assertThat(profile("cloudflare-api").rule("whoami")).isEmpty();
     assertThat(profile("digitalocean").rule("harness-runtime-send-input")).get()
-        .extracting(VerifiedProfiles.ToolRule::start).isEqualTo(VerifiedProfiles.Start.OFF);
+        .extracting(VerifiedProfiles.ToolRule::start).isEqualTo(VerifiedProfiles.Start.APPROVAL);
     assertThat(profile("digitalocean").rule("doks-get-kubeconfig")).get()
         .extracting(VerifiedProfiles.ToolRule::kind).isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
     assertThat(profile("vercel").rule("buy_domain")).get().extracting(VerifiedProfiles.ToolRule::start)
-        .isEqualTo(VerifiedProfiles.Start.OFF);
+        .isEqualTo(VerifiedProfiles.Start.APPROVAL);
     assertThat(profile("vercel").rule("get_project_env")).get().extracting(VerifiedProfiles.ToolRule::kind)
         .isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
     assertThat(profile("firebase").rule("apptesting_run_test")).get().extracting(VerifiedProfiles.ToolRule::start)
-        .isEqualTo(VerifiedProfiles.Start.OFF);
+        .isEqualTo(VerifiedProfiles.Start.APPROVAL);
     assertThat(profile("netlify").rule("netlify-deploy-site")).get().extracting(VerifiedProfiles.ToolRule::kind)
         .isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
     assertThat(profile("aws-knowledge").tools()).as("every tool of it is declared read only").isEmpty();

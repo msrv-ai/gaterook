@@ -20,8 +20,8 @@ import tools.jackson.databind.node.MissingNode;
  *                        {@code null}: the tokens are the core's
  *                        ({@link ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.Authorization}), these are
  *                        only what the person chose
- * @param shareResources  whether the person lets agents read the server's resources and resource templates
- *                        ({@code share.resources})
+ * @param shareResources  whether agents may read the server's resources and resource templates
+ *                        ({@code share.resources}): on unless the person turns it off
  * @param sharePrompts    whether the person lets agents get the server's prompts ({@code share.prompts})
  * @param offThisComputer whether the person keeps a stdio server off this computer: an AppContainer on Windows
  *                        ({@code offThisComputer})
@@ -87,7 +87,7 @@ record ServerConfig(String name, String transport, List<String> command, String 
         Math.clamp(c.path("maxInFlight").asInt(4), 1, 16), Texts.str(c.path("catalogEntry"), null),
         prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()),
         HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null,
-        c.path("share").path("resources").asBoolean(false), c.path("share").path("prompts").asBoolean(false),
+        c.path("share").path("resources").asBoolean(true), c.path("share").path("prompts").asBoolean(false),
         !HTTP.equals(transport) && c.path("offThisComputer").asBoolean(false),
         HTTP.equals(transport) ? fixedHeaders(c) : List.of());
   }

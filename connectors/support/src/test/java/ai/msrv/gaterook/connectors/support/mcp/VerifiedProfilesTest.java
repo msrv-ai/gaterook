@@ -33,7 +33,7 @@ class VerifiedProfilesTest {
          "signIn": "OAuth.",
          "tools": [
            {"tool": "run_code", "start": "approval", "kind": "code", "reason": "It runs code."},
-           {"tool": "ask_agent", "start": "off", "kind": "delegating", "reason": "It asks Acme's agent."}],
+           {"tool": "ask_agent", "start": "approval", "kind": "delegating", "reason": "It asks Acme's agent."}],
          "match": {"hosts": ["mcp.acme.example", "mcp.acme-legacy.example"], "paths": ["/mcp", "/sse", "/team/*"],
           "excludePaths": ["/team/docs"]}},
         {"id": "ocean", "name": "Ocean", "publisher": "Ocean", "category": "Cloud platform",
@@ -203,7 +203,7 @@ class VerifiedProfilesTest {
     assertThat(acme.rule("ask_agent")).get().extracting(VerifiedProfiles.ToolRule::kind)
         .isEqualTo(VerifiedProfiles.Kind.DELEGATING);
     assertThat(acme.rule("ask_agent")).get().extracting(VerifiedProfiles.ToolRule::start)
-        .isEqualTo(VerifiedProfiles.Start.OFF);
+        .isEqualTo(VerifiedProfiles.Start.APPROVAL);
     assertThat(acme.rule("list_projects")).isEmpty();
     assertThat(acme.rule("acme_run_code")).as("not the published, prefixed name").isEmpty();
   }
@@ -225,8 +225,8 @@ class VerifiedProfilesTest {
     assertBad(FIXTURE.replace("\"setTo\": \"true\"", "\"setTo\": \"false\""), "pins read_only");
     assertBad(FIXTURE.replace("[{\"name\": \"project\", \"description\": \"Your project's ID.\"}]", "[]"),
         "placeholders");
-    assertBad(FIXTURE.replace("\"start\": \"off\", \"kind\": \"delegating\"",
-        "\"start\": \"approval\", \"kind\": \"delegating\""), "delegating");
+    assertBad(FIXTURE.replace("\"start\": \"approval\", \"kind\": \"delegating\"",
+        "\"start\": \"off\", \"kind\": \"delegating\""), "bad start or kind");
     assertBad(FIXTURE.replace("\"start\": \"approval\", \"kind\": \"code\"",
         "\"start\": \"later\", \"kind\": \"code\""), "bad start or kind");
     assertBad(FIXTURE.replace("\"paths\": [\"/mcp\", \"/sse\", \"/team/*\"]", "\"paths\": [\"/other\"]"),

@@ -90,7 +90,7 @@ public final class KubernetesConnector implements Connector {
     }
     Plan plan;
     try {
-      plan = K8sRequests.plan(call, s, Kinds.of(cfg.metadata()), new K8sPolicy(policy, s.namespace()));
+      plan = K8sRequests.plan(call, s, Kinds.of(cfg.metadata()), new K8sPolicy(policy));
     } catch (Refusal r) {
       if (r.problem.deny()) {
         return Classification.deny(r.problem.ruleId(), r.problem.reason(), r.problem.hint());
@@ -222,7 +222,7 @@ public final class KubernetesConnector implements Connector {
    * (and run again before an approved call executes); here only the arguments and the connection count.
    */
   private static Plan planUnchecked(ToolCall call, K8sSettings s, ConnectionConfig cfg) throws Refusal {
-    return K8sRequests.plan(call, s, Kinds.of(cfg.metadata()), K8sPolicy.unrestricted(cfg.env(), s.namespace()));
+    return K8sRequests.plan(call, s, Kinds.of(cfg.metadata()), K8sPolicy.unrestricted(cfg.env()));
   }
 
   // ── test, health, describe ──────────────────────────────────────────────────────────────────────────────────

@@ -133,9 +133,12 @@ class SharingTest {
   void sharedResourcesAndTemplatesAreUnderTheConnectionsNamespace() throws Exception {
     ConnectionConfig cfg = cfg("{\"resources\":true}");
     Connector c = connector(cfg);
+    ConnectionConfig unset = cfg("");
 
     assertThat(c.sharesResources(cfg)).isTrue();
     assertThat(c.sharesPrompts(cfg)).isFalse();
+    assertThat(connector(unset).sharesResources(unset)).as("resources are shared unless the person says no").isTrue();
+    assertThat(connector(unset).sharesPrompts(unset)).isFalse();
     JsonNode list = c.listResources(cfg, secrets, ctx(), false);
     assertThat(list.path("resources")).extracting(r -> r.path("uri").asString())
         .containsExactly(EXPOSED_WELCOME, APP, "mcpgw://connections/raw-mcp/mcp/bin://logo");
@@ -162,7 +165,7 @@ class SharingTest {
 
   @Test
   void aServerThatDoesntShareListsNothingButItsReviewedAppsRead() throws Exception {
-    ConnectionConfig cfg = cfg("");
+    ConnectionConfig cfg = cfg("{\"resources\":false,\"prompts\":false}");
     Connector c = connector(cfg);
 
     assertThat(c.listResources(cfg, secrets, ctx(), false)).isNull();

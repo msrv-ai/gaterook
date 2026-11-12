@@ -391,8 +391,8 @@ public class EndpointTools {
       EndpointEntity e = requireEndpoint(slug);
       EndpointSnapshot.Pair p = pair(fresh(e), toolKey, connection);
       if (p.declaredBy() == null) {
-        throw ProblemException.unprocessable("Nothing to confirm", p.tool().name() + " is built in: its annotations "
-            + "are the gateway's own.", "/toolKey");
+        throw ProblemException.unprocessable("Nothing to confirm", p.tool().name() + " needs no confirmation: its "
+            + "annotations are the gateway's own or those of a plugin build GateRook signed.", "/toolKey");
       }
       if (!p.tool().readOnlyModeAllowed()) {
         throw ProblemException.unprocessable("Mode not available", p.tool().name() + " declares that it changes "

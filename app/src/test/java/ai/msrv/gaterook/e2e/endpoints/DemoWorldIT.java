@@ -117,7 +117,8 @@ class DemoWorldIT {
         {"connection":{"host":"10.40.0.21","username":"gw"},"credentials":{"method":"password"}}""",
         "/credentials/password");
 
-    // dev: eight connections, then the two Setup changes of the day (ssh_exec was Approval, http_get Read only).
+    // dev: eight connections in their default modes (none Off), then the Setup change of the day (http_get was Read
+    // only).
     endpoints.create("dev", "Day-to-day development", EndpointService.StartFrom.EMPTY, null);
     for (String c : List.of("dev-db", "orders-mongo", "cache-redis", "dev-vm", "app-logs", "dev-cluster", "aws-stage",
         "billing-api")) {
@@ -174,8 +175,8 @@ class DemoWorldIT {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.url()).endsWith("/mcp/dev");
     assertThat(dev.connections()).isEqualTo(8);
-    assertThat(dev.tools()).as("15 read only · 12 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(15, 12,
-        5));
+    assertThat(dev.tools()).as("17 read only · 14 approval · 1 off").isEqualTo(new EndpointService.ToolCounts(17, 14,
+        1));
     assertThat(dev.tokensActive()).isEqualTo(2);
     Map<String, Mode> modes = snapshots.bySlug("dev").orElseThrow().pairs().stream()
         .collect(Collectors.toMap(p -> p.connectionName() + " " + p.tool().name(), EndpointSnapshot.Pair::mode));
@@ -190,10 +191,11 @@ class DemoWorldIT {
         Map.entry("cache-redis redis_set", Mode.APPROVAL), Map.entry("cache-redis redis_hset", Mode.APPROVAL),
         Map.entry("cache-redis redis_lpush", Mode.APPROVAL), Map.entry("cache-redis redis_rpush", Mode.APPROVAL),
         Map.entry("cache-redis redis_sadd", Mode.APPROVAL), Map.entry("cache-redis redis_zadd", Mode.APPROVAL),
-        Map.entry("dev-vm ssh_run", Mode.READ_ONLY), Map.entry("dev-vm ssh_exec", Mode.OFF),
-        Map.entry("app-logs logs_search", Mode.READ_ONLY), Map.entry("app-logs logs_tail", Mode.OFF),
-        Map.entry("dev-cluster k8s_get", Mode.READ_ONLY), Map.entry("dev-cluster k8s_logs", Mode.OFF),
-        Map.entry("dev-cluster k8s_rollout_restart", Mode.APPROVAL), Map.entry("dev-cluster k8s_apply", Mode.OFF),
+        Map.entry("dev-vm ssh_run", Mode.READ_ONLY), Map.entry("dev-vm ssh_exec", Mode.APPROVAL),
+        Map.entry("app-logs logs_search", Mode.READ_ONLY), Map.entry("app-logs logs_tail", Mode.READ_ONLY),
+        Map.entry("dev-cluster k8s_get", Mode.READ_ONLY), Map.entry("dev-cluster k8s_logs", Mode.READ_ONLY),
+        Map.entry("dev-cluster k8s_rollout_restart", Mode.APPROVAL),
+        Map.entry("dev-cluster k8s_apply", Mode.APPROVAL),
         Map.entry("aws-stage aws_describe", Mode.READ_ONLY), Map.entry("aws-stage aws_metrics", Mode.READ_ONLY),
         Map.entry("aws-stage aws_api_read", Mode.READ_ONLY), Map.entry("aws-stage aws_api_change", Mode.APPROVAL),
         Map.entry("billing-api http_get", Mode.OFF), Map.entry("billing-api http_request", Mode.APPROVAL)));
@@ -202,8 +204,8 @@ class DemoWorldIT {
 
     ToolCatalog.Catalog published = catalog.forEndpoint(snapshots.bySlug("dev").orElseThrow());
     assertThat(published.tools()).extracting(ToolCatalog.PublishedTool::name).contains("approval_status",
-        "list_connections", "describe_connection", "sql_query", "k8s_rollout_restart").doesNotContain("http_get",
-        "ssh_exec", "k8s_apply");
+        "list_connections", "describe_connection", "sql_query", "k8s_rollout_restart", "ssh_exec", "k8s_apply",
+        "k8s_logs", "logs_tail").doesNotContain("http_get");
   }
 
   @Test
@@ -222,8 +224,8 @@ class DemoWorldIT {
         + "billing-api").doesNotContain("http_request can send data to billing-api");
 
     RiskAnalyzer.Report incident = endpoints.risk("incident-prod");
-    assertThat(incident.state()).as("contained: the only way out is fixed runbooks").isEqualTo("limited");
-    assertThat(incident.ingredients().externalChannel()).isEqualTo("limited");
+    assertThat(incident.state()).as("ssh_exec, each command behind an approval, is a way out").isEqualTo("present");
+    assertThat(incident.ingredients().externalChannel()).isEqualTo("present");
     assertThat(incident.sources()).extracting(RiskAnalyzer.Source::text)
         .contains("ssh_run runs fixed runbooks on prod-vm");
   }
@@ -248,7 +250,7 @@ class DemoWorldIT {
 
   @Test
   @Order(4)
-  void incidentProdIsProdOnlyAndKeepsMutationsOff() {
+  void incidentProdIsProdOnlyAndSendsChangesToApproval() {
     EndpointService.Summary incident = endpoints.get("incident-prod");
     assertThat(incident.env()).isEqualTo(Env.PROD);
     assertThat(incident.connectionsByEnv()).containsExactly(Map.entry(Env.PROD, 3));
@@ -256,9 +258,9 @@ class DemoWorldIT {
     assertThat(s.connections()).extracting(w -> w.config().name())
         .containsExactlyInAnyOrder("prod-replica", "prod-logs", "prod-vm");
     assertThat(mode(s, "sql_query", "prod-replica")).isEqualTo(Mode.READ_ONLY);
-    assertThat(mode(s, "sql_execute", "prod-replica")).isEqualTo(Mode.OFF);
+    assertThat(mode(s, "sql_execute", "prod-replica")).isEqualTo(Mode.APPROVAL);
     assertThat(mode(s, "ssh_run", "prod-vm")).isEqualTo(Mode.READ_ONLY);
-    assertThat(mode(s, "ssh_exec", "prod-vm")).isEqualTo(Mode.OFF);
+    assertThat(mode(s, "ssh_exec", "prod-vm")).isEqualTo(Mode.APPROVAL);
     assertThat(wiring.preview("incident-prod", "dev-db").refusal()).isEqualTo("incident-prod accepts prod "
         + "connections only");
     assertThat(wiring.preview("dev", "prod-replica").refusal()).contains("goes only on a prod endpoint");
@@ -391,7 +393,7 @@ class DemoWorldIT {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.connections()).isEqualTo(7);
     assertThat(dev.tools()).as("dev-db's 3 read only and 1 approval are gone").isEqualTo(
-        new EndpointService.ToolCounts(12, 11, 5));
+        new EndpointService.ToolCounts(14, 13, 1));
     assertThat(endpoints.get("sql-mix").connections()).isEqualTo(1);
   }
 
@@ -420,7 +422,7 @@ class DemoWorldIT {
 
     // The other endpoints and the connections keep working.
     assertThat(endpoints.get("stage-readonly").connections()).isEqualTo(3);
-    assertThat(endpoints.risk("incident-prod").state()).isEqualTo("limited");
+    assertThat(endpoints.risk("incident-prod").state()).isEqualTo("present");
     assertThat(connections.list()).extracting(ConnectionService.Summary::name).contains("billing-api", "dev-cluster")
         .doesNotContain("dev-db");
   }

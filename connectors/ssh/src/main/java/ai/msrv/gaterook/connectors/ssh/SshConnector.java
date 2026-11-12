@@ -242,7 +242,7 @@ public final class SshConnector implements Connector {
       return Classification.deny(policy.rule("runbooks-only"), cfg.name() + " runs only runbooks.",
           "Use ssh_run, or ask for a runbook for this command.");
     }
-    if (!policy.flag("allowExec", false)) {
+    if (!policy.flag("allowExec", true)) {
       return Classification.deny(policy.rule("exec-not-allowed"), "Shell commands aren't allowed on "
           + cfg.env().id() + ".", "Use ssh_run with a runbook, or turn on Allow any shell command in Policies › "
           + cfg.env().id() + " › SSH.");

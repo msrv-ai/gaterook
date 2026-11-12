@@ -28,7 +28,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A tool is a READ only if it declares {@code readOnlyHint: true} and not {@code destructiveHint: true}, and
  * GateRook's verified profile of the server ({@link VerifiedProfiles}) doesn't name it; it starts in Read only on an
- * endpoint. Everything else is a mutation and starts in Approval, or Off where the profile says so. The declarations
+ * endpoint. Everything else is a mutation and starts in Approval. The declarations
  * remain unverified. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open
  * world).
  * Every tool counts as private data, untrusted content and a channel out for the risk callout: the gateway can't see
@@ -217,7 +217,7 @@ final class Snapshots {
   /**
    * The tool as an endpoint publishes it, with what GateRook's verified profile of the server says of it
    * ({@link VerifiedProfiles}, or {@code null}): a tool the profile names is a mutation whatever the server declares,
-   * published with the protocol's pessimistic hints, and starts in Approval or Off.
+   * published with the protocol's pessimistic hints, and starts in Approval.
    */
   static ToolDefinition definition(JsonNode entry, String server, VerifiedProfiles.ToolRule rule) {
     JsonNode annotations = entry.path("annotations");
@@ -230,8 +230,7 @@ final class Snapshots {
     if (description.isBlank()) {
       description = original + " of the MCP server " + server + ".";
     }
-    Mode start = read ? Mode.READ_ONLY : rule != null && rule.start() == VerifiedProfiles.Start.OFF ? Mode.OFF
-        : Mode.APPROVAL;
+    Mode start = read ? Mode.READ_ONLY : Mode.APPROVAL;
     ToolDefinition.Builder b = ToolDefinition.builder(entry.path("exposed").asString())
         .title(Texts.str(entry.path("title"), original))
         .description(description)

@@ -653,7 +653,7 @@ describe('Redis production connections', () => {
 describe('connection-specific tool preview', () => {
   const gcpTools = [
     tool({ name: 'gcp_logging_search', description: 'Search Google Cloud Logging using Logs Explorer filters.' }),
-    tool({ name: 'gcp_logging_tail', description: 'Read new Google Cloud Logging entries.', defaultMode: 'off' }),
+    tool({ name: 'gcp_logging_tail', description: 'Read new Google Cloud Logging entries.' }),
   ];
 
   it('uses the configured connector tools in every endpoint card and mutation hint', async () => {
@@ -665,7 +665,7 @@ describe('connection-specific tool preview', () => {
     expect(text(p.q('#pv-rows'))).toContain('gcp_logging_search');
     expect(text(p.q('#pv-rows'))).toContain('gcp_logging_tail');
     expect(text(p.q('#step-4'))).not.toMatch(/sql_execute|opensearch_|Loki|CloudWatch/);
-    expect(text(p.q('#pv-rows .gw-card__description'))).toBe('2 tools · 1 read only · 1 off');
+    expect(text(p.q('#pv-rows .gw-card__description'))).toBe('2 tools · 2 read only');
   });
 
   it('does not substitute a category tool list when discovery fails and allows retry', async () => {
@@ -1163,7 +1163,7 @@ describe('Add connection: wizard', () => {
     const review = document.querySelector<HTMLDialogElement>('dialog.gw-dialog[open]')!;
     const tools = Array.from(review.querySelectorAll('.gw-kv__row')).find((r) => text(r.querySelector('dt')) === 'Tools')!;
     expect(tools.querySelector('dd')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('ch_query ch_execute, Off until you '
-      + 'add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.');
+      + 'add them to an endpoint. There reads start as Read only and the others as Approval: the catalog key signed this build.');
   });
 
   it('a catalog plugin that isn’t installed is reviewed and installed on Continue, then Configure opens on it', async () => {
@@ -2629,18 +2629,18 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(TestBed.inject(ToastService).toasts().at(-1)?.body).toBe('Added to endpoint default with its tools. Next: connect your AI app.');
   });
 
-  it('keeps production writes Off when the first connection joins the empty default endpoint', async () => {
+  it('keeps production writes in Approval when the first connection joins the empty default endpoint', async () => {
     useDefault();
     const p = await open();
     await toEndpoint(p, 'prod');
     expect(text(p.q('#pv-default-t'))).toBe('qa-db environment prod on endpoint default');
-    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 off');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 approval');
     p.button('Save connection').click();
     await p.settle();
     expect(core.endpointsCreated).toEqual([]);
     expect(core.added).toEqual(['default']);
-    expect(core.modes).toEqual([{ slug: 'default', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
-    expect(text(p.q('#fr-done'))).toContain('sql_execute is off: prod is read only by default');
+    expect(core.modes).toEqual([]);
+    expect(text(p.q('#fr-done'))).toContain('sql_execute waits for your approval');
   });
 
   it.each(['known', 'discovered'] as const)('uses a separate prod endpoint when the default has %s live access across the prod boundary', async (when) => {
@@ -2654,7 +2654,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     await p.settle();
     expect(core.endpointsCreated).toEqual([{ slug: 'prod', startFrom: 'empty' }]);
     expect(core.added).toEqual(['prod']);
-    expect(core.modes).toEqual([{ slug: 'prod', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(core.modes).toEqual([]);
     expect(kv('#fr-done')[0]?.[1]).toContain('prod · http://127.0.0.1:7465/mcp/prod');
     expect(p.steps()[3]).toBe('complete:Create endpoint, completed Endpoint prod');
   });
@@ -2776,23 +2776,23 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     ]);
   });
 
-  it('prod: the endpoint is prod and its tools that would wait for approval start Off', async () => {
+  it('prod: the endpoint is prod and its tools keep their defaults, changes waiting for approval', async () => {
     core.lastBackupAt = '2026-10-20T09:00:00Z';
     const p = await open();
     await toEndpoint(p, 'prod');
     expect(text(p.q('#pv-title + .gw-form__description'))).toBe(
-      'Reads run at once. sql_execute is off: prod is read only by default. You can change the modes later.',
+      'Reads run at once. Anything that changes data, like sql_execute, waits for your approval. You can change the modes later.',
     );
     expect(text(p.q('#pv-prod-t'))).toBe('qa-db environment prod on endpoint prod');
-    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 off');
-    expect(text(p.q('#step-4 .gw-tool-policy-list__row[data-mode="off"] .gw-tool-policy-list__mode-note'))).toBe('Off on prod: read only by default');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 approval');
+    expect(p.q('#step-4 .gw-tool-policy-list__row[data-mode="off"]')).toBeNull();
     p.button('Save connection').click();
     await p.settle();
     expect(core.endpointsCreated).toEqual([{ slug: 'prod', startFrom: 'empty' }]);
     expect(core.added).toEqual(['prod']);
-    expect(core.modes).toEqual([{ slug: 'prod', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(core.modes).toEqual([]);
     expect(kv('#fr-done').slice(1)).toEqual([
-      ['Tools', 'sql_list_schemas and sql_query run at once (read only); sql_execute is off: prod is read only by default'],
+      ['Tools', 'sql_list_schemas and sql_query run at once (read only); sql_execute waits for your approval'],
       // The key has a backup: no need to ask for one.
       ['Password', 'Encrypted with a key kept on this computer.'],
     ]);

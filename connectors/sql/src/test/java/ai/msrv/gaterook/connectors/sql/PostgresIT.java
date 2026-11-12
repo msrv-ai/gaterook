@@ -167,8 +167,8 @@ class PostgresIT {
 
     assertThat(CONNECTOR.classify(call, cfg, Fixtures.policy(Env.DEV, null)).kind())
         .isEqualTo(Classification.Kind.MUTATION);
-    assertThat(CONNECTOR.classify(call, cfg, Fixtures.policy(Env.PROD, null)).ruleId())
-        .isEqualTo("prod.sql.function-not-built-in");
+    assertThat(CONNECTOR.classify(call, cfg, Fixtures.policy(Env.PROD, null)).kind())
+        .as("on prod a person decides too").isEqualTo(Classification.Kind.MUTATION);
     assertThatThrownBy(() -> CONNECTOR.execute(call, cfg, secrets("rw"), ctx()))
         .isInstanceOfSatisfying(ConnectorException.class,
             e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));

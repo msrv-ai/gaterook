@@ -31,7 +31,7 @@ final class HttpTools {
             .outputSchema(schemas.load("http_get.output"))
             .annotations(new Annotations(true, false, true, true))
             .nature(Nature.READ)
-            .defaultMode(Mode.READ_ONLY, Mode.OFF)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
             .resultShape(ResultShape.JSON)
             .risk(new Risk(true, true, Egress.CHANNEL))
             .build(),

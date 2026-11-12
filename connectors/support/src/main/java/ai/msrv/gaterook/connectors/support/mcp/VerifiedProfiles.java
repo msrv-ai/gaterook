@@ -32,9 +32,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A profile matches a server by its settings, however it was added: an HTTPS host (exact, or one DNS label under a
  * suffix) and path, or for a command the npm package and the subcommand it runs. It only makes the server's defaults
- * stricter. A tool it names is a mutation for GateRook whatever the server declares, and starts in Approval (a tool
- * that runs code or arbitrary API calls, or a write the server declares read-only) or Off (a tool that hands the
- * request to another agent). Tools it doesn't name keep the rules of their annotations. A profile never makes a tool
+ * stricter. A tool it names is a mutation for GateRook whatever the server declares, and starts in Approval: a tool
+ * that runs code or arbitrary API calls, a write the server declares read-only, or a tool that hands the request to
+ * another agent. Tools it doesn't name keep the rules of their annotations. A profile never makes a tool
  * Read only: GateRook doesn't infer read-only behavior from a tool's name (ARCHITECTURE.md §5.1).
  *
  * <p>Pins are the vendor's switches the setup sets: query parameters of its URL, with a fixed value
@@ -47,8 +47,11 @@ public final class VerifiedProfiles {
   /** The bundled profiles' resource, beside this class (registered for the native image). */
   public static final String RESOURCE = "ai/msrv/gaterook/connectors/support/mcp/verified-profiles.json";
 
-  /** Where a tool a profile names starts on an endpoint. */
-  public enum Start { APPROVAL, OFF }
+  /**
+   * Where a tool a profile names starts on an endpoint: in Approval, whatever the server declares. No profile starts a
+   * tool Off: what it names stays available to agents, each call behind a person's approval.
+   */
+  public enum Start { APPROVAL }
 
   /**
    * Why a profile names a tool: it runs code ({@code code}) or arbitrary API calls ({@code passthrough}), changes
@@ -445,9 +448,6 @@ public final class VerifiedProfiles {
         kind = Kind.valueOf(text(t, "kind", id).toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException("verified profiles: " + id + " gives " + tool + " a bad start or kind", e);
-      }
-      if (kind == Kind.DELEGATING && start != Start.OFF) {
-        throw new IllegalArgumentException("verified profiles: " + id + " must start the delegating " + tool + " Off");
       }
       tools.add(new ToolRule(tool, start, kind, text(t, "reason", id)));
     }

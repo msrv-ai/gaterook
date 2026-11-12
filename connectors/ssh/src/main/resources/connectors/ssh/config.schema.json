@@ -95,9 +95,6 @@
       "type": "boolean",
       "title": "Runbooks only",
       "default": false,
-      "x-env-default": {
-        "prod": true
-      },
       "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
       "x-badge": "Runbooks only"
     },

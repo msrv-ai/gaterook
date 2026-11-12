@@ -58,6 +58,6 @@ class McpServerProfileViewTest {
     assertThat(firebase.command()).containsExactly("npx", "-y", "firebase-tools@15.35.0", "mcp");
     assertThat(firebase.pins()).isEmpty();
     assertThat(firebase.tools()).filteredOn(t -> t.tool().equals("apptesting_run_test"))
-        .extracting(McpServerService.ToolRuleView::start).containsExactly("off");
+        .extracting(McpServerService.ToolRuleView::start).containsExactly("approval");
   }
 }

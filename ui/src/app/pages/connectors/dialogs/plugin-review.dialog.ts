@@ -76,8 +76,12 @@ export class DirectPluginInstaller extends PluginInstaller {
               <div class="gw-kv__row"><dt class="gw-kv__key">Connection form</dt><dd class="gw-kv__value">{{ f.connectionForm }}</dd></div>
             }
             <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">
-              @if (f.allReadOnly) {
+              @if (f.allReadOnly && f.signed) {
+                {{ f.toolNames.length }}, all read only. On an endpoint each starts as Read only: the catalog key signed this build.
+              } @else if (f.allReadOnly) {
                 {{ f.toolNames.length }}, all read only <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The plugin declares these annotations; the gateway can't check what the tools do"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ f.id }}, not verified</span>. On an endpoint each starts as Approval; Read only needs your confirmation per tool.
+              } @else if (f.signed) {
+                @for (t of f.toolNames; track t; let last = $last) {<code class="gw-code">{{ t }}</code>@if (!last) {{{ ' ' }}}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There reads start as Read only and the others as Approval: the catalog key signed this build.
               } @else {
                 @for (t of f.toolNames; track t; let last = $last) {<code class="gw-code">{{ t }}</code>@if (!last) {{{ ' ' }}}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.
               }
@@ -174,7 +178,8 @@ export class GwPluginReviewDialog {
       this.toasts.show({
         tone: f.signed ? 'success' : 'warning',
         title: f.signed ? `${f.name} plugin installed` : `Unsigned plugin ${f.name} installed`,
-        body: `${tools === 1 ? 'Its tool is' : `Its ${tools} tools are`} Off until you add them to an endpoint. There each starts as Approval.`,
+        body: `${tools === 1 ? 'Its tool is' : `Its ${tools} tools are`} Off until you add them to an endpoint. ${f.signed
+          ? 'There reads start as Read only and the others as Approval.' : 'There each starts as Approval.'}`,
       });
     } catch (e) {
       if (cancelled()) return;

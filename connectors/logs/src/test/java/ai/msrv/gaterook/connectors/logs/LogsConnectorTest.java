@@ -61,7 +61,7 @@ class LogsConnectorTest {
     assertThat(tools).extracting(ToolDefinition::name).containsExactly("logs_search", "logs_tail",
         "opensearch_indices", "opensearch_query", "opensearch_request");
     assertTool(tools.get(0), "logs_search", Mode.READ_ONLY, Mode.READ_ONLY, true);
-    assertTool(tools.get(1), "logs_tail", Mode.OFF, Mode.OFF, false);
+    assertTool(tools.get(1), "logs_tail", Mode.READ_ONLY, Mode.READ_ONLY, false);
     assertTool(tools.get(2), "opensearch_indices", Mode.READ_ONLY, Mode.READ_ONLY, true);
     assertTool(tools.get(3), "opensearch_query", Mode.READ_ONLY, Mode.READ_ONLY, true);
     ToolDefinition request = tools.get(4);

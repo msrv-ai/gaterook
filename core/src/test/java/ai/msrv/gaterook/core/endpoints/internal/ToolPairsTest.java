@@ -157,12 +157,12 @@ class ToolPairsTest {
   }
 
   /**
-   * A tool the MCP server connector starts Off (one GateRook's verified profile of the server keeps off, because it
-   * hands requests to another agent) starts Off on every endpoint, whatever it declares. One the profile starts in
-   * Approval, a mutation for GateRook, starts there and can't be Read only.
+   * Nothing starts Off on a standard endpoint: an MCP tool whatever its connector's default (a delegating tool of a
+   * verified profile included) starts in Approval, or in Read only when it declares that it only reads; a mutation
+   * can't be Read only, and a read-only endpoint keeps Approval and changes off.
    */
   @Test
-  void anMcpToolItsConnectorStartsOffStartsOffEverywhere() {
+  void anMcpToolStartsInApprovalWhateverItsConnectorDefaultIs() {
     ToolDefinition delegating = ToolDefinition.builder("ask_agent").nature(ToolDefinition.Nature.MUTATION)
         .annotations(new ToolDefinition.Annotations(false, true, false, true)).defaultMode(Mode.OFF, Mode.OFF).build();
     ToolDefinition code = ToolDefinition.builder("execute").nature(ToolDefinition.Nature.MUTATION)
@@ -171,18 +171,72 @@ class ToolPairsTest {
     ToolDefinition offRead = ToolDefinition.builder("search").defaultMode(Mode.OFF, Mode.OFF).build();
 
     for (Env env : Env.values()) {
-      for (boolean readOnlyEndpoint : List.of(false, true)) {
-        assertThat(ToolPairs.initial(external(delegating, ConnectorManifest.Kind.MCP_SERVER), env, readOnlyEndpoint))
-            .isEqualTo(Mode.OFF);
-        assertThat(ToolPairs.initial(external(offRead, ConnectorManifest.Kind.MCP_SERVER), env, readOnlyEndpoint))
+      for (ToolDefinition change : List.of(delegating, code)) {
+        assertThat(ToolPairs.initial(external(change, ConnectorManifest.Kind.MCP_SERVER), env, false))
+            .isEqualTo(Mode.APPROVAL);
+        assertThat(ToolPairs.initial(external(change, ConnectorManifest.Kind.MCP_SERVER), env, true))
             .isEqualTo(Mode.OFF);
       }
-      assertThat(ToolPairs.initial(external(code, ConnectorManifest.Kind.MCP_SERVER), env, false))
-          .isEqualTo(Mode.APPROVAL);
-      assertThat(ToolPairs.initial(external(code, ConnectorManifest.Kind.MCP_SERVER), env, true)).isEqualTo(Mode.OFF);
+      for (boolean readOnlyEndpoint : List.of(false, true)) {
+        assertThat(ToolPairs.initial(external(offRead, ConnectorManifest.Kind.MCP_SERVER), env, readOnlyEndpoint))
+            .isEqualTo(Mode.READ_ONLY);
+      }
     }
     assertThat(ToolPairs.refusal(external(code, ConnectorManifest.Kind.MCP_SERVER), Mode.READ_ONLY, false, false,
         "dev")).hasValueSatisfying(reason -> assertThat(reason).contains("Read only isn't available"));
+  }
+
+  /**
+   * A built-in tool whose manifest says Off or Bypass starts in Approval: agents get every tool, a person decides each
+   * call that isn't a plain read.
+   */
+  @Test
+  void aBuiltInToolNeverStartsOffOrInBypass() {
+    ToolDefinition exec = ToolDefinition.builder("ssh_exec").nature(ToolDefinition.Nature.MUTATION)
+        .annotations(ToolDefinition.Annotations.write(true)).defaultMode(Mode.OFF, Mode.OFF).build();
+    ToolDefinition tail = ToolDefinition.builder("logs_tail").defaultMode(Mode.OFF, Mode.OFF).build();
+    ToolDefinition bypass = ToolDefinition.builder("restart").nature(ToolDefinition.Nature.MUTATION)
+        .annotations(ToolDefinition.Annotations.write(true)).defaultMode(Mode.BYPASS, Mode.BYPASS).build();
+    ToolDefinition read = ToolDefinition.builder("k8s_get").build();
+
+    for (Env env : Env.values()) {
+      for (ToolDefinition t : List.of(exec, tail, bypass)) {
+        assertThat(ToolPairs.initial(builtIn(t), env, false)).as(t.name()).isEqualTo(Mode.APPROVAL);
+      }
+      assertThat(ToolPairs.initial(builtIn(read), env, false)).isEqualTo(Mode.READ_ONLY);
+      assertThat(ToolPairs.initial(builtIn(exec), env, true)).isEqualTo(Mode.OFF);
+      assertThat(ToolPairs.initial(builtIn(read), env, true)).isEqualTo(Mode.READ_ONLY);
+    }
+  }
+
+  /**
+   * A plugin whose build GateRook's catalog key signed is code GateRook reviewed: its declared reads start in Read only
+   * with no confirmation, its other tools in Approval. An unsigned plugin's reads wait for approval until the person
+   * confirms them one by one.
+   */
+  @Test
+  void aSignedPluginsReadsStartInReadOnlyAndAnUnsignedOnesWaitForAConfirmation() {
+    ToolDefinition read = ToolDefinition.builder("duckdb_query").defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
+    ToolDefinition execute = ToolDefinition.builder("duckdb_execute").nature(ToolDefinition.Nature.MUTATION)
+        .annotations(ToolDefinition.Annotations.write(true)).defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
+    ToolDefinition mixed = ToolDefinition.builder("duckdb_run").nature(ToolDefinition.Nature.MIXED)
+        .defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
+    ToolPairs.Offered signedRead = signedPlugin(read);
+    ToolPairs.Offered unsignedRead = external(read, ConnectorManifest.Kind.PLUGIN);
+
+    assertThat(signedRead.needsReadOnlyConfirmation()).isFalse();
+    assertThat(unsignedRead.needsReadOnlyConfirmation()).isTrue();
+    for (Env env : Env.values()) {
+      assertThat(ToolPairs.initial(signedRead, env, false)).isEqualTo(Mode.READ_ONLY);
+      assertThat(ToolPairs.initial(signedRead, env, true)).isEqualTo(Mode.READ_ONLY);
+      assertThat(ToolPairs.initial(signedPlugin(execute), env, false)).isEqualTo(Mode.APPROVAL);
+      assertThat(ToolPairs.initial(signedPlugin(mixed), env, false)).as("only a READ starts unattended")
+          .isEqualTo(Mode.APPROVAL);
+      assertThat(ToolPairs.initial(unsignedRead, env, false)).isEqualTo(Mode.APPROVAL);
+    }
+    assertThat(ToolPairs.refusal(signedRead, Mode.READ_ONLY, false, false, "dev")).isEmpty();
+    assertThat(ToolPairs.refusal(unsignedRead, Mode.READ_ONLY, false, false, "dev")).hasValueSatisfying(
+        reason -> assertThat(reason).contains("Confirm"));
   }
 
   @Test
@@ -375,6 +429,16 @@ class ToolPairsTest {
 
   private static ToolPairs.Offered external(ToolDefinition tool, ConnectorManifest.Kind kind) {
     return new ToolPairs.Offered("external:" + tool.name(), tool, kind, "test-server", "1.0.0", null, null);
+  }
+
+  /** A tool of a plugin whose build the catalog key signed: nobody is named as having only declared it. */
+  private static ToolPairs.Offered signedPlugin(ToolDefinition tool) {
+    return new ToolPairs.Offered("plugin:duckdb:" + tool.name(), tool, ConnectorManifest.Kind.PLUGIN, null, "1.0.0",
+        null, null);
+  }
+
+  private static ToolPairs.Offered builtIn(ToolDefinition tool) {
+    return new ToolPairs.Offered(tool.name(), tool, ConnectorManifest.Kind.BUILT_IN, null, null, null, null);
   }
 
   private Connector connector() {

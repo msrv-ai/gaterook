@@ -263,20 +263,28 @@ describe('Add connection: endpoints', () => {
       ['sql_list_schemas', 'READ_ONLY', null],
       ['sql_describe_table', 'READ_ONLY', null],
       ['sql_query', 'READ_ONLY', null],
-      ['sql_execute', 'APPROVAL', 'Mutates data: starts in Approval or Off'],
+      ['sql_execute', 'APPROVAL', 'Mutates data: starts in Approval'],
     ]);
     const onStage = toolPreview(SQL_TOOLS, 'built-in', false, stage);
     expect(onStage.summary).toBe('4 tools · 3 read only · 1 off, locked by the read-only endpoint');
     expect(onStage.rows[3]).toMatchObject({ mode: 'OFF', note: { icon: 'lock', text: 'stage-readonly is read only' } });
   });
 
-  it('starts every tool of a plugin in Approval, and says when the tools come from the server', () => {
+  it('starts an unsigned plugin’s tools in Approval, a signed one’s reads in Read only, and says when the tools come from the server', () => {
     const [dev] = endpointChoices(ENDPOINTS, { name: 'jira', env: 'dev' });
     expect(toolPreview(SQL_TOOLS.slice(0, 1), 'plugin', false, dev).rows[0].mode).toBe('APPROVAL');
+    expect(toolPreview(SQL_TOOLS, 'plugin', false, dev, true).rows.map((r) => r.mode)).toEqual(['READ_ONLY', 'READ_ONLY', 'READ_ONLY', 'APPROVAL']);
     expect(toolPreview([], 'mcp-server', true, dev)).toMatchObject({ fromServer: true, summary: '0 tools' });
     expect(toolMode('READ_ONLY')).toBe('READ_ONLY');
     expect(toolMode('read-only')).toBe('READ_ONLY');
     expect(toolMode(null)).toBe('OFF');
+  });
+
+  it('never previews a tool Off on a standard endpoint: a manifest default of Off starts in Approval', () => {
+    const [dev, stage] = endpointChoices(ENDPOINTS, { name: 'dev-vm', env: 'dev' });
+    const exec = { ...SQL_TOOLS[3], name: 'ssh_exec', defaultMode: 'off', prodDefaultMode: 'off' };
+    expect(toolPreview([exec], 'built-in', false, dev).rows[0].mode).toBe('APPROVAL');
+    expect(toolPreview([exec], 'built-in', false, stage).rows[0].mode).toBe('OFF');
   });
 
   it('previews declared MCP reads as Read only, retaining Approval or Off for other tools', () => {
@@ -545,14 +553,15 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(done[3].description).toEqual({ text: 'Endpoint stage' });
   });
 
-  it('previews the first endpoint’s tools: the defaults on dev, nothing waiting for approval on prod', () => {
+  it('previews the first endpoint’s tools: the defaults, on prod too, with changes waiting for approval', () => {
     const dev = firstRunPreview(SQL_TOOLS, 'built-in', false, 'dev');
     expect(dev.slug).toBe('dev');
     expect(dev.summary).toBe('4 tools · 3 read only · 1 approval');
     const prod = firstRunPreview(SQL_TOOLS, 'built-in', false, 'prod');
     expect(prod.slug).toBe('prod');
-    expect(prod.summary).toBe('4 tools · 3 read only · 1 off');
-    expect(prod.rows[3]).toMatchObject({ name: 'sql_execute', mode: 'OFF', note: { icon: 'lock', text: 'Off on prod: read only by default' } });
+    expect(prod.summary).toBe('4 tools · 3 read only · 1 approval');
+    expect(prod.rows[3]).toMatchObject({ name: 'sql_execute', mode: 'APPROVAL' });
+    expect(prod.rows.some((r) => r.mode === 'OFF')).toBe(false);
   });
 
   it('says what the AI apps can do there, in the kit words', () => {
@@ -561,7 +570,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
       literals: ['sql_execute'],
     });
     expect(firstRunModes(firstRunPreview(SQL_TOOLS, 'built-in', false, 'prod'))).toEqual({
-      text: 'Reads run at once. sql_execute is off: prod is read only by default. You can change the modes later.',
+      text: 'Reads run at once. Anything that changes data, like sql_execute, waits for your approval. You can change the modes later.',
       literals: ['sql_execute'],
     });
     expect(firstRunModes(firstRunPreview([], 'mcp-server', true, 'dev')).text).toBe(
@@ -572,12 +581,12 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
   it('requires an explicit Bypass choice instead of inheriting it from connector defaults', () => {
     const tools = SQL_TOOLS.map((t) => ({ ...t, defaultMode: 'bypass', prodDefaultMode: 'bypass' }));
     expect(firstRunPreview(tools, 'built-in', false, 'dev').rows.every((r) => r.mode === 'APPROVAL')).toBe(true);
-    expect(firstRunPreview(tools, 'built-in', false, 'prod').rows.every((r) => r.mode === 'OFF')).toBe(true);
+    expect(firstRunPreview(tools, 'built-in', false, 'prod').rows.every((r) => r.mode === 'APPROVAL')).toBe(true);
   });
 
   it('names Bypass tools returned by the endpoint instead of hiding them in the ready summary', () => {
     const rows = [{ name: 'sql_execute', mode: 'BYPASS' as const }, { name: 'restart', mode: 'APPROVAL' as const }];
-    expect(toolsSentence(toolsLine(rows), 'dev')).toEqual({
+    expect(toolsSentence(toolsLine(rows))).toEqual({
       text: 'restart waits for your approval; sql_execute runs without approval (Bypass)',
       literals: ['restart', 'sql_execute'],
     });
@@ -594,14 +603,14 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
       { name: 'sql_execute', mode: 'APPROVAL' },
     ]);
     expect(line).toEqual({ reads: ['sql_list_schemas', 'sql_describe_table', 'sql_query'], approval: ['sql_execute'], bypass: [], off: [] });
-    expect(toolsSentence(line, 'dev').text).toBe(
+    expect(toolsSentence(line).text).toBe(
       'sql_list_schemas, sql_describe_table and sql_query run at once (read only); sql_execute waits for your approval',
     );
-    expect(toolsSentence({ reads: ['k8s_get'], approval: [], bypass: [], off: ['k8s_apply', 'k8s_rollout_restart'] }, 'prod')).toEqual({
-      text: 'k8s_get runs at once (read only); k8s_apply and k8s_rollout_restart are off: prod is read only by default',
+    expect(toolsSentence({ reads: ['k8s_get'], approval: ['k8s_apply'], bypass: [], off: ['k8s_rollout_restart'] })).toEqual({
+      text: 'k8s_get runs at once (read only); k8s_apply waits for your approval; k8s_rollout_restart is off',
       literals: ['k8s_get', 'k8s_apply', 'k8s_rollout_restart'],
     });
-    expect(toolsSentence({ reads: [], approval: [], bypass: [], off: [] }, 'dev').text).toBe('They come from the server once it runs');
+    expect(toolsSentence({ reads: [], approval: [], bypass: [], off: [] }).text).toBe('They come from the server once it runs');
   });
 
   it('says what the test checks where the type signs in, and what Save did', () => {

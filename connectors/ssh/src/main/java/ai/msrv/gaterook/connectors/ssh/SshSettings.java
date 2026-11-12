@@ -2,7 +2,6 @@ package ai.msrv.gaterook.connectors.ssh;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
-import ai.msrv.gaterook.connector.api.Env;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -110,8 +109,8 @@ record SshSettings(Target target, Credentials credentials, HostKeyConfig hostKey
         a.path("reuseSessions").asBoolean(true), clamp(a.path("maxChannelsPerSession").asInt(8), 1, 10),
         a.path("remoteDeadline").asBoolean(false), a.path("legacyAlgorithms").asBoolean(false),
         a.path("probeSudo").asBoolean(true));
-    // The core doesn't fill x-env-default into a saved config: an unset switch is on for prod (report 06 §4).
-    boolean runbooksOnly = c.path("runbooksOnly").asBoolean(cfg.env() == Env.PROD);
+    // An unset switch is off on every environment: ssh_exec stays available, each command behind an approval.
+    boolean runbooksOnly = c.path("runbooksOnly").asBoolean(false);
     return new SshSettings(target, credentials, hostKeys, jump, advanced, runbooksOnly);
   }
 

@@ -367,10 +367,11 @@ export class ConnectionNewPage {
     const tools = this.configuredTools();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
     const dynamic = card ? card.tools === null : false;
+    const signed = card?.signed ?? this.typeDetail()?.type.signed ?? false;
     const chosen = this.chosen();
     return this.choices()
       .filter((c) => !c.refusal && chosen.includes(c.slug))
-      .map((c) => ({ choice: c, preview: toolPreview(tools, kind, dynamic, c) }));
+      .map((c) => ({ choice: c, preview: toolPreview(tools, kind, dynamic, c, signed) }));
   });
   /** The type's tools that change data; their initial modes are shown before saving. */
   protected readonly mutatingTools = computed(() =>
@@ -443,11 +444,12 @@ export class ConnectionNewPage {
     readonly tested: boolean;
     readonly health: ReturnType<typeof healthLook> | null;
   } | null>(null);
-  /** The first endpoint's tools as Save will create them (prod: nothing in Approval, read only by default). */
+  /** The first endpoint's tools as Save will create them: reads in Read only, changes in Approval, on prod too. */
   protected readonly firstPreview = computed(() => {
     const card = this.card();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
-    return firstRunPreview(this.configuredTools(), kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug());
+    const signed = card?.signed ?? this.typeDetail()?.type.signed ?? false;
+    return firstRunPreview(this.configuredTools(), kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug(), signed);
   });
   /** "sql_execute" in "Anything that changes data, like sql_execute, waits for your approval." */
   protected readonly firstMutating = computed(() => this.mutatingTools()[0] ?? null);
@@ -469,7 +471,7 @@ export class ConnectionNewPage {
   /** The ready card's Tools row, from the endpoint's tools as the core answered them. */
   protected readonly readyTools = computed(() => {
     const r = this.ready();
-    return r ? toolsSentence(r.tools, r.env) : null;
+    return r ? toolsSentence(r.tools) : null;
   });
 
   // ─── Edit view ───
@@ -1261,9 +1263,9 @@ export class ConnectionNewPage {
 
   /**
    * First run, once the connection exists: reuse the empty default endpoint or create the first endpoint named after
-   * its environment. On prod nothing waits for approval — "prod
-   * is read only by default" (kit), so the tools the core starts in Approval are set Off. Then the "<name> is ready"
-   * card replaces the wizard. A step that fails says so and leads to the connection's own page.
+   * its environment, with every tool in the mode the core starts it in: reads run at once, changes wait for approval,
+   * on prod too. Then the "<name> is ready" card replaces the wizard. A step that fails says so and leads to the
+   * connection's own page.
    */
   private async finishFirstRun(v: ConnectionFormValue): Promise<void> {
     let slug = this.firstEndpointSlug();
@@ -1311,19 +1313,7 @@ export class ConnectionNewPage {
       return stop(e);
     }
     const mine = (groups: readonly ToolGroup[]) => groups.filter((g) => g.connection === v.name).flatMap((g) => g.tools);
-    let groups: ToolGroup[] | null = await this.endpointsApi.tools(slug).catch(() => null);
-    const notOff: string[] = [];
-    if (v.env === 'prod' && groups) {
-      for (const key of mine(groups).filter((t) => t.mode === 'APPROVAL').map((t) => t.toolKey)) {
-        const row: ToolGroup['tools'][number] | undefined = mine(groups).find((t) => t.toolKey === key);
-        if (!row || row.mode !== 'APPROVAL') continue;
-        try {
-          groups = await this.endpointsApi.setMode(slug, { toolKey: row.toolKey, connection: v.name, mode: 'OFF', version: row.version });
-        } catch {
-          notOff.push(row.name);
-        }
-      }
-    }
+    const groups: ToolGroup[] | null = await this.endpointsApi.tools(slug).catch(() => null);
     const detail = await this.connections.get(v.name).catch(() => null);
     const outcome = this.outcome();
     const h = detail?.health;
@@ -1341,22 +1331,7 @@ export class ConnectionNewPage {
     });
     this.saving.set(false);
     afterNextRender(() => this.doc.getElementById('fr-done-t')?.focus(), { injector: this.injector });
-    if (notOff.length) {
-      const one = notOff.length === 1;
-      this.toasts.show({
-        tone: 'warning',
-        title: `Connection ${v.name} saved`,
-        body: `Added to endpoint ${slug}, but ${list(notOff)} still ${one ? 'waits' : 'wait'} for approval there. Turn ${one ? 'it' : 'them'} off on the endpoint.`,
-      });
-    } else if (v.env === 'prod' && !groups) {
-      this.toasts.show({
-        tone: 'warning',
-        title: `Connection ${v.name} saved`,
-        body: `Added to endpoint ${slug}. Its tools couldn't be read back: check that nothing waits for approval there.`,
-      });
-    } else {
-      this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug, endpointCreated) });
-    }
+    this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug, endpointCreated) });
   }
 
   /** The core refused the new connection: the name (409) or a field (422) go back to Configure to be fixed. */

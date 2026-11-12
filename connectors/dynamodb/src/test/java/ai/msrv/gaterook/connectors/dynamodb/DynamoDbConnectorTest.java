@@ -173,7 +173,7 @@ class DynamoDbConnectorTest {
         "dynamodb_describe_table", "dynamodb_query", "dynamodb_scan", "dynamodb_partiql", "dynamodb_execute");
     ToolDefinition scan = dynamo.manifest().tools().get(3);
     assertThat(scan.defaultMode()).isEqualTo(ToolDefinition.Mode.READ_ONLY);
-    assertThat(scan.prodDefaultMode()).isEqualTo(ToolDefinition.Mode.APPROVAL);
+    assertThat(scan.prodDefaultMode()).isEqualTo(ToolDefinition.Mode.READ_ONLY);
     ToolDefinition execute = dynamo.manifest().tools().getLast();
     assertThat(execute.mutating()).isTrue();
     assertThat(execute.readOnlyModeAllowed()).isFalse();

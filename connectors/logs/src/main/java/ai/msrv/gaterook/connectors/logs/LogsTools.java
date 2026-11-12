@@ -52,7 +52,7 @@ final class LogsTools {
             .outputSchema(schemas.load("logs.output"))
             .annotations(new Annotations(true, false, false, false))
             .nature(Nature.READ)
-            .defaultMode(Mode.OFF, Mode.OFF)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
             .resultShape(ResultShape.LOGS)
             .build(),
         ToolDefinition.builder("opensearch_indices")

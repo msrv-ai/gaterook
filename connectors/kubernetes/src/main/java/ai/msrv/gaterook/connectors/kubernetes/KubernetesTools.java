@@ -43,7 +43,7 @@ final class KubernetesTools {
             .inputSchema(schemas.load("k8s_logs.input"))
             .annotations(new Annotations(true, false, false, false))
             .nature(Nature.READ)
-            .defaultMode(Mode.OFF, Mode.OFF)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
             .resultShape(ResultShape.TEXT)
             .build(),
         ToolDefinition.builder(RESTART)
@@ -53,7 +53,7 @@ final class KubernetesTools {
             .inputSchema(schemas.load("k8s_rollout_restart.input"))
             .annotations(Annotations.write(true))
             .nature(Nature.MUTATION)
-            .defaultMode(Mode.APPROVAL, Mode.OFF)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
             .resultShape(ResultShape.JSON)
             .risk(new Risk(false, false, Egress.NONE))
             .build(),
@@ -65,7 +65,7 @@ final class KubernetesTools {
             .inputSchema(schemas.load("k8s_apply.input"))
             .annotations(new Annotations(false, true, true, false))
             .nature(Nature.MUTATION)
-            .defaultMode(Mode.OFF, Mode.OFF)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
             .resultShape(ResultShape.JSON)
             .risk(new Risk(false, false, Egress.CHANNEL))
             .build());
