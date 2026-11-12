@@ -162,7 +162,7 @@ describe('setup helpers: the Kubernetes form', () => {
       { value: 'app-dev', label: null, detail: null }, { value: 'payments', label: null, detail: null },
     ] } }, notes: ['Signed in to 127.0.0.1:6443: 2 namespaces. Choose the default namespace.'] });
     const line = v.el.querySelector('#cf-namespace-found-line')!;
-    expect(line.textContent).toContain('Filled in from context kind-dev. Also found:');
+    expect(line.textContent).toContain('Filled in from context kind-dev. Also found in the cluster:');
     [...line.querySelectorAll('button')].find((b) => b.textContent === 'payments')!.click();
     await v.settle();
     expect(v.el.querySelector<HTMLInputElement>('#cf-namespace')!.value).toBe('payments');

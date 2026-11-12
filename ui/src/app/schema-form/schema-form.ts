@@ -706,8 +706,11 @@ export class SchemaForm {
 
   /** What the setup helpers found, by field pointer (`/context`): offered under the field, its value filled in. */
   readonly suggestions = signal<Readonly<Record<string, SuggestedField>>>({});
-  /** The values suggestions filled in, by pointer: such a field follows new suggestions until the person changes it. */
-  readonly autoFilled = signal<Readonly<Record<string, JsonValue>>>({});
+  /**
+   * The values suggestions filled in and where they came from, by pointer: such a field follows new suggestions until
+   * the person changes it, and its hint names the source even after a newer answer no longer mentions it.
+   */
+  readonly autoFilled = signal<Readonly<Record<string, { readonly value: JsonValue; readonly source: string | null }>>>({});
 
   /** The helpers' latest findings; values are filled in at once ({@link prefill}). */
   setSuggestions(fields: Readonly<Record<string, SuggestedField>>): void {
@@ -736,7 +739,12 @@ export class SchemaForm {
   /** Whether the field holds what a suggestion filled in (its hint says so). */
   wasFilled(node: SchemaNode): boolean {
     const filled = this.autoFilled()[node.pointer];
-    return filled !== undefined && sameJson(filled, getAt(this.model(), node.path));
+    return filled !== undefined && sameJson(filled.value, getAt(this.model(), node.path));
+  }
+
+  /** Where the value a suggestion filled in came from ("~/.kube/config"), while the field still holds it. */
+  filledFrom(node: SchemaNode): string | null {
+    return this.wasFilled(node) ? this.autoFilled()[node.pointer].source : null;
   }
 
   /** The person picked an option under a field: it is set (or added to a list) as if typed. */
@@ -773,11 +781,11 @@ export class SchemaForm {
       if (this.dirtyByPerson(node) && !completes) continue;
       const empty = now === null || now === '' || (Array.isArray(now) && !now.length);
       const before = filled[node.pointer];
-      const ours = before !== undefined && sameJson(before, now);
+      const ours = before !== undefined && sameJson(before.value, now);
       const atDefault = !this.saved && sameJson(now, defaultOn(node, this.env()));
       if (!(empty || ours || atDefault || completes) || sameJson(now, value)) continue;
       model = setAt(model, node.path, node.kind === 'tags' ? [value] : value);
-      filled[node.pointer] = node.kind === 'tags' ? [value] : value;
+      filled[node.pointer] = { value: node.kind === 'tags' ? [value] : value, source: s.source };
       changed = true;
     }
     if (changed) {
@@ -801,14 +809,15 @@ export class SchemaForm {
     const found = this.suggestionFor(node)?.options.find((o) => this.completesScheme(node, now, o.value));
     if (!found) return;
     this.set(node, found.value);
-    this.autoFilled.update((f) => ({ ...f, [node.pointer]: found.value }));
+    const source = this.suggestionFor(node)?.source ?? null;
+    this.autoFilled.update((f) => ({ ...f, [node.pointer]: { value: found.value, source } }));
   }
 
   /** Whether the person typed into or picked the field (a value a suggestion set doesn't count). */
   private dirtyByPerson(node: SchemaNode): boolean {
     if (!this.dirty(node)) return false;
     const filled = untracked(this.autoFilled)[node.pointer];
-    return !(filled !== undefined && sameJson(filled, getAt(untracked(this.model), node.path)));
+    return !(filled !== undefined && sameJson(filled.value, getAt(untracked(this.model), node.path)));
   }
 
   /** A suggested text as the field's value: a number for a number field, one of a choice's options; else `null`. */

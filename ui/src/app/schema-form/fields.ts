@@ -144,10 +144,12 @@ export class GwSchemaField {
 
   /** "Found in your kubeconfig:" before the values; "Filled in from …" when one was put into the field. */
   protected suggestLead(): string {
-    const s = this.suggestion();
-    const source = s?.source ?? 'what GateRook found';
+    const source = this.suggestion()?.source ?? 'what GateRook found';
     const others = this.chips().length > 0;
-    if (this.form().wasFilled(this.node())) return others ? `Filled in from ${source}. Also found:` : `Filled in from ${source}.`;
+    if (this.form().wasFilled(this.node())) {
+      const from = this.form().filledFrom(this.node()) ?? source;
+      return others ? `Filled in from ${from}. Also found in ${source}:` : `Filled in from ${from}.`;
+    }
     return this.node().kind === 'tags' ? `Add from ${source}:` : `Found in ${source}:`;
   }
 

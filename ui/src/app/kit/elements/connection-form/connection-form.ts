@@ -635,7 +635,7 @@ export class GwConnectionForm {
     for (const [pointer, field] of Object.entries(f.service?.result.fields ?? {})) {
       const local = fields[pointer];
       // A value the computer knows (the context's namespace) stays the one filled in when the service only lists.
-      fields[pointer] = local && !field.value && local.value ? { ...field, value: local.value, source: local.source } : field;
+      fields[pointer] = local && !field.value && local.value ? { ...field, value: local.value } : field;
     }
     this.state().setSuggestions(fields);
   }
