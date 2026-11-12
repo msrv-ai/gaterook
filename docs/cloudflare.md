@@ -27,6 +27,8 @@ Give the token read permissions for the families agents should read, and add an 
 
 **Test connection** verifies the token (`/user/tokens/verify`, or `/accounts/{id}/tokens/verify` for an account token) and lists the accounts and the zones of the account it can see. It then reads once per family — DNS, Workers, KV, Pages, tunnels, Logpush, analytics — and reports which tools will work. When the token may read its own policies, it reports the Edit permissions it holds: a token that can change resources is a warning on prod, and one that can create API tokens is a danger. A token that expires within two weeks is a warning. Health verifies the token. The zones the test found are recorded, so a zone given by ID is checked against the list before any request.
 
+While you fill in the form, it takes the account ID from a pasted dashboard link or from `CLOUDFLARE_ACCOUNT_ID`, and says when a token is the Global API Key or carries `Bearer`. Once the form holds a token, it lists the accounts the token can see, filling in Account ID when the token sees only one, and the zones of the account, with a note for each list the token may not read.
+
 ## Read the account
 
 | Tool | What it reads | Default mode |
