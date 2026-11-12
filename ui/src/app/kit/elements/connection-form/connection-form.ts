@@ -683,9 +683,11 @@ export class GwConnectionForm {
    * Advanced settings, so the open part holds only what a connection needs. Display only: each keeps its config path.
    */
   protected readonly advancedFields = computed(() => {
-    const compiled = this.state().compiled;
-    return new Set(compiled.all.filter((node) => isAdvanced(node, compiled)));
-  });
+    const state = this.state();
+    const compiled = state.compiled;
+    // A field required right now (a kubeconfig file's Context, AWS's role on prod) stays in sight.
+    return new Set(compiled.all.filter((node) => isAdvanced(node, compiled) && !state.needed(node)));
+  }, { equal: (a, b) => a.size === b.size && [...a].every((node) => b.has(node)) });
 
   /**
    * The sections as shown: optional fields moved out of the open sections and the root, and gathered with values set

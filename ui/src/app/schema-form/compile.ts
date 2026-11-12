@@ -670,17 +670,17 @@ export function isRequired(node: SchemaNode, model: JsonValue): boolean {
 const LOGIN_KEY = /^(user|username|login|accessKeyId|clientId|applicationId)$/;
 
 /**
- * Whether the form shows a field under the collapsed Advanced settings: `x-advanced` when the schema says, else every
- * optional field that isn't a credential (a secret, the user of a login), doesn't decide which other fields show and
- * may never be required. Display only: the config keeps the field where the schema puts it.
+ * Whether the form may show a field under the collapsed Advanced settings: `x-advanced` when the schema says, else every
+ * field that isn't always required, isn't a credential (a secret, the user of a login) and doesn't decide which other
+ * fields show. A field required only in some cases (by a sign-in mode, another field, the environment) is one too: the
+ * form keeps it in sight while it is required ({@link SchemaForm.needed}). Display only: the config keeps the field
+ * where the schema puts it.
  */
 export function isAdvanced(node: SchemaNode, form: CompiledForm): boolean {
   if (node.kind === 'object') return false;
   if (node.advanced !== null) return node.advanced;
   if (node.readOnly) return true;
-  if (node.required || node.requiredWhen.length || node.requiredEnv.length || node.kind === 'secret' || node.secret === 'login') {
-    return false;
-  }
+  if (node.required || node.kind === 'secret' || node.secret === 'login') return false;
   const siblings = (test: (n: SchemaNode) => boolean) => form.all.some((n) => n !== node && test(n)
     && samePath(n.path.slice(0, -1), node.path.slice(0, -1)));
   if (LOGIN_KEY.test(node.key) && siblings((n) => n.kind === 'secret')) return false;
@@ -689,10 +689,9 @@ export function isAdvanced(node: SchemaNode, form: CompiledForm): boolean {
   return !decides(node, form);
 }
 
-/** Whether another field shows, or is required, only for some values of this one (Sign in with, an endpoint). */
+/** Whether another field shows only for some values of this one (Sign in with, an endpoint). */
 export function decides(node: SchemaNode, form: CompiledForm): boolean {
-  return form.all.some((n) => n !== node && (n.when.some((c) => samePath(c.path, node.path))
-    || n.requiredWhen.some((conds) => conds.some((c) => samePath(c.path, node.path)))));
+  return form.all.some((n) => n !== node && n.when.some((c) => samePath(c.path, node.path)));
 }
 
 /**

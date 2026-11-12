@@ -613,6 +613,9 @@ describe('Redis production connections', () => {
     p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
     await p.settle();
 
+    // Auto by default, TLS on prod: the choice sits under Advanced settings.
+    p.q<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
+    await p.settle();
     const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
     expect(tls.tagName).toBe('SELECT');
     expect(tls.closest('[hidden]')).toBeNull();
@@ -924,20 +927,21 @@ describe('Add connection: wizard', () => {
     expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
   });
 
-  it.each([false, 'auto'])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
+  // Auto, the default, becomes TLS on prod; a transport the person chose (Without TLS) stays as chosen.
+  it.each(['auto', false])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
     mongoDb();
     const p = await open('/connections/new#step-2');
     await p.type('cf-name', 'prod-mongo');
     await p.type('cf-connection-host', 'mongo.example.test');
     await p.type('cf-credentials-user', 'reader');
     await p.type('cf-credentials-password', 'local-password');
-    if (initialTls === 'auto') {
+    if (initialTls === false) {
       const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
-      tls.value = 'auto';
+      tls.value = 'false';
       tls.dispatchEvent(new Event('change', { bubbles: true }));
       await p.settle();
     }
-    const productionTls = initialTls === 'auto' ? 'auto' : true;
+    const productionTls = initialTls === 'auto' ? true : false;
     p.button('Load databases').click();
     await p.settle();
     expect(core.discoveries[0].config['connection']).toMatchObject({ tls: initialTls });

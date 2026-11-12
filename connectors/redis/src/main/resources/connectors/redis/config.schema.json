@@ -37,6 +37,7 @@
           "x-section": "/advanced"
         },
         "tls": {
+          "x-previous-default": false,
           "type": [
             "boolean",
             "string"

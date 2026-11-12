@@ -43,8 +43,9 @@ class AzureConfigSchemaTest {
   }
 
   @Test
-  void theTenantStaysInSightWhileItIsOptionalForTheCli() {
-    assertThat(CONFIG.at("/properties/tenantId/x-advanced").asBoolean(true)).isFalse();
+  void theTenantFollowsTheFormsRuleRequiredInSightAndOptionalUnderAdvanced() {
+    // The form keeps a conditionally required field in sight while its condition holds, under Advanced otherwise.
+    assertThat(CONFIG.at("/properties/tenantId/x-advanced").isMissingNode()).isTrue();
   }
 
   @Test

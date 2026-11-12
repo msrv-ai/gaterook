@@ -98,8 +98,8 @@ describe('setup helpers: the compiled form', () => {
     expect(context.required).toBe(false);
     expect(isRequired(context, { auth: 'kubeconfig-file' })).toBe(true);
     expect(isRequired(context, { auth: 'kubeconfig' })).toBe(false);
-    // It decides nothing, but may be required: never under Advanced.
-    expect(isAdvanced(context, form)).toBe(false);
+    // Required only for a file: the form keeps it in sight then, under Advanced otherwise.
+    expect(isAdvanced(context, form)).toBe(true);
   });
 
   it('requires a field when a member of another object decides (Azure tenant for a service principal)', () => {
@@ -107,7 +107,7 @@ describe('setup helpers: the compiled form', () => {
     const tenant = form.all.find((n) => n.pointer === '/tenantId')!;
     expect(isRequired(tenant, { credentials: { source: 'clientSecret' } })).toBe(true);
     expect(isRequired(tenant, { credentials: { source: 'cli' } })).toBe(false);
-    expect(isAdvanced(tenant, form)).toBe(false);
+    expect(isAdvanced(tenant, form)).toBe(true);
   });
 
   it('puts optional settings under Advanced, never credentials, choices that decide other fields or required ones', () => {
@@ -131,6 +131,7 @@ describe('setup helpers: the Kubernetes form', () => {
     await v.settle();
 
     expect(v.label('cf-context')).toBe('Context');
+    expect(v.inAdvanced('cf-context')).toBe(false);
     expect(v.label('cf-kubeconfigPath')).toBe('kubeconfig file');
     expect(v.el.querySelector('#cf-allowExecPlugin')).not.toBeNull();
     expect(v.inAdvanced('cf-allowExecPlugin')).toBe(false);
@@ -212,11 +213,12 @@ describe('setup helpers: AWS', () => {
     const form = compileSchema(CONNECTOR_FORMS['aws']);
     const role = form.all.find((n) => n.pointer === '/credentials/roleArn')!;
     expect(role.requiredEnv).toEqual(['prod']);
-    expect(isAdvanced(role, form)).toBe(false);
     const v = await render('aws');
-    expect(v.label('cf-credentials-roleArn')).toContain('Optional');
+    expect(v.inAdvanced('cf-credentials-roleArn')).toBe(true);
     v.el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
     await v.settle();
+    // Required on prod: in sight, without the Optional badge.
+    expect(v.inAdvanced('cf-credentials-roleArn')).toBe(false);
     expect(v.label('cf-credentials-roleArn')).not.toContain('Optional');
   });
 

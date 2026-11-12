@@ -427,7 +427,11 @@ export class SchemaForm {
         const before = defaultOn(node, prev);
         const after = defaultOn(node, next);
         const now = getAt(model, node.path);
-        if (sameJson(before, after) || !(sameJson(now, before) || (now === '' && before === null))) continue;
+        // A stored value that was the default before the schema changed it (x-previous-default) is a default too.
+        const previous = node.schema['x-previous-default'];
+        const untouched = sameJson(now, before) || (now === '' && before === null)
+          || (this.fromStored && previous !== undefined && sameJson(now, previous));
+        if (sameJson(before, after) || !untouched) continue;
         if (this.fromStored && node.envDefault[next] === undefined) continue;
         model = setAt(model, node.path, after);
       }

@@ -399,13 +399,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "port": true,
           "uri": true,
           "tls": {
-            "x-advanced": false,
+            "x-previous-default": false,
             "type": [
               "boolean",
               "string"
             ],
             "title": "Connection type",
-            "default": false,
+            "default": "auto",
             "x-env-default": {
               "prod": true
             },
@@ -419,7 +419,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Without TLS",
               "TLS"
             ],
-            "description": "Auto detects TLS before signing in and uses an unencrypted connection only when the server supports it. TLS verifies the certificate and host name. Explicit connection-string TLS settings still apply."
+            "description": "Auto uses TLS when the server speaks it and an unencrypted connection only when it doesn't, checked before signing in. TLS verifies the certificate and host name. Explicit connection-string TLS settings still apply."
           },
           "caCertificate": {
             "type": "string",
@@ -661,22 +661,27 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "x-section": "/advanced"
           },
           "tls": {
-            "x-advanced": false,
-            "type": "boolean",
+            "x-previous-default": false,
+            "type": [
+              "boolean",
+              "string"
+            ],
             "title": "Connection type",
-            "default": false,
+            "default": "auto",
             "x-env-default": {
               "prod": true
             },
             "enum": [
+              "auto",
               false,
               true
             ],
             "x-enumTitles": [
+              "Auto",
               "Without TLS",
               "TLS"
             ],
-            "description": "TLS is enabled by default on prod. Without TLS is also allowed; on stage and prod, the connection test warns that traffic is not encrypted."
+            "description": "Auto uses TLS when the server speaks it and connects without TLS only when it doesn't, checked before signing in. New prod connections use TLS. Without TLS, stage and prod tests warn that traffic isn't encrypted."
           },
           "tlsVerify": {
             "type": "string",
@@ -5840,7 +5845,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "contoso.onmicrosoft.com"
         ],
-        "x-advanced": false,
         "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
       },
       "subscriptions": {
@@ -7662,10 +7666,11 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Local data center",
         "minLength": 1,
         "maxLength": 128,
+        "x-suggest": true,
         "examples": [
           "datacenter1"
         ],
-        "description": "The data center whose nodes serve every request, as nodetool status names it. Amazon Keyspaces: the region, such as eu-central-1."
+        "description": "The data center whose nodes serve every request, as nodetool status names it; found from the contact points once the form can sign in. Amazon Keyspaces: the region, such as eu-central-1."
       },
       "keyspace": {
         "type": "string",
@@ -7709,18 +7714,26 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       },
       "tls": {
-        "type": "boolean",
+        "type": [
+          "boolean",
+          "string"
+        ],
         "title": "Connection type",
-        "default": true,
+        "default": "auto",
+        "x-env-default": {
+          "prod": true
+        },
         "enum": [
+          "auto",
           true,
           false
         ],
         "x-enumTitles": [
+          "Auto",
           "TLS",
           "Without TLS"
         ],
-        "description": "TLS to every node. Without TLS, the password and the data cross the network in clear; outside dev the test warns."
+        "description": "Auto uses TLS when the nodes speak it and connects without TLS only when they don't, checked before signing in. TLS goes to every node. Without TLS, the password and the data cross the network in clear; outside dev the test warns."
       },
       "tlsVerify": {
         "type": "string",
@@ -7837,7 +7850,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "neo4j+s://a1b2c3d4.databases.neo4j.io"
         ],
-        "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer."
+        "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer. Typed without a scheme, the one the server needs is added."
       },
       "database": {
         "type": "string",
@@ -8186,12 +8199,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "1"
         ],
         "default": "3",
+        "x-suggest": true,
         "x-enumTitles": [
           "InfluxDB 3 Core or Enterprise",
           "InfluxDB 2.x or InfluxDB Cloud",
           "InfluxDB 1.x"
         ],
-        "description": "The API GateRook uses; Test connection checks it against the server. InfluxDB Cloud Serverless and Cloud Dedicated answer SQL only over Arrow Flight: choose InfluxDB 2.x for their InfluxQL and write APIs."
+        "description": "The API GateRook uses, set from the server's /ping once the form can reach it; Test connection checks it. InfluxDB Cloud Serverless and Cloud Dedicated answer SQL only over Arrow Flight: choose InfluxDB 2.x for their InfluxQL and write APIs."
       },
       "organization": {
         "type": "string",
@@ -9469,7 +9483,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "examples": [
                 "contoso.onmicrosoft.com"
               ],
-              "description": "The directory ID or domain of the service's tenant. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+              "description": "The directory ID or domain of the service's tenant. Required for a device sign-in or a service principal; with the Azure CLI, empty uses its default tenant."
             },
             "credentials": {
               "type": "object",
@@ -9574,7 +9588,37 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "pattern": "^[0-9a-f]{64}$",
               "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "credentials": {
+                    "properties": {
+                      "source": {
+                        "enum": [
+                          "deviceCode",
+                          "clientSecret",
+                          "clientCertificate"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  }
+                },
+                "required": [
+                  "credentials"
+                ]
+              },
+              "then": {
+                "required": [
+                  "tenantId"
+                ]
+              }
+            }
+          ]
         },
         "else": {
           "required": [
@@ -11807,7 +11851,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "connection": {
         "mode": "host",
         "port": 27017,
-        "tls": false,
+        "tls": "auto",
         "allowInvalidHostnames": false,
         "readPreference": "primary"
       },
@@ -11953,6 +11997,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [
+          "auto",
           false,
           true
         ],
@@ -12215,7 +12260,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "connection": {
         "port": 6379,
         "database": 0,
-        "tls": false,
+        "tls": "auto",
         "tlsVerify": "full"
       },
       "credentials": {},
@@ -15092,12 +15137,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [
+          "auto",
           true,
           false
         ],
         "when": [],
         "multiline": false,
-        "envDefault": {},
+        "envDefault": {
+          "prod": true
+        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -15304,7 +15352,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "defaults": {
       "contactPoints": [],
       "credentials": {},
-      "tls": true,
+      "tls": "auto",
       "tlsVerify": "full",
       "consistency": "LOCAL_ONE",
       "advanced": {

@@ -79,7 +79,8 @@ class LogsCredentialSchemasTest {
       var loki = new BackendConnector("loki", cloud).manifest().configSchema();
       assertThat(loki.at("/properties/tenant/x-advanced").isMissingNode()).isTrue();
       var azure = new BackendConnector("azure-monitor", cloud).manifest().configSchema();
-      for (String field : new String[] {"tenantId", "workspaces", "applicationInsights"}) {
+      assertThat(azure.at("/properties/tenantId/x-advanced").isMissingNode()).as("tenantId").isTrue();
+      for (String field : new String[] {"workspaces", "applicationInsights"}) {
         assertThat(azure.at("/properties/" + field + "/x-advanced").asBoolean(true)).as(field).isFalse();
       }
     }

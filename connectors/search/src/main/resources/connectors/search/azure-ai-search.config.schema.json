@@ -83,7 +83,6 @@
             "examples": [
               "contoso.onmicrosoft.com"
             ],
-            "x-advanced": false,
             "description": "The directory ID or domain of the service's tenant. Required for a device sign-in or a service principal; with the Azure CLI, empty uses its default tenant."
           },
           "credentials": {

@@ -709,8 +709,7 @@
           "examples": [
             "contoso.onmicrosoft.com"
           ],
-          "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant.",
-          "x-advanced": false
+          "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
         },
         "credentials": {
           "type": "object",

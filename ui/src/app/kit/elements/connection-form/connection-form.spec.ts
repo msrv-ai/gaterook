@@ -348,7 +348,7 @@ describe('connection form: database discovery', () => {
     await settle();
     await choose('app');
     expect(host.form().databaseSelectionValid()).toBe(true);
-    expect(host.form().value().config['connection']).toMatchObject({ tls: false });
+    expect(host.form().value().config['connection']).toMatchObject({ tls: 'auto' });
 
     el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
     await settle();
@@ -510,7 +510,7 @@ describe('connection form: database discovery', () => {
 });
 
 describe('connection form: MongoDB connection settings', () => {
-  it('starts with host, port and a TLS select, while authentication options stay in collapsed Advanced', async () => {
+  it('starts with host and port, with Auto TLS and the authentication options in collapsed Advanced', async () => {
     const { el, host, settle, load } = await databaseForm('mongodb');
     const mode = el.querySelector<HTMLSelectElement>('#cf-connection-mode')!;
     const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
@@ -522,13 +522,12 @@ describe('connection form: MongoDB connection settings', () => {
     expect(el.querySelector<HTMLInputElement>('#cf-connection-port')!.value).toBe('27017');
     expect(el.querySelector('#cf-connection-uri')).toBeNull();
     expect(el.querySelector<HTMLInputElement>('#cf-credentials-password')!.type).toBe('password');
-    expect(tls.value).toBe('false');
+    expect(tls.value).toBe('auto');
     expect([...tls.options].map((option) => [option.value, option.textContent])).toEqual([
       ['auto', 'Auto'], ['false', 'Without TLS'], ['true', 'TLS'],
     ]);
-    expect(tls.closest('[hidden]')).toBeNull();
     expect(advanced.hidden).toBe(true);
-    for (const id of ['cf-credentials-authSource', 'cf-credentials-mechanism']) {
+    for (const id of ['cf-connection-tls', 'cf-credentials-authSource', 'cf-credentials-mechanism']) {
       expect(advanced.contains(el.querySelector(`#${id}`))).toBe(true);
       expect(el.querySelectorAll(`#${id}`)).toHaveLength(1);
     }
@@ -548,13 +547,17 @@ describe('connection form: MongoDB connection settings', () => {
     expect(advanced.hidden).toBe(false);
   });
 
-  it('invalidates database discovery when choosing Auto and keeps Auto through environment changes', async () => {
+  it('invalidates database discovery when the TLS choice changes and keeps a chosen Auto through environment changes', async () => {
     const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('auto');
+    tls.value = 'false';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
     const plain = await load();
     host.form().completeDatabaseDiscovery(plain.key, discovered(['app']));
     await settle();
     await choose('app');
-    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
     tls.value = 'auto';
     tls.dispatchEvent(new Event('change', { bubbles: true }));
     await settle();
@@ -670,7 +673,7 @@ describe('connection form: MongoDB connection settings', () => {
 });
 
 describe('connection form: Redis transport', () => {
-  it('shows the TLS choice outside Advanced and describes the prod default as a default', async () => {
+  it('keeps the TLS choice in Advanced with Auto, and describes the prod default as a default', async () => {
     const { el, host, settle } = await render();
     const redis = spec('redis');
     host.spec.set({ ...redis, envDefaults: { prod: [{ pointer: '/connection/tls', title: 'Connection type', from: false, to: true }], stage: [] } });
@@ -680,10 +683,11 @@ describe('connection form: Redis transport', () => {
     const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
     expect(tls.value).toBe('true');
     expect([...tls.options].map((option) => [option.textContent?.trim(), option.disabled])).toEqual([
-      ['Without TLS', false], ['TLS', false],
+      ['Auto', false], ['Without TLS', false], ['TLS', false],
     ]);
-    expect(tls.closest('[hidden]')).toBeNull();
-    expect(el.querySelector<HTMLElement>('#cf-advanced-body')!.hidden).toBe(true);
+    const advanced = el.querySelector<HTMLElement>('#cf-advanced-body')!;
+    expect(advanced.hidden).toBe(true);
+    expect(advanced.contains(tls)).toBe(true);
     expect(el.querySelector('#cf-prod')!.textContent).toContain('Connection type: TLS (default)');
   });
 

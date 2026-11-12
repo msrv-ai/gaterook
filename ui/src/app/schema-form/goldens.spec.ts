@@ -415,13 +415,13 @@ describe('schema-form: environments, locks, confirmations (x-env-default, x-forb
 
   it('MongoDB: picking prod moves the defaults the person left alone, and keeps what they chose', () => {
     const f = make('mongodb');
-    expect(f.value()['connection']).toMatchObject({ tls: false, readPreference: 'primary' });
+    expect(f.value()['connection']).toMatchObject({ tls: 'auto', readPreference: 'primary' });
     f.set(node(f, '/connection/readPreference'), 'nearest');
     f.setEnv('prod');
     expect(f.value()['connection']).toMatchObject({ tls: true, readPreference: 'nearest' });
     // Back to dev, a new connection follows the defaults again.
     f.setEnv('dev');
-    expect(f.value()['connection']).toMatchObject({ tls: false, readPreference: 'nearest' });
+    expect(f.value()['connection']).toMatchObject({ tls: 'auto', readPreference: 'nearest' });
   });
 
   it('a stored config is only tightened by an env change', () => {
