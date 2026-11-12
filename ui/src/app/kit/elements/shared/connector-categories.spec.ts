@@ -152,7 +152,19 @@ describe('compatible services', () => {
     expect(names(filterConnectorGroups(groups, 'rag'))).toEqual(['Vector databases: pinecone qdrant chroma',
       'Search engines: azure-ai-search']);
     expect(names(filterConnectorGroups(groups, 'chromadb'))).toEqual(['Vector databases: chroma']);
-    expect(connectorMark('qdrant')).toBeNull();
+  });
+
+  it('gives the vector databases and search engines their vendors’ marks, and the vendors’ cloud cards the same', () => {
+    for (const type of ['pinecone', 'qdrant', 'milvus', 'weaviate', 'chroma', 'algolia', 'meilisearch', 'azure-ai-search']) {
+      expect(connectorMark(type), type).toBe(`assets/integrations/${type}.svg`);
+    }
+    for (const type of ['qdrant', 'weaviate', 'chroma', 'meilisearch']) {
+      expect(connectorMark(type, 'cloud'), `${type} cloud`).toBe(`assets/integrations/${type}.svg`);
+    }
+    // Typesense publishes only a wordmark; Zilliz is a vendor of its own, not the Milvus project.
+    expect(connectorMark('typesense')).toBeNull();
+    expect(connectorMark('typesense', 'cloud')).toBeNull();
+    expect(connectorMark('milvus', 'zilliz')).toBeNull();
   });
 
   it('finds every service by its name, and not its base type’s card', () => {
