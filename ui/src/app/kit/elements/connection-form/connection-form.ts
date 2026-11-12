@@ -31,6 +31,7 @@ import { GwConnectionTest, TestState, TestTarget, usesGoogleAdc } from './connec
 import { fileSelection, withoutFileFields } from './file-selection';
 import { FileBrowseRequest, FileBrowseTrust, GwRemoteFiles } from './remote-files';
 import { DatabaseName, databaseConfig, databaseNames, databaseSelection, initialDatabases, removeConfigPath, withoutDatabaseFields } from './database-selection';
+import { ProposedName, proposeName } from './proposed-name';
 import { GwCloudProjects, ProjectDiscoveryRequest } from './cloud-projects';
 import { mongodbFormConfig } from './mongodb-configuration';
 
@@ -80,6 +81,8 @@ export interface SuggestionRequest {
 /** How long the helpers wait after the last keystroke: local lookups read files, service lookups sign in. */
 const LOCAL_DELAY_MS = 350;
 const SERVICE_DELAY_MS = 900;
+/** A proposed Name waits for typing to pause, so it doesn't change with every letter of a host. */
+const NAME_DELAY_MS = 600;
 /** Databases and projects load by themselves after a longer pause: a half-typed password would only fail. */
 const DISCOVERY_DELAY_MS = 1500;
 
@@ -273,6 +276,8 @@ export class GwConnectionForm {
   readonly policyDefaults = input<readonly ProdDefault[] | null>(null);
   /** The core's word on the Name (409: the name is taken), shown under it until the name changes. */
   readonly nameProblem = input<{ readonly name: string; readonly message: string } | null>(null);
+  /** Names other connections have: a proposed Name (create, with helpers) never takes one of them. */
+  readonly takenNames = input<readonly string[]>([]);
   /**
    * The Name hint as Add connection words it ("Agents call tools with it and Activity filters by connection:dev-db";
    * the element's demo says "Agents and Activity see it as …"), and the Name shown read-only in the edit view.
@@ -567,6 +572,16 @@ export class GwConnectionForm {
       const timer = setTimeout(() => this.requestSuggestions('service', key, value), SERVICE_DELAY_MS);
       onCleanup(() => clearTimeout(timer));
     });
+    // A new connection's Name, while the person hasn't typed one: proposed from what the connection points to (a
+    // database, a file, a context, a project, a host) once typing pauses, and replaced as that changes.
+    effect((onCleanup) => {
+      if (!this.helpers() || this.mode() !== 'create') return;
+      const s = this.state();
+      const proposal = proposeName(s.compiled.all, s.model(), this.spec().type, this.selectedDatabases(),
+        this.takenNames());
+      const timer = setTimeout(() => untracked(() => this.applyProposedName(proposal)), NAME_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
     effect(() => {
       const stored = this.stored();
       untracked(this.state).setStored(stored);
@@ -583,6 +598,23 @@ export class GwConnectionForm {
   }
 
   // ─── Setup helpers ───
+
+  /** The Name the form proposed last, and what it came from; a Name the person typed is never replaced. */
+  private readonly proposed = signal<ProposedName | null>(null);
+  /** "the database file": where the Name came from, while it still holds the proposal. */
+  protected readonly nameFrom = computed(() => {
+    const p = this.proposed();
+    return p && p.name === this.common().name ? p.from : null;
+  });
+
+  private applyProposedName(proposal: ProposedName | null): void {
+    const current = this.common().name;
+    const previous = this.proposed();
+    if (current !== '' && current !== previous?.name) return;
+    const name = proposal?.name ?? '';
+    if (name !== current) this.common.update((c) => ({ ...c, name }));
+    this.proposed.set(proposal);
+  }
 
   /** Required fields the connector lists when it signs in (`x-suggest`): a service lookup doesn't wait for them. */
   private readonly listedFields = computed(() =>

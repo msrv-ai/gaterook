@@ -417,6 +417,8 @@ export class ConnectionNewPage {
    * from the core when the wizard opens (false until it answers, and for duplicates and the edit view).
    */
   readonly firstRun = signal(false);
+  /** The names of the connections there are: a proposed Name never takes one. */
+  protected readonly takenNames = signal<readonly string[]>([]);
   private readonly firstEndpoint = signal<EndpointSummary | null>(null);
   protected readonly firstEndpointSlug = computed(() => {
     const endpoint = this.firstEndpoint();
@@ -678,6 +680,7 @@ export class ConnectionNewPage {
     try {
       const [rows, endpoints] = await Promise.all([this.connections.list(), this.endpointsApi.list()]);
       if (gen !== this.gen) return;
+      this.takenNames.set(rows.items.map((r) => r.name));
       this.endpoints.set(endpoints);
       this.endpointsState.set('ready');
       if (!this.chosenTouched) this.chosen.set(initialEndpoints(this.choices(), this.current().env));

@@ -318,6 +318,7 @@
         [parts]="['connection', 'credentials', 'safety', 'advanced']"
         [policyDefaults]="prodLines()"
         [nameProblem]="nameProblem()"
+        [takenNames]="takenNames()"
         [confirmAction]="m === 'edit' ? 'save' : 'continue'"
         [busy]="saving()"
         (submit)="showSettings()"

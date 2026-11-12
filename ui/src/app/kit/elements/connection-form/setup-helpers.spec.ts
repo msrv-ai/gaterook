@@ -25,12 +25,13 @@ function spec(type: string): ConnectionFormSpec {
 
 @Component({
   imports: [GwConnectionForm],
-  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" helpers [spec]="spec()" [mode]="mode()" name="dev-cluster" [config]="config()" (save)="saved.push($event)" (suggest)="asked.push($event)" (discoverDatabases)="databases.push($event)" (discoverProjects)="projects.push($event)"></form>`,
+  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" helpers [spec]="spec()" [mode]="mode()" [name]="name()" [config]="config()" (save)="saved.push($event)" (suggest)="asked.push($event)" (discoverDatabases)="databases.push($event)" (discoverProjects)="projects.push($event)"></form>`,
 })
 class Host {
   readonly spec = signal(spec('kubernetes'));
   readonly config = signal<JsonObject | null>(null);
   readonly mode = signal<'create' | 'edit'>('create');
+  readonly name = signal('dev-cluster');
   readonly saved: ConnectionFormValue[] = [];
   readonly asked: SuggestionRequest[] = [];
   readonly databases: DatabaseDiscoveryRequest[] = [];
@@ -45,9 +46,11 @@ afterEach(() => (document.body.innerHTML = ''));
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function render(type = 'kubernetes', config: JsonObject | null = null, mode: 'create' | 'edit' = 'create') {
+async function render(type = 'kubernetes', config: JsonObject | null = null, mode: 'create' | 'edit' = 'create',
+  name = 'dev-cluster') {
   const fixture = TestBed.createComponent(Host);
   fixture.componentInstance.spec.set(spec(type));
+  fixture.componentInstance.name.set(name);
   fixture.componentInstance.config.set(config);
   fixture.componentInstance.mode.set(mode);
   document.body.appendChild(fixture.nativeElement);
@@ -324,5 +327,39 @@ describe('setup helpers: lookups the form starts by itself', () => {
     await v.settle();
     expect(v.host.projects).toHaveLength(1);
     expect(v.host.projects[0].value.config).toMatchObject({ credentials: { source: 'adc' } });
+  });
+});
+
+describe('setup helpers: a proposed Name', () => {
+  const settled = async (v: Awaited<ReturnType<typeof render>>) => {
+    await wait(700);
+    await v.settle();
+  };
+
+  it('names a new connection after what it points to until the person types a name', async () => {
+    const v = await render('postgres', null, 'create', '');
+    const name = () => v.el.querySelector<HTMLInputElement>('#cf-name')!.value;
+    await v.type('cf-connection-host', 'localhost');
+    await settled(v);
+    expect(name()).toBe('postgres-local');
+    expect(v.el.querySelector('#cf-name-found')?.textContent).toBe('Filled in from this computer.');
+    expect(v.el.querySelector('#cf-name')!.getAttribute('aria-describedby')).toContain('cf-name-found');
+    // Another host: the proposal follows it, as the person never typed a name.
+    await v.type('cf-connection-host', 'orders-db.internal.example');
+    await settled(v);
+    expect(name()).toBe('orders-db');
+    expect(v.el.querySelector('#cf-name-found')?.textContent).toBe('Filled in from the host.');
+    // A typed name is the person's: no host replaces it.
+    await v.type('cf-name', 'billing');
+    await v.type('cf-connection-host', 'ledger.internal.example');
+    await settled(v);
+    expect(name()).toBe('billing');
+    expect(v.el.querySelector('#cf-name-found')).toBeNull();
+  });
+
+  it('leaves the Name of a saved connection alone', async () => {
+    const v = await render('postgres', { connection: { host: 'localhost' } }, 'edit', '');
+    await settled(v);
+    expect(v.host.form().current().name).toBe('');
   });
 });
