@@ -47,7 +47,11 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
   static final Duration SWEEP = Duration.ofSeconds(30);
   private static final Logger log = LoggerFactory.getLogger(PluginConnectorSource.class);
 
-  private record Live(ConnectorManifest manifest, PluginSupervisor supervisor, RemoteConnector connector) {}
+  /** One connector type: a plugin's ({@code module} is {@code null}), or one of a connector module's. */
+  private record Live(ConnectorManifest manifest, PluginSupervisor supervisor, Connector connector, String module) {}
+
+  /** One installed connector module: its host's supervisor and the types it adds. */
+  private record Module(PluginSupervisor supervisor, List<String> types) {}
 
   private final HostLauncher launcher;
   private final SecretCallbackRegistry secrets;
@@ -56,6 +60,9 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
   private final Clock clock;
   private final EventBus events;
   private final Map<String, Live> byId = new ConcurrentHashMap<>();
+  private final Map<String, Module> modules = new ConcurrentHashMap<>();
+  /** Tool names of the modules the channel lists (set by the module service). */
+  private volatile java.util.function.Supplier<java.util.Set<String>> channelTools = java.util.Set::of;
   private ScheduledExecutorService housekeeping;
 
   PluginConnectorSource(HostLauncher launcher, SecretCallbackRegistry secrets,
@@ -76,6 +83,28 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
   }
 
   @Override
+  public boolean firstParty(String typeId) {
+    Live live = byId.get(typeId);
+    return live != null && live.module() != null;
+  }
+
+  @Override
+  public Optional<String> packageOf(String typeId) {
+    Live live = byId.get(typeId);
+    return live == null ? Optional.empty() : Optional.of(live.module() != null ? live.module() : typeId);
+  }
+
+  @Override
+  public List<Connector> firstPartyConnectors() {
+    return byId.values().stream().filter(l -> l.module() != null).map(Live::connector).toList();
+  }
+
+  @Override
+  public java.util.Set<String> reservedToolNames() {
+    return channelTools.get();
+  }
+
+  @Override
   public Optional<Connector> connectorFor(ConnectionConfig connection) {
     Live live = byId.get(connection.type());
     return live == null ? Optional.empty() : Optional.of(live.connector());
@@ -85,8 +114,8 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
 
   @Override
   public Optional<ProcessInfo> processOf(String id) {
-    Live live = byId.get(id);
-    return live == null ? Optional.empty() : live.supervisor().status();
+    PluginSupervisor supervisor = supervisor(id);
+    return supervisor == null ? Optional.empty() : supervisor.status();
   }
 
   // ── Managed by PluginService ────────────────────────────────────────────────────────────────────────────────
@@ -110,13 +139,85 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
     }
     RemoteConnector connector = new RemoteConnector(manifest, supervisor, secrets, policies.getObject(), egress,
         signed);
-    byId.put(manifest.id(), new Live(manifest, supervisor, connector));
+    byId.put(manifest.id(), new Live(manifest, supervisor, connector, null));
+  }
+
+  /**
+   * Installs or replaces the live entries of a connector module: one {@link ModuleConnector} per connector type, all
+   * on one host, which starts on the first call. A type another package already adds isn't taken from it.
+   *
+   * @param gate asked before a call starts the host: the module's files may be missing (a restored backup)
+   * @return the types that couldn't be registered, because another package has them
+   */
+  List<String> registerModule(ai.msrv.gaterook.plugin.protocol.PluginManifest module, HostLauncher.Spec spec,
+      boolean enabled, ModuleConnector.Gate gate) {
+    String id = module.id();
+    Module existing = modules.get(id);
+    PluginSupervisor supervisor = existing != null ? existing.supervisor()
+        : supervisorFor(id, module.maxInFlight());
+    supervisor.spec(spec);
+    supervisor.logLevel("info");
+    supervisor.idleStopMinutes(15);
+    if (enabled) {
+      supervisor.enable();
+    } else {
+      supervisor.disable();
+    }
+    List<String> types = new ArrayList<>();
+    List<String> taken = new ArrayList<>();
+    for (ConnectorManifest manifest : module.connectorManifests()) {
+      Live other = byId.get(manifest.id());
+      if (other != null && !id.equals(other.module())) {
+        taken.add(manifest.id());
+        continue;
+      }
+      byId.put(manifest.id(), new Live(manifest, supervisor, new ModuleConnector(module, manifest, supervisor,
+          secrets, policies.getObject(), egress, gate), id));
+      types.add(manifest.id());
+    }
+    if (existing != null) {
+      // A type the new version no longer has leaves with the old one.
+      existing.types().stream().filter(t -> !types.contains(t)).forEach(t -> byId.computeIfPresent(t,
+          (k, live) -> id.equals(live.module()) ? null : live));
+    }
+    modules.put(id, new Module(supervisor, List.copyOf(types)));
+    return List.copyOf(taken);
+  }
+
+  /** Removes a connector module's types and stops its host. */
+  void removeModule(String id) {
+    Module module = modules.remove(id);
+    if (module != null) {
+      module.types().forEach(t -> byId.computeIfPresent(t, (k, live) -> id.equals(live.module()) ? null : live));
+      module.supervisor().stop();
+    }
+  }
+
+  /** The connector types an installed module adds, or empty when it isn't registered. */
+  List<String> moduleTypes(String id) {
+    Module module = modules.get(id);
+    return module == null ? List.of() : module.types();
+  }
+
+  /** The module that adds {@code typeId}, if one does. */
+  Optional<String> moduleOf(String typeId) {
+    Live live = byId.get(typeId);
+    return live == null ? Optional.empty() : Optional.ofNullable(live.module());
+  }
+
+  /** The tool names of the modules the channel lists, which no foreign code may take. */
+  void channelTools(java.util.function.Supplier<java.util.Set<String>> names) {
+    this.channelTools = names;
   }
 
   /** A supervisor whose state changes reach the UI as {@code plugin.state} (the Connectors page reloads on them). */
   private PluginSupervisor supervisorFor(String id) {
+    return supervisorFor(id, PluginSupervisor.BULKHEAD);
+  }
+
+  private PluginSupervisor supervisorFor(String id, int calls) {
     PluginSupervisor[] self = new PluginSupervisor[1];
-    self[0] = new PluginSupervisor(id, launcher, clock, () -> publishState(id, self[0]));
+    self[0] = new PluginSupervisor(id, launcher, clock, () -> publishState(id, self[0]), calls);
     return self[0];
   }
 
@@ -140,7 +241,12 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
     });
   }
 
+  /** The supervisor of a plugin, of a connector module, or of the module that adds the connector type {@code id}. */
   PluginSupervisor supervisor(String id) {
+    Module module = modules.get(id);
+    if (module != null) {
+      return module.supervisor();
+    }
     Live live = byId.get(id);
     return live == null ? null : live.supervisor();
   }
@@ -150,9 +256,11 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
     return Optional.ofNullable(live == null ? null : live.manifest());
   }
 
+  /** Removes a plugin's type and stops its host. A connector module leaves with {@link #removeModule}. */
   void remove(String id) {
-    Live live = byId.remove(id);
-    if (live != null) {
+    Live live = byId.get(id);
+    if (live != null && live.module() == null) {
+      byId.remove(id);
       live.supervisor().stop();
     }
   }
@@ -161,9 +269,17 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
     return java.util.Set.copyOf(byId.keySet());
   }
 
+  /** Every host's supervisor once: a module's types share one. */
+  private java.util.Set<PluginSupervisor> supervisors() {
+    java.util.Set<PluginSupervisor> all = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    byId.values().forEach(live -> all.add(live.supervisor()));
+    modules.values().forEach(module -> all.add(module.supervisor()));
+    return all;
+  }
+
   /** Stops every host (core shutdown). */
   void stopAll() {
-    byId.values().forEach(live -> live.supervisor().stop());
+    supervisors().forEach(PluginSupervisor::stop);
   }
 
   /**
@@ -183,12 +299,12 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
 
   /** One round of pings and idle stops. */
   void sweep() {
-    for (Live live : byId.values()) {
+    for (PluginSupervisor supervisor : supervisors()) {
       try {
-        live.supervisor().ping();
-        live.supervisor().idleSweep();
+        supervisor.ping();
+        supervisor.idleSweep();
       } catch (RuntimeException e) {
-        log.debug("Plugin {} housekeeping failed: {}", live.manifest().id(), e.toString());
+        log.debug("Plugin {} housekeeping failed: {}", supervisor.pluginId(), e.toString());
       }
     }
   }

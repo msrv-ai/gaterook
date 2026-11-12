@@ -29,6 +29,47 @@ Kubernetes, SSH, MongoDB, the log services and the SQL family stay compiled in b
 
 To change a connector's delivery, edit `delivery.json`, move its dependency in `app/pom.xml` between the main dependencies and the `all-bundled` profile, and run `npm test`.
 
+## Connector modules
+
+A connector delivered as a module is GateRook's own connector code with another delivery. It is the same Maven module, written against the same [connector SPI](connector-spi.md), and its connector types are built-in types: plain tool names, the default modes the connector declares, its own classification, exact action and prepared state. A plugin is foreign code and gets none of that ([architecture §7.5](ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers)).
+
+### The package
+
+A module is one JAR with an `mcp-gateway-plugin.json` of `manifestVersion` 2. The manifest names a `moduleClass` that implements `ConnectorModule` (connector API 1.2) and lists one or more connector types, each with its schemas, tools, template kinds, concurrency and capabilities. `ModuleManifests` writes it from the module's own connectors, so the manifest and the code can't disagree by hand. The host refuses a module whose code gives other connector types or other tool definitions than its manifest declares.
+
+A module may ship its own classes under `ai.msrv.gaterook.connectors.` and its driver stack. It may not ship the packages the host provides: the connector API, the plugin protocol, the host itself, Jackson, PF4J and SLF4J.
+
+### The channel
+
+Modules come from the module channel: a signed index with its own Ed25519 keys (`gateway.modules.channel-keys`) and address (`gateway.modules.channel-url`), kept apart from the plugin catalog because it vouches for something else. The index is verified as the catalog is: the signature covers the raw bytes, the sequence never goes back, an expired index installs nothing, and a revoked package is refused. Its state lives in the signed settings `modules.last-good` and `modules.sequence`.
+
+An entry lists one version of one module: the application and connector API versions it needs, the package's address, size and SHA-256, and the connector types it adds with their tool names. Several versions of a module may be listed. A build takes the highest version whose requirements it satisfies, so an application that isn't updated keeps a module it can run.
+
+Only the channel installs a module. A module package that arrives as a file, or through the plugin catalog, is refused. The tool names of every listed module are reserved: no new plugin, MCP server tool or template may publish one. A plugin that was installed before a module was listed keeps its tools until the module itself is installed.
+
+### Installing
+
+Nobody reviews or confirms a module. It installs when something needs one of its connector types:
+
+- a person opens the type's form in Add connection;
+- a connection of the type is created, tested, shared or imported;
+- a connection of the type exists and the type isn't registered, as after an update that turned a compiled-in connector into a module;
+- a call reaches a connection whose module is installed but whose package isn't on the disk, as after a backup restored on another computer. The start notices too and downloads the package in the background.
+
+A request that is about to work with the type waits for the installation, up to 90 seconds. A call waits up to 20 seconds and otherwise answers that the connector is being downloaded. A type that something merely looked up, such as a label in an old audit row, installs nothing unless a connection uses it.
+
+The steps are: the Java runtime (downloaded once when the application doesn't carry one), the package, its checks (the pinned bytes, the manifest, the versions it needs, the connector types the index promised), a first load in a fresh host, and a signed row. One installation runs per module; whoever asks meanwhile joins it. Each step is published as a `module.state` event.
+
+`GET /api/modules` lists the installed and the listed modules. `POST /api/modules/{id}/install` starts an installation by module id or connector type id and answers at once. `DELETE /api/modules/{id}` removes a module that no connection uses. The cards of `GET /api/connector-types` carry `module` for a type that a module adds.
+
+### At run time
+
+An installed module's row stores its manifest, and the row's MAC covers it. Its connector types are therefore registered at start without a host and without the package; a host starts on the first call. All types of a module share one host process. A compiled-in connector of the same type id comes first: a build that compiles a type in serves it itself, whatever is installed.
+
+A module's host runs in the same OS sandbox as a plugin's and reaches only the hosts its manifest declares. Its calls get what a compiled-in connector has from the core: the shared remote quotas, the masked view of a result, progress and client log messages.
+
+A call that can't reach its connector fails closed. A classification that doesn't arrive is a deny. A change whose answer doesn't arrive is `OUTCOME_UNKNOWN` and is never sent twice.
+
 ## Measuring
 
 `scripts/size-report.mjs` says what each connector adds to a native core and applies the budget. It needs a native build made with a dashboard dump:

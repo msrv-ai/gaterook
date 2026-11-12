@@ -5,8 +5,10 @@ import ai.msrv.gaterook.core.connectors.ManifestCodec;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginEntity;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginRepository;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginState;
+import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.RowMac;
+import ai.msrv.gaterook.plugin.protocol.PluginManifest;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -70,6 +72,30 @@ public class PluginStore {
     return ManifestCodec.read(tree);
   }
 
+  /**
+   * The stored manifest of a connector module: its own manifest, with every connector type it adds. The row MAC
+   * covers it, so the types, tools and default modes the core publishes are the ones that were installed.
+   *
+   * @throws IllegalStateException when the stored manifest isn't a module's (the row doesn't verify either)
+   */
+  PluginManifest moduleManifest(PluginEntity row) {
+    try {
+      PluginManifest manifest = PluginManifest.parse(rowMac.tree(row.getManifest()));
+      if (!manifest.module()) {
+        throw new IllegalStateException(row.getId() + " isn't stored as a connector module");
+      }
+      return manifest;
+    } catch (PluginManifest.InvalidManifest e) {
+      throw new IllegalStateException("The stored manifest of " + row.getId() + " can't be read: " + e.getMessage());
+    }
+  }
+
+  /** A module's manifest as its row stores it. */
+  @SuppressWarnings("unchecked")
+  java.util.Map<String, Object> map(PluginManifest module) {
+    return json.treeToValue(module.raw(), java.util.Map.class);
+  }
+
   void sign(PluginEntity row) {
     row.setMac(rowMac.sign(TABLE, row.getId(), row.getVersion(), macFields(row)));
     repository.saveAndFlush(row);
@@ -92,6 +118,11 @@ public class PluginStore {
     // Since V50: absent from rows signed before it, so they still verify.
     if (row.getPreviousSha256() != null) {
       f.put("previousSha256", row.getPreviousSha256());
+    }
+    // Since V93, and only for a module: its manifest decides what the core trusts (tools, modes, classification).
+    if (row.isModule()) {
+      f.put("module", true);
+      f.put("manifestSha256", CanonicalJson.sha256Hex(rowMac.tree(row.getManifest())));
     }
     return f;
   }

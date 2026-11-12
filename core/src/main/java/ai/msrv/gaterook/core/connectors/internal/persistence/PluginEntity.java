@@ -62,6 +62,13 @@ public class PluginEntity {
   @Column(name = "catalog_entry", length = 128)
   private String catalogEntry;
 
+  /**
+   * The row is a connector module (V93): GateRook's own connectors, installed from the module channel. Its manifest
+   * is the module's own, with every connector type it adds.
+   */
+  @Column(name = "module", nullable = false, updatable = false)
+  private boolean module;
+
   @Column(name = "installed_at", nullable = false, updatable = false)
   private Instant installedAt;
 
@@ -96,8 +103,20 @@ public class PluginEntity {
     this.updatedAt = now;
   }
 
+  /** A connector module's row. */
+  public static PluginEntity module(String id, String currentVersion, PluginSource source, String sha256,
+      long sizeBytes, Map<String, Object> manifest, Instant now) {
+    PluginEntity row = new PluginEntity(id, currentVersion, true, source, sha256, sizeBytes, manifest, now);
+    row.module = true;
+    return row;
+  }
+
   public String getId() {
     return id;
+  }
+
+  public boolean isModule() {
+    return module;
   }
 
   public String getCurrentVersion() {

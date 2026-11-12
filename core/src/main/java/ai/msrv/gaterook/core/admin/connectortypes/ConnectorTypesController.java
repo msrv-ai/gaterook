@@ -11,6 +11,7 @@ import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorProcessStatus;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
+import ai.msrv.gaterook.core.connectors.Modules;
 import ai.msrv.gaterook.core.connectors.Plugins;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.secrets.SecretStores;
@@ -43,7 +44,8 @@ import tools.jackson.databind.node.ObjectNode;
  */
 @RestController
 @RegisterReflectionForBinding({ConnectorTypesController.Catalog.class, ConnectorTypesController.Group.class,
-    ConnectorTypesController.Card.class, ConnectorTypesController.Installed.class,
+    ConnectorTypesController.Card.class, ConnectorTypesController.ModuleRef.class,
+    ConnectorTypesController.Installed.class,
     ConnectorTypesController.Process.class, ConnectorTypesController.Variant.class,
     ConnectorTypesController.TypeDetail.class, ConnectorTypesController.Tool.class, ConnectorTypesController.Form.class,
     ConnectorTypesController.SecretField.class, ConnectorTypesController.SecretSource.class,
@@ -81,7 +83,33 @@ class ConnectorTypesController {
    */
   record Card(String type, String variant, String name, String icon, String description, String kind,
       String version, Boolean signed, Integer tools, String toolsFrom, int connections, boolean available,
-      String reason, JsonNode presetConfig, String catalogRef) {}
+      String reason, JsonNode presetConfig, String catalogRef, ModuleRef module) {
+
+    Card(String type, String variant, String name, String icon, String description, String kind, String version,
+        Boolean signed, Integer tools, String toolsFrom, int connections, boolean available, String reason,
+        JsonNode presetConfig, String catalogRef) {
+      this(type, variant, name, icon, description, kind, version, signed, tools, toolsFrom, connections, available,
+          reason, presetConfig, catalogRef, null);
+    }
+
+    Card of(ModuleRef module) {
+      return new Card(type, variant, name, icon, description, kind, version, signed, tools, toolsFrom, connections,
+          available, reason, presetConfig, catalogRef, module);
+    }
+  }
+
+  /**
+   * The connector module that adds a card's type (docs/connector-delivery.md): one of GateRook's own connectors that
+   * isn't part of the installer. Choosing the card installs it without a review; the form's request waits for it.
+   *
+   * @param state     {@code ready}, {@code installing}, {@code missing}, {@code available}, {@code failed} or
+   *                  {@code disabled}
+   * @param step      the step of a running installation, or {@code null}
+   * @param sizeBytes the size of the download
+   * @param message   why the last installation failed, or {@code null}
+   */
+  record ModuleRef(String id, String version, String state, String step, long sizeBytes, boolean installed,
+      String message) {}
 
   /** {@code state}: {@code enabled}, {@code disabled} or {@code changed-outside} (fail closed until reviewed). */
   record Installed(String id, String kind, String name, String icon, String group, String description,
@@ -133,9 +161,11 @@ class ConnectorTypesController {
   private final ObjectProvider<ConnectorProcessStatus> processes;
   private final SecretStores stores;
   private final Plugins plugins;
+  private final Modules modules;
 
   ConnectorTypesController(ConnectorRegistry registry, ConnectionConfigs connections,
-      ObjectProvider<ConnectorProcessStatus> processes, SecretStores stores, Plugins plugins) {
+      ObjectProvider<ConnectorProcessStatus> processes, SecretStores stores, Plugins plugins, Modules modules) {
+    this.modules = modules;
     this.registry = registry;
     this.connections = connections;
     this.processes = processes;
@@ -176,10 +206,29 @@ class ConnectorTypesController {
           e.icon() == null ? "puzzle" : e.icon(), e.description(), "plugin", e.version(), e.signed(), e.tools(), null,
           0, false, NOT_INSTALLED, null, e.id() + "@" + e.version()));
     }
+    // GateRook's own connectors that aren't part of the installer: a card for each type of a module that isn't
+    // installed, in its group among the built-in ones, and the module on the cards of those that are.
+    java.util.Set<String> registered = new java.util.HashSet<>();
+    types.forEach(t -> registered.add(t.id()));
+    Map<String, ModuleRef> moduleOf = new LinkedHashMap<>();
+    for (Modules.Module module : modules.list()) {
+      ModuleRef ref = new ModuleRef(module.id(), module.version(), module.state(), module.step(), module.sizeBytes(),
+          module.installed(), module.message());
+      for (Modules.Type type : module.types()) {
+        moduleOf.put(type.id(), ref);
+        if (!registered.contains(type.id())) {
+          String g = GROUPS.contains(type.group()) ? type.group() : "HTTP and MCP";
+          byGroup.computeIfAbsent(g, k -> new ArrayList<>()).add(new Card(type.id(), null, type.name(),
+              type.icon() == null ? "puzzle" : type.icon(), type.description(), "built-in", module.version(), null,
+              type.tools(), null, 0, true, null, null, null, ref));
+        }
+      }
+    }
     List<Group> groups = new ArrayList<>();
     byGroup.forEach((name, cards) -> {
       if (!cards.isEmpty() && (group == null || group.isBlank() || group.equalsIgnoreCase(name))) {
-        groups.add(new Group(name, List.copyOf(cards)));
+        groups.add(new Group(name, cards.stream().map(c -> c.module() == null && moduleOf.containsKey(c.type())
+            && "built-in".equals(c.kind()) ? c.of(moduleOf.get(c.type())) : c).toList()));
       }
     });
     return new Catalog(List.copyOf(groups), List.copyOf(installed));
@@ -418,6 +467,8 @@ class ConnectorTypesController {
   }
 
   private ConnectorType require(String type) {
+    // A type one of GateRook's connector modules adds installs here, and the request waits for it.
+    registry.awaitInstalled(type);
     return registry.type(type).orElseThrow(() -> ProblemException.notFound("Connector not found",
         "There is no connector type " + type + "."));
   }

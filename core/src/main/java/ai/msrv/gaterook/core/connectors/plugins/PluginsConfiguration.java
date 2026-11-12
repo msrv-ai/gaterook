@@ -98,6 +98,21 @@ class PluginsConfiguration {
     return new PluginCatalog(verifier, settings, downloads, baseUrl, alerts, lock, transactions, clock);
   }
 
+  /**
+   * The channel of GateRook's own connector modules (docs/connector-delivery.md): the catalog's machinery under keys
+   * and settings of its own. A release sets {@code gateway.modules.channel-keys} and {@code
+   * gateway.modules.channel-url}; without them nothing downloads and the installed modules still work. Its index is
+   * not a bean: whatever asks for the catalog gets the plugin catalog.
+   */
+  @Bean
+  ModuleChannel moduleChannel(@Value("${gateway.modules.channel-keys:}") String keys,
+      @Value("${gateway.modules.channel-url:}") String baseUrl, SettingStore settings, CatalogDownloads downloads,
+      IntegrityAlerts alerts, MasterKeyLock lock, PlatformTransactionManager transactions, Clock clock) {
+    PluginCatalog index = new PluginCatalog(PluginCatalog.Names.MODULES, new CatalogVerifier(parseKeys(keys), clock),
+        settings, downloads, baseUrl, alerts, lock, transactions, clock);
+    return new ModuleChannel(index, new PluginArtifacts(downloads, index));
+  }
+
   @Bean
   PluginArtifacts pluginArtifacts(CatalogDownloads downloads, PluginCatalog catalog) {
     return new PluginArtifacts(downloads, catalog);

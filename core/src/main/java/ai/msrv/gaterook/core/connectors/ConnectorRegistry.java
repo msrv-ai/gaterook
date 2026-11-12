@@ -21,6 +21,7 @@ import ai.msrv.gaterook.core.platform.RowMac;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -94,10 +95,51 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   private final Map<String, Stored> stored = new ConcurrentHashMap<>();
   /** Types contributed by sources at the last upsert. */
   private volatile Map<String, ConnectorManifest> sourceTypes = Map.of();
+  /** The installed package (the {@code plugin} row) behind each source type that has one. */
+  private volatile Map<String, String> sourcePackages = Map.of();
+  /** The connectors of GateRook's own types that sources deliver (connector modules), by type. */
+  private volatile Map<String, Connector> delivered = Map.of();
+  /** The names and families of the compiled-in tools and the core's own. */
   private final Set<String> reserved;
   private final Set<String> reservedPrefixes;
+  /** The same of GateRook's own connectors that sources deliver: the installed connector modules. */
+  private volatile Set<String> deliveredNames = Set.of();
+  private volatile Set<String> deliveredPrefixes = Set.of();
+  /** The names of those that sources only know of: the modules their channel lists. */
+  private volatile Set<String> listedNames = Set.of();
+  private volatile Set<String> listedPrefixes = Set.of();
 
   private record Stored(boolean enabled, boolean verified) {}
+
+  /**
+   * What can make a connector type arrive that this registry doesn't have: GateRook's connector modules, which
+   * install by themselves when something needs one of their types (docs/connector-delivery.md).
+   */
+  public interface MissingTypes {
+
+    /**
+     * Something looked for {@code typeId} and it isn't registered. Never blocks and never fails: starts whatever
+     * makes the type arrive, if anything does.
+     */
+    void wanted(String typeId);
+
+    /**
+     * Makes {@code typeId} arrive and waits up to {@code budget} for it.
+     *
+     * @return whether something delivers the type at all (it may still be on its way when the wait ends)
+     */
+    boolean await(String typeId, Duration budget);
+  }
+
+  /** How long a request that needs a type waits for its connector module to install. */
+  public static final Duration INSTALL_WAIT = Duration.ofSeconds(90);
+
+  private volatile MissingTypes missingTypes;
+
+  /** Sets what is told of types that are looked for and aren't registered. */
+  public void missingTypes(MissingTypes handler) {
+    this.missingTypes = handler;
+  }
 
   public ConnectorRegistry(List<Connector> connectors, List<ConnectorSource> sources,
       ConnectorTypeRepository repository, PluginRepository plugins, RowMac rowMac, MasterKeyLock lock,
@@ -182,16 +224,56 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   /** Upserts every type into {@code connector_type} and re-reads the switches. */
   public synchronized void synchronize() {
     Map<String, ConnectorManifest> fromSources = new LinkedHashMap<>();
+    Map<String, String> packages = new HashMap<>();
+    Map<String, Connector> ownConnectors = new LinkedHashMap<>();
+    // GateRook's own types first: foreign code then can't take a name one of them has.
+    for (ConnectorSource source : sources) {
+      Map<String, Connector> connectors = new HashMap<>();
+      source.firstPartyConnectors().forEach(c -> connectors.put(c.manifest().id(), c));
+      for (ConnectorManifest m : source.types()) {
+        if (!source.firstParty(m.id())) {
+          continue;
+        }
+        if (builtIn.containsKey(m.id())) {
+          // Compiled into this build as well: the compiled-in connector serves the type.
+          continue;
+        }
+        Optional<String> problem = firstPartyProblem(m, fromSources);
+        if (problem.isPresent()) {
+          log.error("Connector type {} is not registered: {}", m.id(), problem.get());
+          continue;
+        }
+        fromSources.put(m.id(), m);
+        source.packageOf(m.id()).ifPresent(p -> packages.put(m.id(), p));
+        if (connectors.containsKey(m.id())) {
+          ownConnectors.put(m.id(), connectors.get(m.id()));
+        }
+      }
+    }
+    Set<String> names = new TreeSet<>();
+    fromSources.values().forEach(m -> m.tools().forEach(t -> names.add(t.name())));
+    deliveredNames = Set.copyOf(names);
+    deliveredPrefixes = prefixes(names);
+    Set<String> listed = new TreeSet<>();
+    sources.forEach(source -> listed.addAll(source.reservedToolNames()));
+    listedNames = Set.copyOf(listed);
+    listedPrefixes = prefixes(listed);
     for (ConnectorSource source : sources) {
       for (ConnectorManifest m : source.types()) {
+        if (source.firstParty(m.id())) {
+          continue;
+        }
         Optional<String> problem = sourceTypeProblem(m, fromSources);
         if (problem.isPresent()) {
           log.error("Connector type {} is not registered: {}", m.id(), problem.get());
           continue;
         }
         fromSources.put(m.id(), m);
+        source.packageOf(m.id()).ifPresent(p -> packages.put(m.id(), p));
       }
     }
+    sourcePackages = Map.copyOf(packages);
+    delivered = Collections.unmodifiableMap(ownConnectors);
     sourceTypes = Map.copyOf(fromSources);
     List<ConnectorManifest> all = new ArrayList<>(builtIn.values().stream().map(Connector::manifest).toList());
     all.addAll(fromSources.values());
@@ -214,7 +296,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
         alerts.report("connector-type", m.id(), m.name(), "connector_type row");
         stored.put(m.id(), new Stored(row.isEnabled(), false));
       } else if (!sha.equals(row.getManifestSha256()) || !m.version().equals(row.getImplVersion())
-          || pluginUnlinked(m, row)) {
+          || m.kind() != row.getKind() || packageChanged(m, row)) {
         writes.add(new Upsert(m, tree, sha));
       } else {
         stored.put(m.id(), new Stored(row.isEnabled(), true));
@@ -230,8 +312,9 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   private void upsert(Upsert u) {
     ConnectorManifest m = u.manifest();
     ConnectorTypeEntity row = repository.findById(m.id()).orElse(null);
-    // A plugin's type points at its plugin row (connector_type.plugin_id; the plugin's id is the type's, K6).
-    PluginEntity plugin = m.kind() == ConnectorManifest.Kind.PLUGIN ? plugins.findById(m.id()).orElse(null) : null;
+    // A delivered type points at its package's row (connector_type.plugin_id): a plugin's own, a module's.
+    String packageId = sourcePackages.get(m.id());
+    PluginEntity plugin = packageId == null ? null : plugins.findById(packageId).orElse(null);
     if (row == null) {
       row = repository.saveAndFlush(new ConnectorTypeEntity(m.id(), m.kind(), m.version(), map(u.tree()), u.sha(),
           plugin, clock.instant()));
@@ -244,11 +327,12 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       stored.put(m.id(), new Stored(row.isEnabled(), false));
       return;
     }
-    boolean changed = !u.sha().equals(row.getManifestSha256()) || !m.version().equals(row.getImplVersion());
-    boolean link = plugin != null && row.getPlugin() == null;
+    boolean changed = !u.sha().equals(row.getManifestSha256()) || !m.version().equals(row.getImplVersion())
+        || m.kind() != row.getKind();
+    boolean link = packageChanged(m, row);
     if (changed || link) {
       if (changed) {
-        row.updateManifest(m.version(), map(u.tree()), u.sha(), clock.instant());
+        row.updateManifest(m.kind(), m.version(), map(u.tree()), u.sha(), clock.instant());
       }
       if (link) {
         row.setPlugin(plugin);
@@ -262,9 +346,17 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     stored.put(m.id(), new Stored(row.isEnabled(), true));
   }
 
-  /** A plugin's type row that doesn't point at its plugin yet (rows of K4, before {@code plugin_id} was set). */
-  private boolean pluginUnlinked(ConnectorManifest m, ConnectorTypeEntity row) {
-    return m.kind() == ConnectorManifest.Kind.PLUGIN && row.getPlugin() == null && plugins.existsById(m.id());
+  /**
+   * Whether a type's row points at another package than the one that delivers the type now: none yet (rows of K4,
+   * a type that became a module), another one, or one still although the type is compiled in again.
+   */
+  private boolean packageChanged(ConnectorManifest m, ConnectorTypeEntity row) {
+    String packageId = sourcePackages.get(m.id());
+    String linked = row.getPlugin() == null ? null : row.getPlugin().getId();
+    if (packageId == null) {
+      return linked != null;
+    }
+    return !packageId.equals(linked) && plugins.existsById(packageId);
   }
 
   // ── Lookups ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -282,12 +374,38 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     return List.copyOf(out);
   }
 
+  /**
+   * The type as it is registered now. A type that isn't here but that a connector module adds is asked for in passing
+   * ({@link MissingTypes#wanted}): it installs in the background and is here at a later look.
+   */
   public Optional<ConnectorType> type(String typeId) {
+    Optional<ConnectorType> known = registered(typeId);
+    MissingTypes handler = missingTypes;
+    if (known.isEmpty() && handler != null && typeId != null && TYPE_ID.matcher(typeId).matches()) {
+      handler.wanted(typeId);
+    }
+    return known;
+  }
+
+  /**
+   * Waits for {@code typeId} to arrive when a connector module adds it and it isn't installed yet: what a request
+   * calls first that is about to work with the type (its form, a new connection, an import). The person is asked
+   * nothing. Returns at once for a type that is registered or that nothing delivers, and after {@link #INSTALL_WAIT}
+   * at the latest; the caller then looks the type up as usual.
+   */
+  public void awaitInstalled(String typeId) {
+    MissingTypes handler = missingTypes;
+    if (handler != null && typeId != null && TYPE_ID.matcher(typeId).matches() && registered(typeId).isEmpty()) {
+      handler.await(typeId, INSTALL_WAIT);
+    }
+  }
+
+  private Optional<ConnectorType> registered(String typeId) {
     Connector c = builtIn.get(typeId);
     if (c != null) {
       return Optional.of(typeOf(c.manifest()));
     }
-    ConnectorManifest m = sourceTypes.get(typeId);
+    ConnectorManifest m = typeId == null ? null : sourceTypes.get(typeId);
     return m == null ? Optional.empty() : Optional.of(typeOf(m));
   }
 
@@ -311,18 +429,42 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    * is switched on: callers check {@link #usable}.
    */
   public Optional<Connector> connectorFor(ConnectionConfig cfg) {
+    Connector compiledIn = builtIn.get(cfg.type());
     for (ConnectorSource source : sources) {
+      if (compiledIn != null && source.firstParty(cfg.type())) {
+        // A module of a type this build compiles in: the compiled-in connector serves its connections.
+        continue;
+      }
       Optional<Connector> c = source.connectorFor(cfg);
       if (c.isPresent()) {
         return c;
       }
     }
-    return Optional.ofNullable(builtIn.get(cfg.type()));
+    MissingTypes handler = missingTypes;
+    if (compiledIn == null && handler != null && cfg.type() != null) {
+      // A connection of a type that isn't here: when a connector module adds it, it is on its way now.
+      handler.wanted(cfg.type());
+    }
+    return Optional.ofNullable(compiledIn);
   }
 
-  /** The built-in beans, for broadcasts such as {@code onConnectionChanged}. */
+  /** Whether this build compiles the connector type in (rather than a connector module adding it). */
+  public boolean compiledIn(String typeId) {
+    return builtIn.containsKey(typeId);
+  }
+
+  /**
+   * GateRook's own connectors, for broadcasts such as {@code onConnectionChanged}: the compiled-in beans and the
+   * connectors of the installed connector modules.
+   */
   public Collection<Connector> builtInConnectors() {
-    return builtIn.values();
+    Map<String, Connector> own = delivered;
+    if (own.isEmpty()) {
+      return builtIn.values();
+    }
+    List<Connector> all = new ArrayList<>(builtIn.values());
+    all.addAll(own.values());
+    return List.copyOf(all);
   }
 
   /**
@@ -332,7 +474,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    * connection, and its form is the first connector's.
    */
   public Map<String, TemplateKind> templateKinds() {
-    return templateKinds(builtIn.values());
+    return templateKinds(builtInConnectors());
   }
 
   /** The template kinds of {@code connectors} in their order, a kind several of them offer merged into one. */
@@ -390,7 +532,13 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    * (ARCHITECTURE.md §9 "does not pass itself off as built-in"). See {@link #isReserved} for the prefixes.
    */
   public Set<String> reservedToolNames() {
-    return reserved;
+    if (deliveredNames.isEmpty() && listedNames.isEmpty()) {
+      return reserved;
+    }
+    Set<String> all = new TreeSet<>(reserved);
+    all.addAll(deliveredNames);
+    all.addAll(listedNames);
+    return Set.copyOf(all);
   }
 
   /**
@@ -399,7 +547,13 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    * {@code _}. Only built-in connectors name tools that start with one.
    */
   public Set<String> reservedPrefixes() {
-    return reservedPrefixes;
+    if (deliveredPrefixes.isEmpty() && listedPrefixes.isEmpty()) {
+      return reservedPrefixes;
+    }
+    Set<String> all = new TreeSet<>(reservedPrefixes);
+    all.addAll(deliveredPrefixes);
+    all.addAll(listedPrefixes);
+    return Set.copyOf(all);
   }
 
   /**
@@ -410,14 +564,31 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     return reservedProblem(toolName).isPresent();
   }
 
-  /** Why {@code toolName} is reserved ("… is the name of a built-in tool"), or empty. */
+  /**
+   * Why {@code toolName} is reserved ("… is the name of a built-in tool"), or empty. The built-in tools are those of
+   * the compiled-in connectors, of the installed connector modules, and of the modules the channel lists: a new
+   * plugin, MCP server tool or template takes the name of none of them.
+   */
   public Optional<String> reservedProblem(String toolName) {
-    if (reserved.contains(toolName)) {
+    return reservedProblem(toolName, true);
+  }
+
+  /**
+   * @param listed whether the names of modules that are only listed count. They don't for a plugin that is already
+   *               installed: it keeps its tools until the module itself is here.
+   */
+  private Optional<String> reservedProblem(String toolName, boolean listed) {
+    if (reserved.contains(toolName) || deliveredNames.contains(toolName)
+        || (listed && listedNames.contains(toolName))) {
       return Optional.of(toolName + " is the name of a built-in tool");
     }
-    for (String prefix : reservedPrefixes) {
-      if (toolName.startsWith(prefix)) {
-        return Optional.of(toolName + " starts with " + prefix + ", which only built-in tools use");
+    List<Set<String>> families = listed ? List.of(reservedPrefixes, deliveredPrefixes, listedPrefixes)
+        : List.of(reservedPrefixes, deliveredPrefixes);
+    for (Set<String> prefixes : families) {
+      for (String prefix : prefixes) {
+        if (toolName.startsWith(prefix)) {
+          return Optional.of(toolName + " starts with " + prefix + ", which only built-in tools use");
+        }
       }
     }
     return Optional.empty();
@@ -537,9 +708,52 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     return json.treeToValue(tree, Map.class);
   }
 
+  /**
+   * Why one of GateRook's own types that a source delivers (a connector module) can't be registered, or empty. It is
+   * held to what the compiled-in types are held to at start: valid names, no tool of the core, and a tool that shares
+   * its name with another type's equal to it, so that the two merge on an endpoint. A module that fails this isn't
+   * registered; the start goes on.
+   */
+  private Optional<String> firstPartyProblem(ConnectorManifest m, Map<String, ConnectorManifest> earlier) {
+    if (!TYPE_ID.matcher(m.id()).matches()) {
+      return Optional.of("the id is not [a-z][a-z0-9-]{0,47}");
+    }
+    if (m.kind() != ConnectorManifest.Kind.BUILT_IN) {
+      return Optional.of("a connector module's types are built-in types");
+    }
+    if (earlier.containsKey(m.id())) {
+      return Optional.of("another connector already uses this id");
+    }
+    List<ConnectorManifest> others = new ArrayList<>(builtIn.values().stream().map(Connector::manifest).toList());
+    others.addAll(earlier.values());
+    Set<String> own = new TreeSet<>();
+    for (ToolDefinition t : m.tools()) {
+      if (!TOOL_NAME.matcher(t.name()).matches()) {
+        return Optional.of("tool " + t.name() + " has an invalid name");
+      }
+      if (CORE_TOOLS.contains(t.name())) {
+        return Optional.of(t.name() + " is a tool of the core");
+      }
+      if (!own.add(t.name())) {
+        return Optional.of("tool " + t.name() + " is declared twice");
+      }
+      for (ConnectorManifest other : others) {
+        Optional<ToolDefinition> same = other.tools().stream().filter(o -> o.name().equals(t.name())).findFirst();
+        if (same.isPresent() && !sameTool(same.get(), t)) {
+          return Optional.of("tool " + t.name() + " differs from the one of " + other.id()
+              + ": same-named tools must be equal to share an endpoint");
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
   private Optional<String> sourceTypeProblem(ConnectorManifest m, Map<String, ConnectorManifest> earlier) {
     if (!TYPE_ID.matcher(m.id()).matches()) {
       return Optional.of("the id is not [a-z][a-z0-9-]{0,47}");
+    }
+    if (m.kind() == ConnectorManifest.Kind.BUILT_IN) {
+      return Optional.of("only GateRook's own connectors are built in");
     }
     if (builtIn.containsKey(m.id()) || earlier.containsKey(m.id())) {
       return Optional.of("another connector already uses this id");
@@ -548,7 +762,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       if (!TOOL_NAME.matcher(t.name()).matches()) {
         return Optional.of("tool " + t.name() + " has an invalid name");
       }
-      Optional<String> reservedName = reservedProblem(t.name());
+      Optional<String> reservedName = reservedProblem(t.name(), false);
       if (reservedName.isPresent()) {
         return Optional.of("tool " + reservedName.get());
       }
@@ -615,16 +829,22 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   }
 
   static Set<String> reservedPrefixes(List<ConnectorManifest> manifests) {
-    Set<String> prefixes = new TreeSet<>();
+    Set<String> names = new TreeSet<>();
     for (ConnectorManifest m : manifests) {
-      if (m.kind() != ConnectorManifest.Kind.BUILT_IN) {
-        continue;
+      if (m.kind() == ConnectorManifest.Kind.BUILT_IN) {
+        m.tools().forEach(t -> names.add(t.name()));
       }
-      for (ToolDefinition t : m.tools()) {
-        int underscore = t.name().indexOf('_');
-        if (underscore > 0) {
-          prefixes.add(t.name().substring(0, underscore + 1));
-        }
+    }
+    return prefixes(names);
+  }
+
+  /** The families of {@code names}: the part of each up to its first {@code _}. */
+  private static Set<String> prefixes(Collection<String> names) {
+    Set<String> prefixes = new TreeSet<>();
+    for (String name : names) {
+      int underscore = name.indexOf('_');
+      if (underscore > 0) {
+        prefixes.add(name.substring(0, underscore + 1));
       }
     }
     return Set.copyOf(prefixes);

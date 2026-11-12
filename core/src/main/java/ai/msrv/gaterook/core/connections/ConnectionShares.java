@@ -59,6 +59,8 @@ public class ConnectionShares {
   }
 
   public boolean supported(String type) {
+    // A shared connection of a type that a connector module adds: the module installs before the answer.
+    registry.awaitInstalled(type);
     return registry.type(type).filter(t -> t.usable() && t.kind() != ConnectorManifest.Kind.MCP_SERVER).isPresent();
   }
 

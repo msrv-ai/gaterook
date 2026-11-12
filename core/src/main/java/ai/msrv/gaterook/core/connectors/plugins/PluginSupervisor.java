@@ -39,7 +39,8 @@ final class PluginSupervisor {
   private final HostLauncher launcher;
   private final Clock clock;
   private final Runnable onStateChange;
-  private final Semaphore bulkhead = new Semaphore(BULKHEAD, true);
+  private final int calls;
+  private final Semaphore bulkhead;
   private final Deque<Instant> crashes = new ArrayDeque<>();
   private final Object lock = new Object();
 
@@ -60,6 +61,13 @@ final class PluginSupervisor {
 
   /** {@code onStateChange} runs after each change of the process state: the admin API's {@code plugin.state}. */
   PluginSupervisor(String pluginId, HostLauncher launcher, Clock clock, Runnable onStateChange) {
+    this(pluginId, launcher, clock, onStateChange, BULKHEAD);
+  }
+
+  /** {@code calls}: how many calls the host runs at once (a connector module declares its own). */
+  PluginSupervisor(String pluginId, HostLauncher launcher, Clock clock, Runnable onStateChange, int calls) {
+    this.calls = Math.clamp(calls, 1, 64);
+    this.bulkhead = new Semaphore(this.calls, true);
     this.pluginId = pluginId;
     this.launcher = launcher;
     this.clock = clock;
@@ -69,6 +77,11 @@ final class PluginSupervisor {
 
   String pluginId() {
     return pluginId;
+  }
+
+  /** How many calls the host runs at once. */
+  int calls() {
+    return calls;
   }
 
   /** The spec a host is (re)started from; set at install and update, used by the next start. */
@@ -101,7 +114,7 @@ final class PluginSupervisor {
       throw ConnectorException.timeout("The call was cancelled.");
     }
     if (!acquired) {
-      throw ConnectorException.unavailable(pluginId + " is busy (" + BULKHEAD + " calls running). Try again.", null);
+      throw ConnectorException.unavailable(pluginId + " is busy (" + calls + " calls running). Try again.", null);
     }
     try {
       HostProcess host = ensureRunning();
