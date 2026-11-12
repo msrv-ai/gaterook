@@ -10,6 +10,8 @@ The built-in **Google Cloud Spanner** connector (`spanner`) calls Spanner's REST
 - the **credentials**: your Google sign-in on this computer (Application Default Credentials, from `gcloud auth application-default login`) or a service account key, stored encrypted in GateRook. Either can **impersonate** a service account; outside dev, **Test connection** warns when calls use your own sign-in;
 - optionally, under **Advanced**, a **database role** of Spanner's fine-grained access control. Every session GateRook opens then takes that role (`creatorRole`), so agents get the role's privileges on tables, columns and views instead of the credentials' access to the whole database. The credentials need `roles/spanner.fineGrainedAccessUser` and access to the role.
 
+While you fill in the form, GateRook fills in the project of a pasted key, or the one gcloud works in on this computer. Once the form can sign in, it lists the project's instances, the instance's databases with their dialects and the database's roles, and says when the instance or database typed isn't there. Listing instances and databases needs `roles/spanner.viewer`; without it, type them.
+
 Give readers `roles/spanner.databaseReader` on the database. Approved changes need `roles/spanner.databaseUser` for DML and `roles/spanner.databaseAdmin` for schema changes; a database role narrows what any of them may touch. Test connection opens a session in the database role, reads in a read-only transaction, reports the dialect, and lists the tables agents may read.
 
 ## Bound reads and review exact changes

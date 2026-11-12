@@ -13,11 +13,12 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Firestore's REST API v1: {@code POST https://firestore.googleapis.com/v1/<name>:<method>} with
- * {@code listCollectionIds}, {@code batchGet}, {@code runQuery} and {@code commit}, nothing else. {@code <name>} is the
- * connection's database or one of its document paths, each ID checked and percent-encoded ({@link FirestorePath}). A
- * development build's test endpoint {@code gcp.firestore} replaces the base, with the test credentials that go with it;
- * a token goes only where {@code CloudCredentials.sendsGoogleTokensTo} allows. The streaming answers of
- * {@code runQuery} and {@code batchGet}, a JSON array, are read one element at a time within a cap.
+ * {@code listCollectionIds}, {@code batchGet}, {@code runQuery} and {@code commit}, and for the form's suggestions
+ * {@code GET} of the project's databases; nothing else. {@code <name>} is the connection's database or one of its
+ * document paths, each ID checked and percent-encoded ({@link FirestorePath}). A development build's test endpoint
+ * {@code gcp.firestore} replaces the base, with the test credentials that go with it; a token goes only where
+ * {@code CloudCredentials.sendsGoogleTokensTo} allows. The streaming answers of {@code runQuery} and {@code batchGet},
+ * a JSON array, are read one element at a time within a cap.
  */
 final class FirestoreApi {
 
@@ -53,8 +54,24 @@ final class FirestoreApi {
     return uri(s, FirestorePath.ROOT, method);
   }
 
+  /** {@code <base>/v1/projects/p/databases}: the project's databases ({@code databases.list}). */
+  URI databases(FirestoreSettings s) {
+    return URI.create(base().toString().replaceAll("/$", "") + "/v1/projects/" + s.project() + "/databases");
+  }
+
   Map<String, List<String>> headers(GoogleHttp.Caller c, URI uri) throws ConnectorException {
     return http.token(c, uri, http.cloud()::sendsGoogleTokensTo, true);
+  }
+
+  /** A listing ({@code GET}) whose answer is read whole, up to {@link GoogleHttp#MAX_BODY}. */
+  JsonNode get(GoogleHttp.Caller c, URI uri) throws ConnectorException {
+    Map<String, List<String>> headers = headers(c, uri);
+    try (GoogleHttp.Answer a = http.send(c.ctx(), "GET", uri, headers, null, WHAT, false)) {
+      if (!a.ok()) {
+        throw error(a.status, a.error(), c, false);
+      }
+      return a.json(GoogleHttp.MAX_BODY);
+    }
   }
 
   /** A request whose answer is read whole, up to {@link GoogleHttp#MAX_BODY}. */

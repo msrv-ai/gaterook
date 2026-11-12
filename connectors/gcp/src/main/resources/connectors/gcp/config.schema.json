@@ -18,7 +18,7 @@
       "maxItems": 20,
       "uniqueItems": true,
       "title": "Projects, folders or organizations",
-      "description": "Include the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
+      "description": "What agents may use, with the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
       "items": {
         "type": "string",
         "title": "Resource scope",
@@ -47,7 +47,7 @@
           "acme-stage"
         ]
       },
-      "description": "Project IDs without the projects/ prefix. Leave empty to use the project IDs from the selected resource scopes."
+      "description": "The projects whose metrics gcp_metrics reads, as project IDs without projects/. Empty: the projects among the scopes."
     },
     "credentials": {
       "type": "object",
@@ -76,7 +76,9 @@
           "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
           "examples": [
             "gw-reader@acme-stage.iam.gserviceaccount.com"
-          ]
+          ],
+          "x-advanced": false,
+          "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Empty: calls use the sign-in or key itself."
         },
         "delegates": {
           "type": "array",
@@ -93,12 +95,13 @@
           "minimum": 300,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
         },
         "quotaProject": {
           "type": "string",
           "title": "Billed project",
-          "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
         }
       },
       "patternProperties": {
@@ -137,7 +140,8 @@
     "liveGet": {
       "type": "boolean",
       "default": true,
-      "title": "Read current state from service APIs"
+      "title": "Read current state from service APIs",
+      "description": "gcp_describe with a resource name reads it from its own service. Off: the inventory's snapshot, which can be minutes old."
     }
   }
 }

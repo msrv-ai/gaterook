@@ -46,6 +46,7 @@
           "users/*/orders"
         ]
       ],
+      "x-advanced": false,
       "description": "The collections agents may use. An ID such as orders or audit-* allows every collection with that ID, collection-group queries included; a path such as /orders or users/*/orders allows the collections at that path (* is one ID, ** any number). Empty: every collection the credentials may read."
     },
     "credentials": {
@@ -76,7 +77,8 @@
           "examples": [
             "gw-firestore@acme-stage.iam.gserviceaccount.com"
           ],
-          "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes."
+          "x-advanced": false,
+          "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes. Empty: calls use the sign-in or key itself."
         },
         "lifetimeSeconds": {
           "type": "integer",
@@ -84,12 +86,13 @@
           "minimum": 300,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
         },
         "quotaProject": {
           "type": "string",
           "title": "Billed project",
-          "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
         }
       },
       "patternProperties": {
