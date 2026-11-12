@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connectors.support.LocalPrograms;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -474,38 +475,9 @@ final class Launcher {
     return String.join(File.pathSeparator, dirs);
   }
 
+  /** The PATH a terminal would have ({@link LocalPrograms#loginShellPath}), asked with the core's environment. */
   private Optional<String> loginShellPath() {
-    String shell = coreEnv.get("SHELL");
-    if (shell == null || shell.isBlank() || !Files.isExecutable(Path.of(shell))) {
-      return Optional.empty();
-    }
-    try {
-      ProcessBuilder pb = new ProcessBuilder(shell, "-ilc", "printf %s \"$PATH\"");
-      pb.environment().clear();
-      for (String name : UNIX_BASICS) {
-        String v = coreEnv.get(name);
-        if (v != null) {
-          pb.environment().put(name, v);
-        }
-      }
-      pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-      Process p = pb.start();
-      p.getOutputStream().close();
-      if (!p.waitFor(5, TimeUnit.SECONDS)) {
-        ProcessTree.stop(p.toHandle(), java.time.Duration.ofMillis(200));
-        return Optional.empty();
-      }
-      String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
-      // Only the last line: an rc file that prints a banner comes first.
-      String[] lines = out.split("\n");
-      String last = lines[lines.length - 1].strip();
-      return last.contains("/") ? Optional.of(last) : Optional.empty();
-    } catch (IOException e) {
-      return Optional.empty();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      return Optional.empty();
-    }
+    return LocalPrograms.loginShellPath(coreEnv);
   }
 
   /**

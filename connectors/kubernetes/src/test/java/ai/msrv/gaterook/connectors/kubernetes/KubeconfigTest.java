@@ -206,20 +206,35 @@ class KubeconfigTest {
     KubernetesConnector connector = new KubernetesConnector();
     Map<String, String> secret = Map.of(K8sSettings.KUBECONFIG, kubeconfig(user));
 
+    // Off: Test connection asks to allow the exact command, and allowing it turns the option on (one decision).
     ConnectionConfig off = K8sTestKit.cfg(Env.DEV, "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\"}");
-    TestResult refused = connector.test(off, secrets(secret), ctx(Env.DEV));
-    assertThat(refused.ok()).isFalse();
-    assertThat(refused.error().code()).isEqualTo("k8s.exec-not-allowed");
-    assertThat(refused.metadataUpdate().path("kubeconfigContexts").size()).isEqualTo(2);
+    TestResult asked = connector.test(off, secrets(secret), ctx(Env.DEV));
+    assertThat(asked.ok()).isFalse();
+    assertThat(asked.needsConfirmation().kind()).isEqualTo("exec-plugin");
+    assertThat(asked.needsConfirmation().configPatch().path("allowExecPlugin").asBoolean()).isTrue();
+    assertThat(asked.metadataUpdate().path("kubeconfigContexts").size()).isEqualTo(2);
+    // Calls never ask: off, they are refused.
+    assertThatThrownBy(() -> connector.execute(K8sTestKit.call("k8s_get", "{\"kind\":\"pods\"}"), off,
+        secrets(secret), ctx(Env.DEV))).hasMessageContaining("test the connection to allow it");
 
     ConnectionConfig on = K8sTestKit.cfg(Env.DEV, "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\","
         + "\"allowExecPlugin\":true}");
     TestResult confirm = connector.test(on, secrets(secret), ctx(Env.DEV));
     assertThat(confirm.needsConfirmation().kind()).isEqualTo("exec-plugin");
-    assertThat(confirm.needsConfirmation().text()).contains(plugin.toString()).endsWith(" get-token --cluster dev");
+    // The sentence names the program; its whole path is the command fact (a long path would read as a token to mask).
+    assertThat(confirm.needsConfirmation().text()).isEqualTo("Run fake-auth-plugin get-token --cluster dev on this "
+        + "computer, with your user rights, whenever dev-cluster needs a new token.");
+    assertThat(confirm.needsConfirmation().data().path("command").asString()).isEqualTo(plugin.toString());
+    // A draft has no name yet.
+    assertThat(connector.test(K8sTestKit.cfg("draft-1", Env.DEV, "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\","
+        + "\"allowExecPlugin\":true}", null), secrets(secret), ctx(Env.DEV)).needsConfirmation().text())
+        .contains("whenever this connection needs a new token");
     assertThat(confirm.needsConfirmation().data().path("env").toString()).isEqualTo("[\"AWS_PROFILE\"]");
     String fingerprint = confirm.needsConfirmation().configPatch().path("trustedExec").asString();
     assertThat(fingerprint).hasSize(64);
+    assertThat(asked.needsConfirmation().configPatch().path("trustedExec").asString()).isEqualTo(fingerprint);
+    // Already on: the patch only pins the command.
+    assertThat(confirm.needsConfirmation().configPatch().has("allowExecPlugin")).isFalse();
     K8sTestKit.assertPersonOnly(confirm.needsConfirmation().configPatch());
     // Opting in to the command is the person's too: it carries the mark like the fingerprint that follows it.
     assertThat(PersonOnly.covers(new KubernetesConnector().manifest().configSchema(), "/allowExecPlugin")).isTrue();

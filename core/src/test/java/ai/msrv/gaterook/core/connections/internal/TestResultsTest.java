@@ -102,6 +102,19 @@ class TestResultsTest {
     assertThat(result.needsConfirmation().text()).isEqualTo("trust " + MASK);
   }
 
+  @Test
+  void aCredentialCommandsConfirmationKeepsTheCommandItAsksAbout() {
+    // Kubernetes names the command before the word token: "token: <value>" reads as a secret and is masked whole.
+    String asked = "Run gke-gcloud-auth-plugin on this computer, with your user rights, whenever this connection "
+        + "needs a new token.";
+    TestResult source = new TestResult(false, 7, null, null, null, List.of(), List.of(), null,
+        new TestResult.Confirmation("exec-plugin", asked, null, null), null, null, null);
+
+    assertThat(TestResults.mask(source, masker, new Taint()).needsConfirmation().text()).isEqualTo(asked);
+    assertThat(new Masker().text("whenever it needs a new token: gke-gcloud-auth-plugin", new Taint(),
+        ai.msrv.gaterook.core.platform.MaskPolicy.SECRETS_ONLY).text()).doesNotContain("gke-gcloud-auth-plugin");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {
       "[\"ledger\",{\"password\":\"ledger\"}]",

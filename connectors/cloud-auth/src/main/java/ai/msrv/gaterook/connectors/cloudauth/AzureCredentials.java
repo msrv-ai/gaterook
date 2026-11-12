@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.cloudauth;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connectors.cloudauth.AzureCloud.Audience;
+import ai.msrv.gaterook.connectors.support.LocalPrograms;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.connectors.support.Pem;
 import java.io.ByteArrayOutputStream;
@@ -332,6 +333,10 @@ public final class AzureCredentials implements AutoCloseable {
     Map<String, String> env = pb.environment();
     env.clear();
     env.putAll(cliEnvironment());
+    if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("windows")) {
+      // The CLI's own folder first: an az found outside the core's PATH runs its Python from beside it.
+      env.put("PATH", LocalPrograms.pathFor(command.program()));
+    }
     Process process;
     try {
       process = pb.start();
@@ -440,8 +445,8 @@ public final class AzureCredentials implements AutoCloseable {
   }
 
   /**
-   * The {@code az} program: a test build's override, else {@code PATH}, then where the installers put it — a desktop
-   * app doesn't inherit the shell's {@code PATH}.
+   * The {@code az} program: a test build's override, else {@code PATH}, then where the installers put it, then the
+   * login shell's {@code PATH} ({@link LocalPrograms}): a desktop app doesn't inherit the shell's {@code PATH}.
    */
   private Path cliProgram() throws ConnectorException {
     if (endpoints.azureCli() != null) {
@@ -454,14 +459,6 @@ public final class AzureCredentials implements AutoCloseable {
     boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("windows");
     String name = windows ? "az.cmd" : "az";
     List<Path> dirs = new ArrayList<>();
-    String path = System.getenv("PATH");
-    if (path != null) {
-      for (String d : path.split(java.io.File.pathSeparator)) {
-        if (!d.isBlank()) {
-          dirs.add(Path.of(d));
-        }
-      }
-    }
     String home = System.getProperty("user.home");
     if (windows) {
       dirs.add(Path.of("C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin"));
@@ -472,15 +469,9 @@ public final class AzureCredentials implements AutoCloseable {
         dirs.add(Path.of(d));
       }
     }
-    for (Path d : dirs) {
-      Path candidate = d.resolve(name);
-      if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) {
-        return candidate.toAbsolutePath().normalize();
-      }
-    }
-    throw ConnectorException.unavailable("The Azure CLI (az) isn't installed on this computer: not found in PATH"
-        + (windows ? " or Program Files." : ", /opt/homebrew/bin or /usr/local/bin.") + " Install it, run az login, "
-        + "then test again.", null);
+    return LocalPrograms.find(name, dirs).orElseThrow(() -> ConnectorException.unavailable("The Azure CLI (az) isn't "
+        + "installed on this computer: it isn't in PATH" + (windows ? " or Program Files." : ", the usual install "
+        + "folders or your login shell's PATH.") + " Install it, run az login, then test again.", null));
   }
 
   // ── Device sign-in ──────────────────────────────────────────────────────────────────────────────────────────

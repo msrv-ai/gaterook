@@ -50,6 +50,7 @@ class ExecCredentialsTest {
           expired) printf '%s' '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential",'
                    echo '"status":{"token":"cnry-exec-old","expirationTimestamp":"2000-01-01T00:00:00Z"}}' ;;
           cert) echo '{"status":{"clientCertificateData":"x","clientKeyData":"y"}}' ;;
+          path) printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential","status":{"token":"%s"}}' "$PATH" ;;
           *) printf '%s' '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential",'
              echo '"status":{"token":"cnry-exec-token","expirationTimestamp":"2099-01-01T00:00:00Z"}}' ;;
         esac
@@ -80,6 +81,27 @@ class ExecCredentialsTest {
     assertThat(info.at("/spec/cluster/server").asString()).isEqualTo("https://k8s:6443");
     // No shell: "$HOME" in an argument stays text.
     assertThat(Files.readAllLines(dir.resolve("args"))).containsExactly(dir.toString(), "ok", "it's $HOME");
+  }
+
+  @Test
+  void theCommandFindsWhatSitsBesideItFirstInItsPath() throws Exception {
+    // gke-gcloud-auth-plugin runs gcloud from its own folder, which a desktop app's PATH may not have.
+    ExecCredentials creds = new ExecCredentials(spec("path"), Clock.systemUTC());
+
+    String path = creds.token(Duration.ofSeconds(10));
+
+    assertThat(path.split(java.io.File.pathSeparator)[0]).isEqualTo(plugin.getParent().toAbsolutePath().toString());
+  }
+
+  @Test
+  void aCommandThatIsntInstalledSaysHowToInstallIt() {
+    assertThat(ExecCredentials.notInstalled("gke-gcloud-auth-plugin").getMessage())
+        .contains("isn't in PATH, the usual install folders or your login shell's PATH")
+        .endsWith("Install it with gcloud components install gke-gcloud-auth-plugin, then test again.");
+    assertThat(ExecCredentials.notInstalled("kubelogin").getMessage()).contains("az aks install-cli");
+    assertThat(ExecCredentials.notInstalled("my-auth-helper").getMessage()).endsWith("Install it, then test again.");
+    assertThat(ExecCredentials.usualFolders()).contains(Path.of(System.getProperty("user.home"), "google-cloud-sdk",
+        "bin"), Path.of("/opt/homebrew/bin"));
   }
 
   @Test
