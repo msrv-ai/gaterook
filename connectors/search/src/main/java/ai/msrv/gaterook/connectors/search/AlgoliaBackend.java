@@ -2,19 +2,26 @@ package ai.msrv.gaterook.connectors.search;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
+import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.toml.TomlMapper;
 
 /**
  * Algolia's Search REST API v1 (docs/search-engines.md): indices, their settings, search with {@code filters} GateRook
@@ -37,7 +44,11 @@ final class AlgoliaBackend extends SearchBackend {
   /** ACLs that change data. */
   private static final Set<String> WRITE_ACL = Set.of("addObject", "deleteObject", "deleteIndex", "editSettings");
 
+  private static final TomlMapper TOML = TomlMapper.builder().build();
+
   private final URI testBase;
+  private volatile Function<String, String> env = System::getenv;
+  private volatile Path home = Path.of(System.getProperty("user.home"));
 
   AlgoliaBackend() {
     this(null);
@@ -87,6 +98,63 @@ final class AlgoliaBackend extends SearchBackend {
   String cannotList(ConnectionConfig cfg) {
     return "The key may not list indices (its ACL lacks listIndexes), so none can be offered: name the ones agents "
         + "may use.";
+  }
+
+  /** Tests: this computer's environment and home folder elsewhere. */
+  AlgoliaBackend machine(Function<String, String> env, Path home) {
+    this.env = env;
+    this.home = home;
+    return this;
+  }
+
+  /**
+   * Local suggestions: the application IDs of the Algolia CLI's profiles ({@code config.toml} in
+   * {@code $XDG_CONFIG_HOME/algolia}, else {@code ~/.config/algolia}), the default profile's filled in, else the only
+   * one's. The profiles' keys are never read into a suggestion.
+   */
+  @Override
+  void local(ConnectionConfig cfg, Suggestions.Builder out) {
+    String xdg = env.apply("XDG_CONFIG_HOME");
+    Path file = (xdg != null && !xdg.isBlank() ? Path.of(xdg.strip()) : home.resolve(".config")).resolve("algolia")
+        .resolve("config.toml");
+    JsonNode profiles;
+    try {
+      if (!Files.isRegularFile(file) || Files.size(file) > 1 << 20) {
+        return;
+      }
+      profiles = TOML.readTree(Files.readString(file, StandardCharsets.UTF_8));
+    } catch (IOException | RuntimeException e) {
+      // Not TOML, unreadable or gone: no suggestion from it.
+      return;
+    }
+    List<Suggestions.Option> options = new ArrayList<>();
+    String preferred = null;
+    for (Map.Entry<String, JsonNode> e : profiles.properties()) {
+      String app = e.getValue().path("application_id").asString("").strip();
+      if (!e.getValue().isObject() || !APP.matcher(app).matches()) {
+        continue;
+      }
+      boolean isDefault = e.getValue().path("default").asBoolean(false);
+      if (isDefault) {
+        // The Algolia CLI takes the last profile marked default.
+        preferred = app;
+      }
+      Suggestions.Option option = new Suggestions.Option(app, null, "profile " + e.getKey() + (isDefault
+          ? " (default)" : ""));
+      int at = options.stream().map(Suggestions.Option::value).toList().indexOf(app);
+      if (at < 0) {
+        options.add(option);
+      } else if (isDefault) {
+        options.set(at, option);
+      }
+    }
+    if (preferred == null && options.size() == 1) {
+      preferred = options.getFirst().value();
+    }
+    Path homeDir = home.toAbsolutePath().normalize();
+    Path shown = file.toAbsolutePath().normalize();
+    out.value("/applicationId", shown.startsWith(homeDir) ? "~/" + homeDir.relativize(shown).toString()
+        .replace('\\', '/') : shown.toString(), preferred, options);
   }
 
   private static String app(ConnectionConfig cfg) throws ConnectorException {

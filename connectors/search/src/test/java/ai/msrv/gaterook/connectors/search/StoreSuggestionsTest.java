@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Connector;
@@ -89,6 +90,39 @@ class StoreSuggestionsTest {
       assertThat(s.fields()).doesNotContainKey("/collections");
       assertThat(q.requests).isEmpty();
     }
+  }
+
+  @Test
+  void theAlgoliaCliDefaultProfileFillsInTheApplicationId() throws Exception {
+    Path dir = Files.createDirectories(home.resolve(".config").resolve("algolia"));
+    Files.writeString(dir.resolve("config.toml"), """
+        [staging]
+          application_id = "STG0001XYZ"
+          api_key = "cnry-algolia-staging-key"
+
+        [prod]
+          application_id = "ABCD1234EF"
+          admin_api_key = "cnry-algolia-admin-key"
+          search_hosts = ["abcd1234ef-dsn.algolia.net"]
+          default = true
+        """);
+    Connector c = new SearchConnector(new AlgoliaBackend().machine(Map.<String, String>of()::get, home));
+
+    Suggestions s = c.suggest(TestCtx.config("algolia", "{}"), new TestSecrets(), TestCtx.of(),
+        Suggestions.Scope.LOCAL);
+
+    Suggestions.Field app = s.fields().get("/applicationId");
+    assertThat(app.value()).isEqualTo("ABCD1234EF");
+    assertThat(app.source()).isEqualTo("~/.config/algolia/config.toml");
+    assertThat(app.options()).extracting(Option::value, Option::detail).containsExactly(
+        tuple("STG0001XYZ", "profile staging"), tuple("ABCD1234EF", "profile prod (default)"));
+    assertThat(FakeServer.JSON.writeValueAsString(s)).doesNotContain("cnry-algolia");
+
+    // XDG_CONFIG_HOME moves the folder; without the file there is nothing to offer.
+    Connector moved = new SearchConnector(new AlgoliaBackend().machine(Map.of("XDG_CONFIG_HOME",
+        home.resolve("elsewhere").toString())::get, home));
+    assertThat(moved.suggest(TestCtx.config("algolia", "{}"), new TestSecrets(), TestCtx.of(),
+        Suggestions.Scope.LOCAL).isEmpty()).isTrue();
   }
 
   // ── Signed in ───────────────────────────────────────────────────────────────────────────────────────────────
