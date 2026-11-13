@@ -23,7 +23,7 @@ import tools.jackson.databind.JsonNode;
  * <p>An entry of the index:
  * <pre>
  * {"kind": "module", "id": "cassandra", "version": "1.0.0", "name": "Apache Cassandra",
- *  "requires": {"gateway": ">=0.10.0 &amp; &lt;1.0.0", "connectorApi": ">=1.2.0 &amp; &lt;2.0.0"},
+ *  "requires": {"gateway": ">=0.10.0 &amp; &lt;1.0.0", "connectorApi": ">=2.0.0 &amp; &lt;3.0.0"},
  *  "artifact": {"url": "cassandra-1.0.0.jar", "sha256": "…", "size": 9871234},
  *  "types": [{"id": "cassandra", "name": "Cassandra", "icon": "cassandra", "group": "Databases",
  *             "description": "…", "tools": ["cassandra_query"]}]}

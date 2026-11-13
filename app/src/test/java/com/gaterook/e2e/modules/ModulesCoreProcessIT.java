@@ -370,7 +370,7 @@ class ModulesCoreProcessIT {
       ObjectNode entry = index.withArray("entries").addObject();
       entry.put("kind", "module").put("id", "echo").put("version", version).put("name", "Echo")
           .put("description", "A connector module for tests.");
-      entry.putObject("requires").put("gateway", ">=0.1.0 & <99.0.0").put("connectorApi", ">=1.2.0 & <2.0.0");
+      entry.putObject("requires").put("gateway", ">=0.1.0 & <99.0.0").put("connectorApi", ">=2.0.0 & <3.0.0");
       entry.putObject("artifact").put("url", "echo-" + version + ".jar").put("sha256", sha256(bytes))
           .put("size", bytes.length);
       ObjectNode db = entry.putArray("types").addObject().put("id", "echo-db").put("name", "Echo DB")

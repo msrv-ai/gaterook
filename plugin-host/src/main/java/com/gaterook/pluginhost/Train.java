@@ -185,7 +185,7 @@ final class Train {
     m.put("license", "Apache-2.0");
     ObjectNode requires = m.putObject("requires");
     requires.put("gateway", ">=0.0.0");
-    requires.put("connectorApi", ">=1.0.0 & <2.0.0");
+    requires.put("connectorApi", ">=2.0.0 & <3.0.0");
     m.put("connectorClass", TrainingConnector.class.getName());
     m.put("toolNamespace", "train_");
     m.set("configSchema", connector.manifest().configSchema());

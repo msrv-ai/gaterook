@@ -437,7 +437,7 @@ public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema
   public static String appPrefix(String connection) { return "ui://gaterook/connections/" + connection + "/"; }
 }
 package com.gaterook.connector.api;
-public final class ApiVersion { public static final String CURRENT = "1.2.0"; private ApiVersion() {} }  // plugins: requires.connectorApi; 1.1: RequiredAccess.tcp; 1.2: ConnectorModule
+public final class ApiVersion { public static final String CURRENT = "2.0.0"; private ApiVersion() {} }  // plugins: requires.connectorApi; 1.1: RequiredAccess.tcp; 1.2: ConnectorModule; 2.0: packages under com.gaterook
 
 // ── ConnectorModule.java / ModuleContext.java (1.2) ────────────────────────────────────────────────────────────
 package com.gaterook.connector.api;

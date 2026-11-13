@@ -256,7 +256,7 @@ public record PluginManifest(String id, String version, String name, String prov
       problems.add("requires.gateway must be a version range (>=0.4.0 & <1.0.0)");
     }
     if (api == null || !Semver.validRange(api)) {
-      problems.add("requires.connectorApi must be a version range (>=1.0.0 & <2.0.0)");
+      problems.add("requires.connectorApi must be a version range (>=2.0.0 & <3.0.0)");
     }
     List<String> modules = WireCodec.strings(req.path("javaModules"));
     for (String m : modules) {
@@ -358,7 +358,7 @@ public record PluginManifest(String id, String version, String name, String prov
       problems.add("requires.gateway must be a version range (>=1.0.0 & <2.0.0)");
     }
     if (api == null || !Semver.validRange(api)) {
-      problems.add("requires.connectorApi must be a version range (>=1.2.0 & <2.0.0)");
+      problems.add("requires.connectorApi must be a version range (>=2.0.0 & <3.0.0)");
     }
     List<String> javaModules = WireCodec.strings(req.path("javaModules"));
     for (String m : javaModules) {

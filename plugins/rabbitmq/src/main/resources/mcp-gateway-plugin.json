@@ -8,7 +8,7 @@
   "description": "Queue depth, consumers and dead letters. Community code, not reviewed.",
   "requires": {
     "gateway": ">=0.4.0 & <1.0.0",
-    "connectorApi": ">=1.0.0 & <2.0.0",
+    "connectorApi": ">=2.0.0 & <3.0.0",
     "javaModules": ["java.net.http"]
   },
   "connectorClass": "gaterook.plugins.rabbitmq.RabbitMqConnector",

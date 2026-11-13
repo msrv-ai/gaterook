@@ -35,7 +35,7 @@ public final class EchoModule implements ConnectorModule {
       {"id":"echo","version":"1.0.0","name":"Echo","provider":"GateRook","license":"Apache-2.0",
        "description":"A connector module for tests.",
        "moduleClass":"com.gaterook.e2e.modules.fixture.EchoModule",
-       "requires":{"gateway":">=0.1.0 & <99.0.0","connectorApi":">=1.2.0 & <2.0.0"},
+       "requires":{"gateway":">=0.1.0 & <99.0.0","connectorApi":">=2.0.0 & <3.0.0"},
        "access":{"hosts":[],"commands":[],"files":[]},
        "resources":{"maxHeapMb":96,"maxMetaspaceMb":64,"maxInFlight":4}}""";
 

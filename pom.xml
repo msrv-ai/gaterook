@@ -90,7 +90,7 @@
       The SPI is versioned on its own, and its artifact has the SPI's version (ApiVersion.CURRENT): plugins and
       connector modules declare requires.connectorApi against it and compile against this artifact.
     -->
-    <connector-api.version>1.2.0</connector-api.version>
+    <connector-api.version>2.0.0</connector-api.version>
 
     <!-- Overrides of versions the Spring Boot BOM manages (reports 05, 07, 09). -->
     <mongodb.version>5.13.0</mongodb.version>

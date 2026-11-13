@@ -13,7 +13,7 @@
       "icon": "puzzle",
       "group": "HTTP and MCP",
       "signed": true,
-      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=2.0.0 & <3.0.0"},
       "tools": 6,
       "access": {"hosts": ["{connection.host}"], "commands": []},
       "artifact": {"url": "gw-jira-service-desk-1.3.0.jar", "sha256": null, "size": null}
@@ -27,7 +27,7 @@
       "icon": "puzzle",
       "group": "HTTP and MCP",
       "signed": false,
-      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=2.0.0 & <3.0.0"},
       "tools": 4,
       "access": {"hosts": ["{connection.host}:15672"], "commands": []},
       "artifact": {"url": "gw-rabbitmq-0.3.0.jar", "sha256": null, "size": null}

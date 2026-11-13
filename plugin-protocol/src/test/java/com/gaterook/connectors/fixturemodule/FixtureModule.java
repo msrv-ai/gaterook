@@ -44,7 +44,7 @@ public final class FixtureModule implements ConnectorModule {
       {"id":"fixture-module","version":"1.0.0","name":"Fixture module","provider":"GateRook","license":"Apache-2.0",
        "description":"Two connector types for tests.",
        "moduleClass":"com.gaterook.connectors.fixturemodule.FixtureModule",
-       "requires":{"gateway":">=0.1.0 & <99.0.0","connectorApi":">=1.2.0 & <2.0.0"},
+       "requires":{"gateway":">=0.1.0 & <99.0.0","connectorApi":">=2.0.0 & <3.0.0"},
        "access":{"hosts":["{connection.host}:443"],"commands":[],"files":[]},
        "resources":{"maxHeapMb":128,"maxMetaspaceMb":96,"maxInFlight":4},
        "typeCapabilities":{"alpha":["quota","masked"]}}""";
