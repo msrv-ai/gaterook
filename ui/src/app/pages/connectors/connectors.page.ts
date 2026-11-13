@@ -8,7 +8,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs, selectFromFragment } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
-import { InstalledView, installedViews, joinAnd, plural, v } from './connectors-view';
+import { InstalledView, installedViews, joinAnd, moduleCatalogViews, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
@@ -105,12 +105,23 @@ export class ConnectorsPage {
   /** Tab counts, once their list answered (the kit's "Installed 12 · Catalog 5 · Templates 7 · MCP servers 1"). */
   protected readonly counts = computed(() => ({
     installed: this.installed()?.length ?? null,
-    catalog: this.data.catalog.value()?.entries.length ?? null,
+    catalog: this.catalogCount(),
     templates: this.data.templates.value()?.length ?? null,
     servers: this.data.connections.value() ? this.data.servers().length : null,
   }));
 
   protected readonly plural = plural;
+
+  /**
+   * What the Catalog offers: GateRook's own modules that aren't installed, and the signed catalog's entries. Known
+   * once the catalog answered, as the panel shows its cards only then.
+   */
+  private catalogCount(): number | null {
+    const index = this.data.catalog.value();
+    if (!index) return null;
+    const types = this.data.types.value();
+    return index.entries.length + (types ? moduleCatalogViews(types.groups).length : 0);
+  }
 
   constructor() {
     void this.data.start();
@@ -371,6 +382,8 @@ export class ConnectorsPage {
       return;
     }
     const e = view.entry;
+    // One of GateRook's own modules has no entry and nothing to install by hand: its card links to Add connection.
+    if (!e) return;
     switch (a.type) {
       case 'install-plugin':
         return this.runBusy(

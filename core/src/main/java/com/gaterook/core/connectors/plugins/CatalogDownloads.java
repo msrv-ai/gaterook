@@ -19,10 +19,11 @@ import okhttp3.HttpUrl;
  * again, never this computer ({@code neverLoopback}) and never the core's own ports, the platform's CAs.
  *
  * <p><b>Test override.</b> A non-release build started with {@code gateway.test.catalog.ca} (a PEM file of CA
- * certificates) trusts only those CAs for the catalog and may reach loopback ({@code 127.0.0.0/8}, {@code ::1}) — but
- * still not the core's own ports — so a test serves the catalog from an HTTPS MockWebServer with a
- * {@code HeldCertificate}. A release ignores the property ({@code BuildFlags.RELEASE}), like the test CA of
- * {@code oauth.CimdResolver}.
+ * certificates) trusts those CAs too and may reach loopback ({@code 127.0.0.0/8}, {@code ::1}) — but still not the
+ * core's own ports — so a test serves the catalog from an HTTPS MockWebServer with a {@code HeldCertificate}. The
+ * platform's CAs keep counting: the development loop serves its own catalog from loopback and still reads what is
+ * published elsewhere through the same guard, GateRook's list of connector modules and the MCP registry. A release
+ * ignores the property ({@code BuildFlags.RELEASE}), like the test CA of {@code oauth.CimdResolver}.
  */
 public final class CatalogDownloads {
 
@@ -48,7 +49,8 @@ public final class CatalogDownloads {
   private final List<X509Certificate> testCa;
 
   /**
-   * @param testCa the CAs of the test override (non-release builds only), or empty: the platform's CAs, no loopback
+   * @param testCa the CAs of the test override (non-release builds only), trusted besides the platform's, or empty:
+   *               the platform's CAs alone, no loopback
    */
   public CatalogDownloads(EgressClients egress, List<X509Certificate> testCa) {
     this.egress = egress;
@@ -142,7 +144,8 @@ public final class CatalogDownloads {
     return testOverride() ? b.allowPrivate("127.0.0.0/8", "::1/128").build() : b.neverLoopback().build();
   }
 
-  private EgressSpec.Tls tls() {
-    return testOverride() ? new EgressSpec.Tls(testCa, false, List.of(), false) : EgressSpec.Tls.PLATFORM;
+  /** The trust of a download: the platform's CAs, and under the test override its CAs as well. */
+  EgressSpec.Tls tls() {
+    return testOverride() ? new EgressSpec.Tls(testCa, true, List.of(), false) : EgressSpec.Tls.PLATFORM;
   }
 }

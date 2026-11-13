@@ -78,7 +78,7 @@ class PluginsConfiguration {
 
   /**
    * Catalog downloads through the egress guard. {@code gateway.test.catalog.ca} (a PEM file of CA certificates) is a
-   * test override of a non-release build: the catalog is trusted with those CAs only and may be served from loopback
+   * test override of a non-release build: the catalog is trusted with those CAs too and may be served from loopback
    * (an HTTPS MockWebServer); a release ignores it, like {@code gateway.test.oauth.cimd-ca}.
    */
   @Bean
@@ -86,7 +86,7 @@ class PluginsConfiguration {
     List<X509Certificate> cas = List.of();
     if (testCa != null && !testCa.isBlank() && !BuildFlags.RELEASE) {
       cas = certificates(Path.of(testCa.strip()));
-      log.warn("Test override: the catalog is downloaded with the CA of {} and may live on loopback", testCa);
+      log.warn("Test override: the catalog is also trusted with the CA of {} and may live on loopback", testCa);
     }
     return new CatalogDownloads(egress, cas);
   }
@@ -100,10 +100,10 @@ class PluginsConfiguration {
 
   /**
    * The channel of GateRook's own connector modules (docs/connector-delivery.md): the catalog's machinery under keys
-   * and settings of its own. A release reads GateRook's official list ({@link OfficialLists}); a development build
-   * reads none unless it is given one ({@code gateway.modules.channel-keys} and {@code gateway.modules.channel-url})
-   * or asked for the official one ({@code gateway.lists=official}). Without a channel nothing downloads and the
-   * installed modules still work. Its index is not a bean: whatever asks for the catalog gets the plugin catalog.
+   * and settings of its own. Every build reads GateRook's official list ({@link OfficialLists}) unless it is given
+   * another one ({@code gateway.modules.channel-keys} and {@code gateway.modules.channel-url}) or, outside a release,
+   * told to read none ({@code gateway.lists=none}: the tests). Without a channel nothing downloads and the installed
+   * modules still work. Its index is not a bean: whatever asks for the catalog gets the plugin catalog.
    */
   @Bean
   ModuleChannel moduleChannel(@Value("${gateway.modules.channel-keys:}") String keys,

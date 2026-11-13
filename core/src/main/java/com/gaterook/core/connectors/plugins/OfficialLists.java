@@ -3,13 +3,14 @@ package com.gaterook.core.connectors.plugins;
 import com.gaterook.core.platform.BuildFlags;
 
 /**
- * GateRook's own signed lists as a release reads them (docs/connector-delivery.md): the list of connector modules in
- * GateRook's distribution repository on GitHub, and the public half of the key it is signed with. The key is the trust
- * anchor: a list from this address that another key signed is refused like any other.
+ * GateRook's own signed lists as every build reads them (docs/connector-delivery.md): the list of connector modules
+ * in GateRook's distribution repository on GitHub, and the public half of the key it is signed with. The key is the
+ * trust anchor: a list from this address that another key signed is refused like any other.
  *
- * <p>A release reads them when nothing else is configured. A development build reads no list unless it is given one
- * ({@code gateway.modules.channel-url} and {@code gateway.modules.channel-keys}) or asked for the official ones
- * ({@code gateway.lists=official}), so tests and the development loop never depend on the network.
+ * <p>A build reads them when nothing else is configured ({@code gateway.modules.channel-url} and
+ * {@code gateway.modules.channel-keys} name another list), a development build as a release does: what GateRook
+ * publishes shows up in the application by itself. Only a run that must not depend on the network says
+ * {@code gateway.lists=none}, as the tests of this repository do; a release ignores that.
  */
 final class OfficialLists {
 
@@ -22,8 +23,11 @@ final class OfficialLists {
 
   private OfficialLists() {}
 
-  /** Whether this build reads the official lists where no other is configured. */
+  /** What a run says to read no official list: {@code -Dgateway.lists=none}. */
+  static final String NONE = "none";
+
+  /** Whether this run reads the official lists where no other is configured: always, unless it says {@link #NONE}. */
   static boolean inUse(String lists) {
-    return BuildFlags.RELEASE || "official".equalsIgnoreCase(lists == null ? "" : lists.strip());
+    return BuildFlags.RELEASE || !NONE.equalsIgnoreCase(lists == null ? "" : lists.strip());
   }
 }

@@ -102,6 +102,17 @@ class CatalogDownloadsTest {
     assertThat(server.getRequestCount()).as("nothing reached the server").isZero();
   }
 
+  @Test
+  void theTestOverrideAddsItsCaToThePlatformsAndDoesNotReplaceThem() {
+    // The development loop serves its own catalog from loopback under the override, and the same guard still has to
+    // reach what is published elsewhere: GateRook's list of connector modules and the MCP registry.
+    assertThat(testOverride().tls().platformTrust()).isTrue();
+    assertThat(testOverride().tls().extraCertificates()).containsExactly(CA.certificate());
+    CatalogDownloads release = new CatalogDownloads(egress, List.of());
+    assertThat(release.tls().platformTrust()).isTrue();
+    assertThat(release.tls().extraCertificates()).isEmpty();
+  }
+
   private CatalogDownloads testOverride() {
     return new CatalogDownloads(egress, List.of(CA.certificate()));
   }

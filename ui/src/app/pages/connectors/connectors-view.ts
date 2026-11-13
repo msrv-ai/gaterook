@@ -1,6 +1,6 @@
 import { CatalogEntry, CatalogIndex, McpSignInStatus } from '../../core/api/plugins.api';
 import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api';
-import { ConnectorModuleRef, ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
+import { ConnectorGroup, ConnectorModuleRef, ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup } from '../../core/api/endpoints.api';
 import { Template, TemplateKind } from '../../core/api/templates.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
@@ -358,10 +358,13 @@ export type CatalogAction = 'install-plugin' | 'update-plugin' | 'install-templa
 
 export interface CatalogView {
   readonly key: string;
-  readonly entry: CatalogEntry;
+  /** The entry of the signed catalog; null for one of GateRook's own connector modules, which that catalog never lists. */
+  readonly entry: CatalogEntry | null;
   readonly card: ConnectorCardView;
   readonly action: CatalogAction;
   readonly search: string;
+  /** The line under the description: what adding a connection of a module's type downloads. */
+  readonly note?: string | null;
 }
 
 const CATALOG_ICONS: Record<CatalogEntry['kind'], string> = { plugin: 'puzzle', template: 'file-code', 'mcp-server': 'plug' };
@@ -419,6 +422,52 @@ export function catalogViews(index: CatalogIndex): CatalogView[] {
       search: searchText(e.name, e.kind.replace('-', ' '), e.description, e.version),
     };
   });
+}
+
+/**
+ * GateRook's own connector modules that aren't installed, as the Catalog offers them: every connector type that the
+ * signed list of modules adds and this build doesn't have (`GET /api/connector-types`: a card with a `module` that
+ * isn't installed). Nobody installs one by hand: Add connection opens its form, and the module arrives meanwhile. An
+ * installed module's types are among the installed connectors.
+ */
+export function moduleCatalogViews(groups: readonly ConnectorGroup[]): CatalogView[] {
+  const views: CatalogView[] = [];
+  const seen = new Set<string>();
+  for (const group of groups) {
+    for (const c of group.cards) {
+      const module = c.module;
+      if (!module || module.installed || c.variant || c.kind !== 'built-in' || seen.has(c.type)) continue;
+      seen.add(c.type);
+      const size = formatBytes(module.sizeBytes);
+      const status: ConnectorCardStatus | null =
+        module.state === 'installing'
+          ? { tone: 'info', text: 'Downloading' }
+          : module.state === 'failed'
+            ? { tone: 'warning', text: 'The download failed' }
+            : null;
+      views.push({
+        key: `module:${c.type}`,
+        entry: null,
+        action: 'add-connection',
+        note: `Not part of the installer: adding a connection downloads it (${size}).`,
+        card: {
+          type: c.type,
+          variant: null,
+          name: c.name,
+          icon: c.icon,
+          kind: 'built-in',
+          version: module.version,
+          signed: null,
+          description: c.description,
+          tools: c.tools,
+          action: 'add',
+          status,
+        },
+        search: searchText(c.name, 'built-in module', group.name, c.description, module.version),
+      });
+    }
+  }
+  return views;
 }
 
 // ── Templates ───────────────────────────────────────────────────────────────────────────────────────────────────

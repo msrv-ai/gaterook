@@ -93,6 +93,11 @@ export interface GatewayEvents {
     readonly message?: string;
     readonly types?: readonly string[];
   };
+  /**
+   * The core accepted another list of GateRook's connector modules than it held: the pages that show the listed
+   * modules (Add connection, Connectors › Catalog) read them again. `modules`: how many it lists now.
+   */
+  'module.list': { readonly modules: number };
   'mcp-server.state': { readonly name: string; readonly state: string; readonly [key: string]: unknown };
   /** A sign-in in the browser changed (`id`), or a stored server's sign-in did (`server`, `needs-sign-in`). */
   'mcp-server.sign-in': { readonly id?: string; readonly server: string; readonly state: string; readonly message?: string };
