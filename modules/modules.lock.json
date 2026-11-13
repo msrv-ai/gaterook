@@ -12,6 +12,18 @@
         "sha256": "69a4092eaa7cde946afbed57e88a630a612c0d0070cfc68f2a4fb8570e1f530b",
         "size": 9429498
       }
+    },
+    "sql-oracle": {
+      "1.0.0": {
+        "sha256": "5c23d8d3dbe85be0e8d63cb72c929d81c842f32779fa8c8d3d73deba4a5a2854",
+        "size": 16532088
+      }
+    },
+    "sql-sqlserver": {
+      "1.0.0": {
+        "sha256": "8888f0d742722080c57eefe6601baec6b48715445e07c02901ec0dd50b16ccca",
+        "size": 9222869
+      }
     }
   }
 }
