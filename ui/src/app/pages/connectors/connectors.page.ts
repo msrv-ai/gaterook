@@ -8,7 +8,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs, selectFromFragment } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
-import { InstalledView, installedViews, joinAnd, moduleCatalogViews, plural, v } from './connectors-view';
+import { CatalogView, InstalledView, catalogOffer, installedViews, joinAnd, listsCheckToast, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
@@ -95,6 +95,8 @@ export class ConnectorsPage {
   protected readonly slow = signal(false);
   /** The card whose action waits for the core (Update's preview, Install's check, Turn on). */
   protected readonly busyKey = signal<string | null>(null);
+  /** The Catalog's Check now waits for the core. */
+  protected readonly checking = signal(false);
 
   protected readonly installed = computed<InstalledView[] | null>(() => {
     const types = this.data.types.value();
@@ -117,10 +119,11 @@ export class ConnectorsPage {
    * once the catalog answered, as the panel shows its cards only then.
    */
   private catalogCount(): number | null {
-    const index = this.data.catalog.value();
-    if (!index) return null;
-    const types = this.data.types.value();
-    return index.entries.length + (types ? moduleCatalogViews(types.groups).length : 0);
+    return this.data.catalog.value() ? this.catalogOffer().length : null;
+  }
+
+  private catalogOffer(): CatalogView[] {
+    return catalogOffer(this.data.types.value()?.groups, this.data.catalog.value());
   }
 
   constructor() {
@@ -374,6 +377,24 @@ export class ConnectorsPage {
   }
 
   // ── Catalog ───────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Check now: the core checks both signed lists at once instead of when they are six hours old, and a toast says
+   * what the check found. The panel shows the rest: the cards, when the lists were checked, and why one couldn't be.
+   */
+  protected async checkCatalog(): Promise<void> {
+    if (this.checking()) return;
+    const before = this.catalogOffer();
+    this.checking.set(true);
+    try {
+      const found = await this.data.checkLists();
+      this.toasts.show(listsCheckToast(before, this.catalogOffer(), found.catalog, found.modules));
+    } catch (e) {
+      this.toasts.show({ tone: 'danger', title: "The catalog wasn't checked", body: failureText(e) });
+    } finally {
+      this.checking.set(false);
+    }
+  }
 
   protected async onCatalogAction(a: CatalogAction): Promise<void> {
     const view = a.view;

@@ -94,6 +94,9 @@ interface Answers {
   fileCheck: () => Promise<PluginCheck>;
   /** GateRook's connector modules and the state of their signed list. */
   modules: () => Promise<ConnectorModules>;
+  /** What Check now gets: both lists after the core checked them again. By default the lists as they are. */
+  catalogCheck?: () => Promise<CatalogIndex>;
+  modulesCheck?: () => Promise<ConnectorModules>;
 }
 
 /**
@@ -206,6 +209,10 @@ function setup(over: Partial<Answers> = {}): void {
     catalog: () => {
       record('catalog');
       return answers.catalog();
+    },
+    refreshCatalog: () => {
+      record('catalog-refresh');
+      return (answers.catalogCheck ?? answers.catalog)();
     },
     check: (source) => {
       record('check', source);
@@ -324,6 +331,10 @@ function setup(over: Partial<Answers> = {}): void {
           list: () => {
             record('modules');
             return answers.modules();
+          },
+          refresh: () => {
+            record('modules-refresh');
+            return (answers.modulesCheck ?? answers.modules)();
           },
           uninstall: (id: string) => {
             record(`uninstall-module ${id}`);
@@ -933,6 +944,121 @@ describe('Connectors page: Catalog', () => {
     expect(calls.slice(before).sort()).toEqual(['modules', 'types']);
     expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
     expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
+  });
+
+  it('checks both lists at once on Check now, shows what was published since and says so', async () => {
+    let listed = false;
+    let answer!: (list: ConnectorModules) => void;
+    setup({
+      types: () => Promise.resolve(listed ? typesWithListedModules() : typesCatalog()),
+      catalogCheck: () => Promise.resolve({ ...catalogIndex(), checkedAt: '2026-10-23T09:00:00Z' }),
+      modulesCheck: () => new Promise<ConnectorModules>((resolve) => (answer = resolve)),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    const check = button(panel, 'Check now');
+    expect(text(check)).toBe('Check now for changes in the catalog');
+    expect(check.getAttribute('aria-busy')).toBeNull();
+    expect(check.querySelector('svg')).not.toBeNull();
+    const before = calls.length;
+
+    check.click();
+    await settle(fixture);
+    // Busy while the core checks: a spinner for the icon, and a second click starts nothing.
+    expect(check.getAttribute('aria-busy')).toBe('true');
+    expect(check.getAttribute('aria-disabled')).toBe('true');
+    expect(check.querySelector('.gw-spinner')).not.toBeNull();
+    expect(check.querySelector('svg')).toBeNull();
+    check.click();
+    await settle(fixture);
+    expect(calls.slice(before).sort()).toEqual(['catalog-refresh', 'modules-refresh']);
+    expect(toasts()).toHaveLength(0);
+
+    listed = true;
+    answer(moduleList({ configured: true, checkedAt: '2026-10-23T09:00:00Z', offline: false }));
+    await settle(fixture);
+    // The answers are taken as they are (no second read of either list); the cards come with the types.
+    expect(calls.slice(before).sort()).toEqual(['catalog-refresh', 'modules-refresh', 'types']);
+    expect(check.getAttribute('aria-busy')).toBeNull();
+    expect(check.getAttribute('aria-disabled')).toBeNull();
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-23');
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]).toMatchObject({ tone: 'success', title: '2 new connectors in the catalog', body: 'DuckDB and ClickHouse' });
+  });
+
+  it('says that the catalog is up to date when a check brings nothing new', async () => {
+    // A build without a plugin catalog: its "No catalog is configured" is no failure of this check.
+    const none = (): Promise<CatalogIndex> =>
+      Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' });
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      catalog: none,
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+      modulesCheck: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-23T09:00:00Z', offline: false })),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-22');
+
+    button(panel, 'Check now').click();
+    await settle(fixture);
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]).toMatchObject({ tone: 'success', title: 'The catalog is up to date' });
+    expect(toasts()[0]?.body ?? null).toBeNull();
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-23');
+    expect(Array.from(panel.querySelectorAll('#catalog-grid .gw-card__title')).map(text)).toEqual(['DuckDB', 'ClickHouse']);
+    expect(panel.querySelector('.gw-alert')).toBeNull();
+  });
+
+  it('says why a check couldn’t reach a list, in the toast and over the cards of the last one', async () => {
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+      modulesCheck: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: true, problem: LIST_UNREACHABLE })),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(panel.querySelector('.gw-alert')).toBeNull();
+
+    button(panel, 'Check now').click();
+    await settle(fixture);
+    expect(toasts()[0]).toMatchObject({ tone: 'warning', title: "GateRook's list of connectors couldn't be checked", body: LIST_UNREACHABLE });
+    expect(text(panel.querySelector('.gw-alert--warning .gw-alert__title'))).toBe("GateRook's list of connectors couldn't be checked");
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+    expect(button(panel, 'Check now').getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('says why the plugin catalog couldn’t be checked when the list of modules could', async () => {
+    const unreachable = "The catalog can't be reached: index.json can't be downloaded from catalog.gaterook.dev: timeout";
+    setup({ catalogCheck: () => Promise.resolve({ ...catalogIndex(), offline: true, problem: unreachable }) });
+    const { fixture, el } = await render();
+    button(el.querySelector('#catalog'), 'Check now').click();
+    await settle(fixture);
+    expect(toasts()[0]).toMatchObject({ tone: 'warning', title: "The catalog couldn't be checked", body: unreachable });
+    expect(text(el.querySelector('#catalog .gw-alert--warning .gw-alert__title'))).toBe("The catalog couldn't be checked");
+  });
+
+  it('offers Check now where nothing is offered yet, and says when the check itself failed', async () => {
+    // A first start without the network left no list: the empty Catalog still has the way to ask again.
+    setup({
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, offline: true, problem: LIST_UNREACHABLE })),
+      modulesCheck: () => Promise.reject(new Error('The core did not answer')),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(text(panel.querySelector('.gw-empty__title'))).toBe("The catalog isn't available");
+    // One Install from file or URL, in the empty card; the toolbar has Check now alone.
+    expect(Array.from(panel.querySelectorAll('.gw-toolbar__end button')).map(text)).toEqual(['Check now for changes in the catalog']);
+
+    button(panel, 'Check now').click();
+    await settle(fixture);
+    expect(toasts()[0]).toMatchObject({ tone: 'danger', title: "The catalog wasn't checked" });
+    expect(toasts()[0]?.body).toContain('The core did not answer');
+    expect(button(panel, 'Check now').getAttribute('aria-busy')).toBeNull();
   });
 
   it('sets a catalog MCP server up in Add connection, which asks for its environment, review and endpoints', async () => {
