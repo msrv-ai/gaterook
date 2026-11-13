@@ -1,5 +1,6 @@
 package com.gaterook.connectors.cloudflare;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ActionPreview;
 import com.gaterook.connector.api.Classification;
 import com.gaterook.connector.api.ConnectorException;
@@ -108,7 +109,7 @@ abstract class Change {
     text.append("Authorization: Bearer ‹masked›\n");
     if (r.body() != null) {
       text.append("Content-Type: application/json\n\n");
-      text.append(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(r.body()));
+      text.append(PrettyJson.writer(JSON).writeValueAsString(r.body()));
     }
     String summary = ctx.summary();
     if (summary.length() > 120) {
