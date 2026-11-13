@@ -2,8 +2,9 @@ import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api'
 import { InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { CatalogEntry, CatalogIndex } from '../../core/api/plugins.api';
-import { moduleCard } from './connectors.fixtures';
+import { moduleCard, moduleList } from './connectors.fixtures';
 import {
+  catalogOffer,
   catalogViews,
   compareVersions,
   connectionsQuery,
@@ -14,6 +15,7 @@ import {
   installedCountText,
   installedViews,
   joinAnd,
+  listsCheckToast,
   matches,
   mcpServerView,
   moduleCatalogViews,
@@ -298,6 +300,39 @@ describe('connectors view: Catalog', () => {
     expect(views[2].card.status).toEqual({ tone: 'warning', text: 'The download failed' });
     expect(views[3].note).toBe('Not part of the installer: adding a connection downloads it (56 KB).');
     expect(moduleCatalogViews([])).toEqual([]);
+  });
+
+  it('words what Check now found: a list it couldn’t reach, what is new, or nothing', () => {
+    const groups = [{ name: 'Databases', cards: [moduleCard('duckdb', 'DuckDB'), moduleCard('h2', 'H2')] }];
+    const index = catalog([entry({ id: 'jira', kind: 'plugin', name: 'Jira' })]);
+    const checked = moduleList({ configured: true, checkedAt: '2026-10-23T09:00:00Z', offline: false });
+    // GateRook's modules come first in what the Catalog offers, then the signed catalog's entries.
+    const offer = catalogOffer(groups, index);
+    expect(offer.map((x) => x.key)).toEqual(['module:duckdb', 'module:h2', 'plugin:jira']);
+    expect(catalogOffer(null, null)).toEqual([]);
+    expect(catalogOffer(groups, null).map((x) => x.key)).toEqual(['module:duckdb', 'module:h2']);
+
+    expect(listsCheckToast(offer, offer, index, checked)).toEqual({ tone: 'success', title: 'The catalog is up to date' });
+    expect(listsCheckToast(offer.slice(2), offer, index, checked)).toEqual({ tone: 'success', title: '2 new connectors in the catalog', body: 'DuckDB and H2' });
+    expect(listsCheckToast(offer.slice(0, 2), offer, index, checked)).toEqual({ tone: 'success', title: '1 new connector in the catalog', body: 'Jira' });
+    // What left the lists is no news; the Catalog simply shows less.
+    expect(listsCheckToast(offer, offer.slice(1), index, checked).title).toBe('The catalog is up to date');
+
+    // A list the core couldn't reach comes before anything else, the list of modules first.
+    const lost = moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: true, problem: ' The list can’t be reached: timeout ' });
+    const stale: CatalogIndex = { ...index, offline: true, problem: 'The catalog can’t be reached: timeout' };
+    expect(listsCheckToast(offer.slice(2), offer, stale, lost)).toEqual({
+      tone: 'warning',
+      title: "GateRook's list of connectors couldn't be checked",
+      body: 'The list can’t be reached: timeout',
+    });
+    expect(listsCheckToast(offer, offer, stale, checked)).toEqual({ tone: 'warning', title: "The catalog couldn't be checked", body: 'The catalog can’t be reached: timeout' });
+    expect(listsCheckToast(offer, offer, { ...stale, problem: null }, checked)).toEqual({ tone: 'warning', title: "The catalog couldn't be checked", body: null });
+
+    // Nothing to check is no failure: a build that reads no catalog, and one without a channel for modules.
+    const none: CatalogIndex = { checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' };
+    expect(listsCheckToast(offer, offer, none, checked).title).toBe('The catalog is up to date');
+    expect(listsCheckToast(offer, offer, index, moduleList()).title).toBe('The catalog is up to date');
   });
 });
 

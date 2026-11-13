@@ -206,6 +206,22 @@ export class ConnectorsData {
     ]).then(() => undefined);
   }
 
+  /**
+   * Check now: both signed lists are checked at once, whatever their age (GateRook's list of connector modules and
+   * the plugin catalog), and the answers replace what the page holds. The connector types are read again, since the
+   * cards of the listed modules come with them. A list this build doesn't read answers at once, unchanged. Rejects
+   * when a request itself failed; a list the core couldn't reach is an answer that says so.
+   */
+  async checkLists(): Promise<{ readonly catalog: CatalogIndex; readonly modules: ConnectorModules }> {
+    const [catalog, modules] = await Promise.allSettled([this.pluginsApi.refreshCatalog(), this.modulesApi.refresh()]);
+    if (catalog.status === 'fulfilled') this.catalog.set(catalog.value);
+    if (modules.status === 'fulfilled') this.modules.set(modules.value);
+    await this.types.refresh();
+    if (catalog.status === 'rejected') throw catalog.reason;
+    if (modules.status === 'rejected') throw modules.reason;
+    return { catalog: catalog.value, modules: modules.value };
+  }
+
   /** The types whose connectors may offer templates (SQL queries, SSH runbooks, OpenAPI imports). */
   private async loadTemplateKinds(): Promise<ReadonlyMap<string, readonly string[]>> {
     const types = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'ssh', 'http'];

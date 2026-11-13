@@ -7,7 +7,7 @@ import { GwToggle } from '../../../kit/disclosure';
 import { GwConnectorCard, GwConnectorCardActions, GwConnectorCardNote } from '../../../kit/elements/connector-card/connector-card';
 import { GwIcon } from '../../../kit/icons';
 import { GwSearchClear, GwSearchClearButton } from '../../../kit/search';
-import { CatalogView, catalogViews, matches, moduleCatalogViews, plural, v } from '../connectors-view';
+import { CatalogView, catalogOffer, catalogViews, matches, moduleCatalogViews, plural, v } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { failureDetails, failureText } from '../dialogs/failure';
 
@@ -26,6 +26,7 @@ export interface CatalogAction {
  * action each: Install (a plugin is checked by the core first, an unsigned one reviewed in a danger dialog), Update
  * (an installed plugin with a newer release: "You run v1.2.0."), Open (an MCP server already installed). The count
  * line says which core it is for and when the lists were checked; offline, the last good ones stay with their age.
+ * Check now in the toolbar has the core check both lists at once instead of when they are six hours old.
  *
  * Until the core serves the catalog the panel says so and keeps "Install from file or URL".
  */
@@ -45,7 +46,11 @@ export class GwCatalogPanel {
   readonly slow = input(false);
   /** The card whose action runs (Install while the core checks the package). */
   readonly busyKey = input<string | null>(null);
+  /** Check now runs: its button is busy and takes no second click. */
+  readonly checking = input(false);
   readonly action = output<CatalogAction>();
+  /** Check now: the page has the core check both lists at once and says what it found. */
+  readonly check = output<void>();
 
   protected readonly query = signal('');
   /** GateRook's own connector modules that aren't installed: they come with the connector types. */
@@ -57,8 +62,8 @@ export class GwCatalogPanel {
   });
   /** GateRook's modules first, then the catalog's entries; null until the catalog answered. */
   protected readonly views = computed(() => {
-    const entries = this.entries();
-    return entries ? [...this.modules(), ...entries] : null;
+    const index = this.data.catalog.value();
+    return index ? catalogOffer(this.data.types.value()?.groups, index) : null;
   });
   protected readonly shown = computed(() => (this.views() ?? []).filter((x) => matches(x.search, this.query())));
 
@@ -96,8 +101,16 @@ export class GwCatalogPanel {
   protected readonly problem = computed(() => this.data.catalog.value()?.problem?.trim() || null);
   /** Why GateRook's list of connector modules couldn't be checked, in the core's words; null when it could. */
   protected readonly listProblem = computed(() => this.channel()?.problem?.trim() || null);
-  /** Why nothing is offered: the list of modules that couldn't be read comes before a catalog this build doesn't read. */
-  protected readonly emptyProblem = computed(() => this.listProblem() ?? this.problem());
+  /**
+   * Why nothing is offered: the list of modules that couldn't be read comes before a catalog this build doesn't read.
+   * A build that read its list of modules and has no plugin catalog has a Catalog all the same, an empty one: that
+   * no catalog is configured is then no reason to give.
+   */
+  protected readonly emptyProblem = computed(() => {
+    const list = this.listProblem();
+    if (list) return list;
+    return this.channel() && this.data.catalog.value()?.source === 'none' ? null : this.problem();
+  });
 
   protected readonly errorText = (e: unknown): string => failureText(e);
   protected readonly errorDetails = (e: unknown): string => failureDetails('GET /api/catalog', e);
