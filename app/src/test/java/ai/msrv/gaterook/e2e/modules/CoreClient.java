@@ -68,7 +68,9 @@ final class CoreClient {
   }
 
   JsonNode json(Answer answer, int status) {
-    assertThat(answer.status()).as(answer.body()).isEqualTo(status);
+    // An answer the core didn't mean to give says nothing of why: its log does.
+    assertThat(answer.status()).as(() -> answer.status() >= 500 ? answer.body() + "\n" + core.coreLog()
+        : answer.body()).isEqualTo(status);
     return CoreProcess.JSON.readTree(answer.body());
   }
 

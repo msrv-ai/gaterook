@@ -256,6 +256,12 @@ public final class PluginInstaller {
     if (s == null) {
       throw ProblemException.notFound("Not staged", "Check the plugin again before installing it.");
     }
+    if (!Files.isRegularFile(s.jar())) {
+      // The staged file is gone (removed from the disk meanwhile): what was reviewed can't be installed.
+      staged.remove(stagingId);
+      throw ProblemException.notFound("Not staged", "The checked package is no longer on this computer. Check it "
+          + "again before installing it.");
+    }
     if (!s.signed() && !acknowledgeUnsigned) {
       throw s.manifest().module() ? ProblemException.unprocessable("Unsigned connector module", "This connector "
           + "module isn't one GateRook signed. Confirm that you trust it before installing it.",

@@ -98,6 +98,8 @@ The package is `modules/<id>/target/<id>-<version>.jar`, here `modules/cassandra
 
 A module's version is its own and has nothing to do with the application's. It changes only when the package does. Every archive of the reactor is built with a fixed timestamp (`project.build.outputTimestamp` in the root `pom.xml`), so the same sources give the same bytes, and [`modules/modules.lock.json`](../modules/modules.lock.json) records the SHA-256 of every version that was released.
 
+A package carries nothing of the build that made it: the shade plugin of every module leaves out the manifest and the Maven descriptor of each artifact, the module's own included. They would name the application's version, the JDK and the build plugins, and a released package would look changed after the next application release although nothing of the module was.
+
 ```bash
 node scripts/modules.mjs check
 ```
