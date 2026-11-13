@@ -10,9 +10,9 @@ Every connector module under `connectors/` reaches the application in one of thr
 
 The source of a connector is the same in every case: its Maven module, its schemas, and its tests. Delivery is a packaging decision.
 
-A fourth group never had another delivery: the connectors that exist only as modules. The file lists them under `moduleOnly`, with the reason each isn't compiled in. Their code lives with their package under `modules/<id>`, not under `connectors/`, and no build compiles them in.
+Some of GateRook's connectors are in no build of this repository at all: ClickHouse, DuckDB, H2 and Microsoft Access are written against the connector API alone and exist only as modules. Their source, tests and documents live in the [modules repository](https://github.com/gaterook/gaterook-plugins), which also publishes every module's package and describes [how to build a module of your own](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md).
 
-| Module only | Why |
+| Module | Why it is no part of a core |
 | --- | --- |
 | `clickhouse` | It needs nothing of the core but the host's guarded HTTP client, and few first connections are to ClickHouse. |
 | `duckdb` | Its JDBC driver is a native library, which the native core can't load. |
@@ -36,7 +36,7 @@ Oracle Database and SQL Server are dialects of the SQL connector and their own u
 
 - `app/pom.xml` depends on the bundled connectors. The native core is built from that classpath.
 - The Maven profile `bridge` of `app/pom.xml` adds the bridge connectors. It is on unless `-Dgateway.withoutBridge` is given, which builds the core as the release after has it.
-- The Maven profile `all-bundled` of `app/pom.xml` adds the module-delivered connectors for a JVM run that wants every connector in one process. `npm run build` and the development launchers use it; a native build must not. It doesn't add the module-only connectors: the development loop serves those from a signed list of modules on this computer ([UI development](../ui/README.md#develop-against-the-demo-world)).
+- The Maven profile `all-bundled` of `app/pom.xml` adds the module-delivered connectors for a JVM run that wants every connector in one process. `npm run build` and the development launchers use it; a native build must not. It doesn't add the modules of the modules repository: the development loop serves those from a signed list of modules on this computer, made of the packages built in a checkout of that repository ([UI development](../ui/README.md#develop-against-the-demo-world)).
 - `node scripts/delivery.mjs --check` compares the file with `app/pom.xml`, the root reactor and the connector directories. It runs with `npm test`.
 - The tests of the assembly read the file too: `ConnectorDelivery` in `app/src/test` gives them the types the running core must have.
 
@@ -58,7 +58,9 @@ To end a bridge, change the connector's delivery to `module` and remove its depe
 
 ## Connector modules
 
-A connector delivered as a module is GateRook's own connector code with another delivery. It is the same Maven module, written against the same [connector SPI](connector-spi.md), and its connector types are built-in types: plain tool names, the default modes the connector declares, its own classification, exact action and prepared state. A plugin is foreign code and gets none of that ([architecture §7.5](ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers)).
+A connector delivered as a module is GateRook's own connector code with another delivery. It is written against the same [connector SPI](connector-spi.md) as a compiled-in connector, and its connector types are built-in types: plain tool names, the default modes the connector declares, its own classification, exact action and prepared state. A plugin is foreign code and gets none of that ([architecture §7.5](ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers)).
+
+A module is built in one of two places. The modules of this repository package a connector of `connectors/` with the shared connector code: Apache Cassandra and Neo4j, and Oracle Database and SQL Server while they are bridge connectors. The modules of the [modules repository](https://github.com/gaterook/gaterook-plugins) use the connector API and nothing else of the application. Both kinds are published in the same list, install the same way and run in the same host.
 
 ### The package
 
@@ -66,7 +68,7 @@ A module is one JAR with an `mcp-gateway-plugin.json` of `manifestVersion` 2. Th
 
 A module may ship its own classes under `ai.msrv.gaterook.connectors.` and its driver stack. It may not ship the packages the host provides: the connector API, the plugin protocol, the host itself, Jackson, PF4J and SLF4J.
 
-Each module has a folder under `modules/`:
+Each module of this repository has a folder under `modules/`:
 
 | File | What |
 | --- | --- |
@@ -75,7 +77,7 @@ Each module has a folder under `modules/`:
 | `src/main/java/…/…Module.java` | The entry point: it gives the host the module's connectors. |
 | `src/main/resources/META-INF/LICENSE-…-module.txt` | Which of the bundled libraries is under which license. The libraries' own license and notice files stay in the package. |
 
-A module-only connector has the connector itself in the same folder: its classes beside the entry point, its connector type's form and tools in `src/main/resources/connectors/<id>/connector.json`, and its tests.
+A module of the modules repository has the same descriptor and entry point, with the connector itself and its tests in the same folder ([module architecture](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md)).
 
 ```bash
 mvn -B -ntp -pl modules/cassandra -am package -DskipTests
@@ -89,14 +91,19 @@ The package is `modules/<id>/target/<id>-<version>.jar`, here `modules/cassandra
 | `neo4j` | [Neo4j](neo4j.md) with its Bolt driver | About 9 MB |
 | `sql-oracle` | [Oracle Database](oracle.md): the SQL connector with the Oracle JDBC driver | About 17 MB |
 | `sql-sqlserver` | [SQL Server](sql-server.md): the SQL connector with the Microsoft JDBC driver | About 9 MB |
-| `clickhouse` | ClickHouse over its HTTP interface | About 60 KB |
-| `duckdb` | [DuckDB](duckdb.md) with its JDBC driver and native libraries for macOS on Apple Silicon and Windows x64 | About 34 MB |
-| `h2` | [H2](h2.md) with the H2 client | About 3 MB |
-| `msaccess` | [Microsoft Access](access.md) with UCanAccess, Jackcess and HSQLDB | About 4 MB |
+
+The modules repository builds four more:
+
+| Module | Connector | Package |
+| --- | --- | --- |
+| `clickhouse` | [ClickHouse](https://github.com/gaterook/gaterook-plugins/blob/main/docs/clickhouse.md) over its HTTP interface | About 60 KB |
+| `duckdb` | [DuckDB](https://github.com/gaterook/gaterook-plugins/blob/main/docs/duckdb.md) with its JDBC driver and native libraries for macOS on Apple Silicon and Windows x64 | About 34 MB |
+| `h2` | [H2](https://github.com/gaterook/gaterook-plugins/blob/main/docs/h2.md) with the H2 client | About 3 MB |
+| `msaccess` | [Microsoft Access](https://github.com/gaterook/gaterook-plugins/blob/main/docs/access.md) with UCanAccess, Jackcess and HSQLDB | About 4 MB |
 
 ### Versions
 
-A module's version is its own and has nothing to do with the application's. It changes only when the package does. Every archive of the reactor is built with a fixed timestamp (`project.build.outputTimestamp` in the root `pom.xml`), so the same sources give the same bytes, and [`modules/modules.lock.json`](../modules/modules.lock.json) records the SHA-256 of every version that was released.
+A module's version is its own and has nothing to do with the application's. It changes only when the package does. Every archive of the reactor is built with a fixed timestamp (`project.build.outputTimestamp` in the root `pom.xml`), so the same sources give the same bytes, and [`modules/modules.lock.json`](../modules/modules.lock.json) records the SHA-256 of every released version of this repository's modules. The modules repository keeps the same record of its own modules, with the same commands.
 
 A package carries nothing of the build that made it: the shade plugin of every module leaves out the manifest and the Maven descriptor of each artifact, the module's own included. They would name the application's version, the JDK and the build plugins, and a released package would look changed after the next application release although nothing of the module was.
 
@@ -124,7 +131,9 @@ An entry lists one version of one module: the application and connector API vers
 
 Only the channel installs a module by itself. A person can install a module's package from a file as well, with a review ([a module from a file](#a-module-from-a-file)); the plugin catalog delivers no module. The tool names of every listed module are reserved: no new plugin, MCP server tool or template may publish one. A plugin that was installed before a module was listed keeps its tools until it is uninstalled; the module of its name installs only then.
 
-What is published can be checked against the application itself. With `-Dgateway.e2e.officialLists=true` the module tests of `app` have their core read GateRook's list on GitHub instead of a list of their own, and `PublishedModulesCoreProcessIT` runs: a core installs every released module from the list and must then hold exactly the packages that `modules/modules.lock.json` records, and a core that trusts another key must take nothing from the same address. These tests need the network and are never part of a build.
+What is published can be checked against the application itself. With `-Dgateway.e2e.officialLists=true` the module tests of `app` have their core read GateRook's list on GitHub instead of a list of their own, and `PublishedModulesCoreProcessIT` runs: a core installs every listed module from the list, must then hold exactly the packages that `modules/modules.lock.json` records for this repository's modules, and a core that trusts another key must take nothing from the same address. These tests need the network and are never part of a build.
+
+The tests of the modules whose source lives in the modules repository (`ClickHouseModuleCoreProcessIT`, `DuckDbModuleCoreProcessIT`, `H2ModuleCoreProcessIT`, `AccessModuleCoreProcessIT`) take their packages from a checkout of that repository, built there and named with `-Dgateway.modulesRepo=<folder>`; without one they are skipped.
 
 ```bash
 mvn -B -ntp -pl app -am verify -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=PublishedModulesCoreProcessIT -Dfailsafe.failIfNoSpecifiedTests=false -Dgateway.e2e.officialLists=true
@@ -179,7 +188,7 @@ Each change is a Setup change ("Connector Apache Cassandra: 1.0.0 → 1.0.1").
 
 **A package that GateRook's signed list has**, by version and SHA-256, is GateRook's own module, wherever its bytes came from. It installs without a question about trust, and from then on it is what the channel would have installed: it follows the list. This is how a module reaches a computer that can't download it: get `<id>-<version>.jar` from the release `module-<id>-<version>` of [gaterook/gaterook-plugins](https://github.com/gaterook/gaterook-plugins) elsewhere and choose the file. The core compares it with the list it last verified, so that list must be there and not expired.
 
-**Any other package is your own module**: one you built from this repository with changes, or wrote against the [connector SPI](connector-spi.md). GateRook didn't sign it and nobody reviewed its code, so it is reviewed as an unsigned plugin is, and installs only after you confirm that you trust it.
+**Any other package is your own module**: one you built from GateRook's sources with changes, or wrote against the [connector SPI](connector-spi.md). The modules repository describes [how a module is built](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md) and has the smallest one as an example. GateRook didn't sign it and nobody reviewed its code, so it is reviewed as an unsigned plugin is, and installs only after you confirm that you trust it.
 
 The connector types of your own module are built-in types by name: plain tool names, and a card among the connectors in Add connection that says `Your module, unsigned`. In everything else the core takes the module's word for nothing, as it takes an unsigned plugin's:
 

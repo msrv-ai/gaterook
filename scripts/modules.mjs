@@ -22,7 +22,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
-import { moduleOnlyEntries, readDelivery } from './delivery.mjs';
+import { readDelivery } from './delivery.mjs';
 import { zipEntries } from './size-report.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -76,19 +76,13 @@ export function checkModules(root = ROOT) {
     if (!new RegExp(`<module>\\s*modules/${m.dir}\\s*</module>`).test(rootPom)) {
       problems.push(`modules/${m.dir} is not a module of the root pom`);
     }
-    const moduleOnly = moduleOnlyEntries(delivery).some(([name]) => name === m.dir);
-    if (!moduleOnly && !['module', 'bridge'].includes(delivery.connectors[m.dir]?.delivery)) {
+    if (!['module', 'bridge'].includes(delivery.connectors[m.dir]?.delivery)) {
       problems.push(`modules/${m.dir} packages a connector that connectors/delivery.json doesn't deliver as a module`);
     }
   }
   for (const [name, entry] of Object.entries(delivery.connectors)) {
     if (entry.delivery !== 'bundled' && !found.some((m) => m.dir === name)) {
       problems.push(`${name} is delivered as a module but modules/${name}/module.json is missing`);
-    }
-  }
-  for (const [name] of moduleOnlyEntries(delivery)) {
-    if (!found.some((m) => m.dir === name)) {
-      problems.push(`${name} is module only but modules/${name}/module.json is missing`);
     }
   }
   return problems;

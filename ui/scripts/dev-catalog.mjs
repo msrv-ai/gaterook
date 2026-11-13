@@ -1,17 +1,19 @@
 // A local plugin catalog and a local list of connector modules for the development loop (ui/scripts/dev.mjs): the
 // plugins of this checkout, offered in Add connection and Connectors › Catalog and installed from the catalog as a
-// release's would be, and the connectors that exist only as modules (connectors/delivery.json, moduleOnly: ClickHouse,
-// DuckDB, H2, Microsoft Access), which the development core doesn't compile in and installs from the list when one of
-// them is chosen, as a release installs them from GateRook's list.
+// release's would be, and the connector modules whose source lives in the modules repository
+// (gaterook/gaterook-plugins: ClickHouse, DuckDB, H2, Microsoft Access), which the development core doesn't compile
+// in and installs from the list when one of them is chosen, as a release installs them from GateRook's list.
 //
-// 1. The JARs catalog/index.json names, the packages of the module-only connectors, and plugin-host.jar, are built
-//    when one is missing or older than its module's sources (mvn -pl plugin-host,plugins/...,modules/... -am package),
-//    under the shared heavy-build lock.
-// 2. catalog/index.json, and a list of the built module packages, are signed with a throwaway key made for this run
+// 1. The JARs catalog/index.json names and plugin-host.jar are built when one is missing or older than its module's
+//    sources (mvn -pl plugin-host,plugins/... -am package), under the shared heavy-build lock.
+// 2. The module packages come from a checkout of the modules repository: the folder GATEROOK_MODULES_REPO names, or
+//    gaterook-plugins beside this checkout. They are built there (its README), never here: a module that isn't
+//    built is left out, and without a checkout the loop runs without a local list of modules.
+// 3. catalog/index.json, and a list of the built module packages, are signed with a throwaway key made for this run
 //    (catalog/sign-index.mjs), with a sequence from the clock, so a kept home (--keep) accepts them as newer.
-// 3. Each signed index, its signature and the files it pins are served over HTTPS on 127.0.0.1, the catalog and the
+// 4. Each signed index, its signature and the files it pins are served over HTTPS on 127.0.0.1, the catalog and the
 //    list of modules on a port each, with one certificate the JDK's keytool makes for this run.
-// 4. The core gets the plugin host JAR, the addresses and the key of both, and the certificate as its test CA
+// 5. The core gets the plugin host JAR, the addresses and the key of both, and the certificate as its test CA
 //    (gateway.test.catalog.ca: a non-release build may then fetch them from loopback).
 //
 // Nothing here is a release: the key and the certificate live in the development home and die with it.
@@ -20,8 +22,7 @@ import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:https';
 import { homedir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
-import { moduleOnlyEntries, readDelivery } from '../../scripts/delivery.mjs';
+import { basename, dirname, join, resolve as absolute } from 'node:path';
 import { listEntry, modules as checkoutModules, readPackage } from '../../scripts/modules.mjs';
 
 /** The JAR a catalog entry pins, as the build leaves it in plugins/<dir>/target, or null when it isn't built. */
@@ -62,15 +63,23 @@ function stale(jar) {
   return !jar || !existsSync(jar) || statSync(jar).mtimeMs < newestSource(dirname(dirname(jar)));
 }
 
-/** The connectors that exist only as modules, as modules/<id> of this checkout: each with its package when built. */
-function moduleOnly(root) {
-  const ids = moduleOnlyEntries(readDelivery(root)).map(([name]) => name);
-  return checkoutModules(root).filter((m) => ids.includes(m.dir));
+/**
+ * The checkout of the modules repository whose packages the loop offers: the folder GATEROOK_MODULES_REPO names, else
+ * gaterook-plugins beside this checkout; null when there is none.
+ */
+export function modulesRepo(root, env = process.env) {
+  const folder = env.GATEROOK_MODULES_REPO ? absolute(env.GATEROOK_MODULES_REPO) : join(root, '..', 'gaterook-plugins');
+  return existsSync(join(folder, 'modules')) ? folder : null;
 }
 
-/** Whether a module's package is missing or older than its sources. */
-function staleModule(root, module) {
-  return !module.jar || statSync(module.jar).mtimeMs < newestSource(join(root, 'modules', module.dir));
+/** The connector modules of a modules repository checkout, each with its package when it is built there. */
+function repositoryModules(repo) {
+  return repo ? checkoutModules(repo) : [];
+}
+
+/** Whether a module's package is older than its sources: it is offered as it is, with a line that says so. */
+function staleModule(repo, module) {
+  return module.jar && statSync(module.jar).mtimeMs < newestSource(join(repo, 'modules', module.dir));
 }
 
 /** Serves `files` (name → path) by name over HTTPS on a free port of 127.0.0.1. */
@@ -94,7 +103,7 @@ async function serve(files, tls) {
 }
 
 function build(root, modules) {
-  console.log(`[dev] building the catalog's plugins and the connector modules once (mvn -pl ${modules.join(',')} -am -DskipTests package)`);
+  console.log(`[dev] building the catalog's plugins once (mvn -pl ${modules.join(',')} -am -DskipTests package)`);
   const mvn = ['mvn', '-B', '-ntp', '-pl', modules.join(','), '-am', '-DskipTests', 'package'];
   const lock = join(homedir(), '.cache', 'mcp-gateway', 'heavy.lock');
   const hasFlock = spawnSync('flock', ['--version'], { stdio: 'ignore' }).status === 0;
@@ -120,13 +129,12 @@ export async function startDevCatalog({ root, home, java }) {
   const plugins = index.entries.filter((e) => e.kind === 'plugin');
   const hostJar = join(root, 'plugin-host', 'target', 'plugin-host.jar');
   const outdated = () => [...plugins.filter((e) => stale(builtJar(root, e))).map((e) => e.id),
-    ...moduleOnly(root).filter((m) => staleModule(root, m)).map((m) => m.dir),
     ...(stale(hostJar) ? ['plugin-host'] : [])];
   if (outdated().length) {
     console.log(`[dev] missing or older than their sources: ${outdated().join(', ')}`);
     const modules = ['plugin-host', ...readdirSync(join(root, 'plugins'), { withFileTypes: true })
       .filter((d) => d.isDirectory() && d.name !== 'test-fixtures')
-      .map((d) => `plugins/${d.name}`), ...moduleOnly(root).map((m) => `modules/${m.dir}`)];
+      .map((d) => `plugins/${d.name}`)];
     if (!build(root, modules)) {
       console.error('[dev] the plugins did not build: running without the local catalog');
       return null;
@@ -138,8 +146,19 @@ export async function startDevCatalog({ root, home, java }) {
       return null;
     }
   }
-  // A module whose package isn't there is left out of the list: its card is missing, the rest of the loop works.
-  const packages = moduleOnly(root).filter((m) => m.jar);
+  // The modules of the modules repository's checkout. One whose package isn't built there is left out of the list:
+  // its card is missing, the rest of the loop works.
+  const repo = modulesRepo(root);
+  const packages = repositoryModules(repo).filter((m) => m.jar);
+  if (!repo) {
+    console.log('[dev] no checkout of gaterook/gaterook-plugins beside this one (or in GATEROOK_MODULES_REPO): '
+      + 'ClickHouse, DuckDB, H2 and Microsoft Access are not offered');
+  } else {
+    const unbuilt = repositoryModules(repo).filter((m) => !m.jar).map((m) => m.dir);
+    const older = packages.filter((m) => staleModule(repo, m)).map((m) => m.dir);
+    if (unbuilt.length) console.log(`[dev] not built in ${repo}: ${unbuilt.join(', ')} (mvn -B -ntp package -DskipTests there)`);
+    if (older.length) console.log(`[dev] older than their sources in ${repo}: ${older.join(', ')}`);
+  }
 
   const dir = join(home, 'dev-catalog');
   rmSync(dir, { recursive: true, force: true });
@@ -216,7 +235,7 @@ export async function startDevCatalog({ root, home, java }) {
     properties.push(`-Dgateway.modules.channel-url=https://127.0.0.1:${modules.port}/`,
       `-Dgateway.modules.channel-keys=${trust}`);
   } else {
-    console.error('[dev] no connector module is built: running without the local list of modules');
+    console.log('[dev] running without the local list of modules');
   }
   return {
     properties,

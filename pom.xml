@@ -65,11 +65,7 @@
     <module>plugin-host</module>
     <module>plugins/jira-service-desk</module>
     <module>plugins/test-fixtures</module>
-    <module>modules/clickhouse</module>
     <module>plugins/rabbitmq</module>
-    <module>modules/duckdb</module>
-    <module>modules/h2</module>
-    <module>modules/msaccess</module>
     <module>modules/cassandra</module>
     <module>modules/neo4j</module>
     <module>modules/sql-oracle</module>
@@ -90,8 +86,11 @@
     -->
     <project.build.outputTimestamp>2026-11-12T00:00:00Z</project.build.outputTimestamp>
 
-    <!-- The SPI is versioned on its own: plugins declare requires.connectorApi against it (ApiVersion.CURRENT). -->
-    <connector-api.version>1.0.0</connector-api.version>
+    <!--
+      The SPI is versioned on its own, and its artifact has the SPI's version (ApiVersion.CURRENT): plugins and
+      connector modules declare requires.connectorApi against it and compile against this artifact.
+    -->
+    <connector-api.version>1.2.0</connector-api.version>
 
     <!-- Overrides of versions the Spring Boot BOM manages (reports 05, 07, 09). -->
     <mongodb.version>5.13.0</mongodb.version>
@@ -115,12 +114,6 @@
     <google-auth.version>1.54.0</google-auth.version>
     <mssql-jdbc.version>13.6.0.jre11</mssql-jdbc.version>
     <jsqlparser.version>5.4</jsqlparser.version>
-    <!-- The DuckDB catalog plugin's engine (docs/duckdb.md); the plugin JAR carries two of its native libraries. -->
-    <duckdb-jdbc.version>2.0.0.1</duckdb-jdbc.version>
-    <!-- The H2 catalog plugin's client (docs/h2.md): a server's TCP protocol, through the plugin host's TCP gate. -->
-    <h2.version>2.5.252</h2.version>
-    <!-- The Microsoft Access catalog plugin's engine (docs/access.md): UCanAccess with Jackcess and HSQLDB. -->
-    <ucanaccess.version>5.3.0</ucanaccess.version>
     <oracle-jdbc.version>23.26.4.0.0</oracle-jdbc.version>
     <sshd.version>2.20.0</sshd.version>
     <re2j.version>1.8</re2j.version>
@@ -456,27 +449,6 @@
           <exclusion><groupId>io.dropwizard.metrics</groupId><artifactId>metrics-core</artifactId></exclusion>
           <exclusion><groupId>org.hdrhistogram</groupId><artifactId>HdrHistogram</artifactId></exclusion>
         </exclusions>
-      </dependency>
-
-      <!-- ── Plugins: DuckDB (docs/duckdb.md) ──────────────────────────────────────────────────────────── -->
-      <dependency>
-        <groupId>org.duckdb</groupId>
-        <artifactId>duckdb_jdbc</artifactId>
-        <version>${duckdb-jdbc.version}</version>
-      </dependency>
-
-      <!-- ── Plugins: H2 (docs/h2.md) ──────────────────────────────────────────────────────────────────── -->
-      <dependency>
-        <groupId>com.h2database</groupId>
-        <artifactId>h2</artifactId>
-        <version>${h2.version}</version>
-      </dependency>
-
-      <!-- ── Plugins: Microsoft Access (docs/access.md) ─────────────────────────────────────────────────── -->
-      <dependency>
-        <groupId>io.github.spannm</groupId>
-        <artifactId>ucanaccess</artifactId>
-        <version>${ucanaccess.version}</version>
       </dependency>
 
       <!-- ── Connectors: Redis (report 05) ─────────────────────────────────────────────────────────────── -->

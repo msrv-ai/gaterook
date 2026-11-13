@@ -2,6 +2,8 @@
 
 This interface sketch preserves the architectural contract used to develop the connectors. The current compilable definitions in [connector-api](../connector-api/src/main/java/ai/msrv/gaterook/connector/) are authoritative if signatures differ. See [architecture](ARCHITECTURE.md#3-connector-spi) for execution and security boundaries.
 
+To write a connector against this SPI and deliver it as a module, see [how a connector module is built](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md) in the modules repository: the package, the build, what a module may reach, and a complete example.
+
 ```java
 // ── Connector.java ─────────────────────────────────────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;

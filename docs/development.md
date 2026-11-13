@@ -69,7 +69,7 @@ resources, bundled bridges, and Electron metadata carry this version. It appears
 
 ### Component outputs
 
-`npm run build` runs `mvn -B -ntp -DskipTests -Pall-bundled package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command. The `all-bundled` profile puts every connector into the development core, including those that are delivered as modules and are not compiled into the native core; see [connector delivery](connector-delivery.md).
+`npm run build` runs `mvn -B -ntp -DskipTests -Pall-bundled package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command. The `all-bundled` profile puts every connector of this repository into the development core, including those that are delivered as modules and are not compiled into the native core; see [connector delivery](connector-delivery.md).
 
 | Output | Purpose |
 | --- | --- |

@@ -22,10 +22,10 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>Two versions of the file exist. {@code manifestVersion 1} is a plugin: one connector type, named after the
  * plugin, whose class is {@code connectorClass}; its tools live in one namespace, declare no {@code connection}
  * parameter and start in Approval. {@code manifestVersion 2} is a connector module (docs/connector-delivery.md): one
- * or more connector types that GateRook builds itself, behind one {@code moduleClass}; their tools are declared as a
- * compiled-in connector declares them, with the {@code connection} parameter and their own default modes. Which of
- * the two a package may be is decided by where it came from, not by this file: the core loads a module only from the
- * signed module channel.
+ * or more built-in connector types behind one {@code moduleClass}; their tools are declared as a compiled-in
+ * connector declares them, with the {@code connection} parameter and their own default modes. How far a module is
+ * trusted is decided by where it came from, not by this file: the signed module channel pins GateRook's own, and a
+ * package a person installs from a file is theirs, held as an unsigned plugin is.
  *
  * <p>For a module, the single-type components ({@code connectorClass}, {@code toolNamespace}, {@code icon},
  * {@code group}, {@code configSchema}, {@code policySchema}, {@code tools}) hold the first type's values or

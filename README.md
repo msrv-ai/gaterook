@@ -69,7 +69,7 @@ Built-in connectors give AI structured tools for the services you already operat
 
 | Category | Connectors | Typical tasks |
 | --- | --- | --- |
-| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), [DuckDB](docs/duckdb.md), [H2](docs/h2.md) and [Microsoft Access](docs/access.md) | Explore schemas, query data, and review supported writes. |
+| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), [DuckDB](https://github.com/gaterook/gaterook-plugins/blob/main/docs/duckdb.md), [H2](https://github.com/gaterook/gaterook-plugins/blob/main/docs/h2.md) and [Microsoft Access](https://github.com/gaterook/gaterook-plugins/blob/main/docs/access.md) | Explore schemas, query data, and review supported writes. |
 | **Documents, key-value, and wide-column data** | MongoDB, [Redis](docs/redis.md), [Amazon DynamoDB](docs/dynamodb.md), [Cloud Firestore](docs/firestore.md), [Firebase Realtime Database](docs/firebase-rtdb.md), [Azure Cosmos DB](docs/cosmosdb.md), [Apache Cassandra](docs/cassandra.md) | Find documents and items, inspect keys and values, run queries, and review updates. |
 | **Graph databases** | [Neo4j](docs/neo4j.md) | Explore labels, relationships, and properties, run Cypher reads that Neo4j confirms as read only, and review writes. |
 | **Data warehouses** | [Google BigQuery](docs/bigquery.md), [Snowflake](docs/snowflake.md), [Amazon Redshift](docs/redshift.md), [Databricks SQL](docs/databricks.md), [Trino and Presto](docs/trino.md), [Amazon Athena](docs/athena.md), ClickHouse | Explore datasets and tables, run reads checked by the engine's own plan or dry run, and review changes. |
@@ -147,7 +147,7 @@ Inspect calls, approval decisions, execution outcomes, and configuration changes
 - **Share reviewed setups:** export a passphrase-encrypted endpoint file, with secrets excluded by default. Recipients review what to import; client grants and tokens do not transfer. [Endpoint sharing](docs/development.md#endpoint-sharing).
 - **Back up and restore:** create a passphrase-encrypted full backup from **Settings → Backup**. [Recovery guide](docs/development.md#full-backup-and-restore).
 - **Test and reuse tools:** try calls in **Playground**; turn named SQL queries, SSH runbooks, and OpenAPI operations into reusable tools with typed parameters.
-- **Extend the connector catalog:** install Java plugins, or a [connector module of your own](docs/connector-delivery.md#a-module-from-a-file), in a separate JVM host, with reviewed capabilities and tool permissions. [Plugin architecture](docs/ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers).
+- **Extend the connector catalog:** install Java plugins, or a [connector module of your own](docs/connector-delivery.md#a-module-from-a-file), in a separate JVM host, with reviewed capabilities and tool permissions. [Plugin architecture](docs/ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers); [how a connector module is built](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md).
 - **Use remote access when appropriate:** publish non-production endpoints through the built-in tunnel with OAuth. Production endpoints remain local. [Security boundaries](docs/security.md#apply-stricter-controls-to-production).
 - **Work in your preferred theme:** light, dark, and high-contrast variants, with keyboard navigation throughout the desktop UI.
 
@@ -207,6 +207,7 @@ See the [development guide](docs/development.md), [IntelliJ IDEA setup](docs/dev
 | [Architecture](docs/ARCHITECTURE.md) | Processes, modules, execution flow, persistence, UI, and extension contracts. |
 | [Development](docs/development.md) | Local builds, tests, backups, endpoint sharing, and troubleshooting. |
 | [External MCP servers](docs/mcp-servers.md) | Registry discovery, verified cloud profiles, local and remote servers, OAuth, and cloud credentials. |
+| [Writing a connector module](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md) | The parts, the package, the connector API in use and an example module, in the [modules repository](https://github.com/gaterook/gaterook-plugins). |
 | [Connector guides](#connect-your-stack) | Credentials, permissions, limits, and reviewed changes for the connectors linked in the connector table. |
 | [AI connection import](docs/ai-connection-import.md) / [OpenAPI import](docs/http-api-import.md) | Reviewable setup flows for repositories and HTTP APIs. |
 | [Product decisions](docs/DECISIONS.md) / [Research](docs/research/README.md) | Accepted engineering decisions and curated technical investigations. |

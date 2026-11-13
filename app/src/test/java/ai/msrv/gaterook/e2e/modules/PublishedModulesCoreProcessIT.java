@@ -23,9 +23,11 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * What is published, through the assembled core (docs/connector-delivery.md): a core that reads GateRook's list of
- * connector modules on GitHub lists every released module, installs each of them from its release, and then has on
- * its disk exactly the package that {@code modules/modules.lock.json} records as released. A core that trusts
- * another key takes nothing from the same address.
+ * connector modules on GitHub installs every listed module from its release. The list holds the modules of this
+ * checkout and those whose source lives in the modules repository; for each module of this checkout the core then
+ * has on its disk exactly the package that {@code modules/modules.lock.json} records as released (the modules
+ * repository checks its own against its own lock). A core that trusts another key takes nothing from the same
+ * address.
  *
  * <p>It needs the network and checks what is published now, never what a build makes, so it runs only when asked:
  * {@code -Dgateway.e2e.officialLists=true}.
@@ -55,13 +57,14 @@ class PublishedModulesCoreProcessIT {
       listed.path("modules").forEach(m -> versions.put(m.path("id").asString(), m.path("version").asString()));
       List<String> releasedIds = new ArrayList<>();
       released.properties().forEach(module -> releasedIds.add(module.getKey()));
-      assertThat(versions.keySet()).as("every module that was released is listed")
-          .containsExactlyInAnyOrderElementsOf(releasedIds);
+      assertThat(versions.keySet()).as("every module this checkout released is listed").containsAll(releasedIds);
 
       // Each is asked for by its id, as a card in Add connection asks for it; they download side by side.
       for (Map.Entry<String, String> module : versions.entrySet()) {
-        assertThat(released.path(module.getKey()).has(module.getValue())).as(module + " is a released version")
-            .isTrue();
+        if (released.has(module.getKey())) {
+          assertThat(released.path(module.getKey()).has(module.getValue())).as(module + " is a released version")
+              .isTrue();
+        }
         api.json(api.admin("POST", "/api/modules/" + module.getKey() + "/install", "{}"), 200);
       }
       for (Map.Entry<String, String> module : versions.entrySet()) {
@@ -69,6 +72,11 @@ class PublishedModulesCoreProcessIT {
         assertThat(ready.path("installed").asBoolean()).as(ready.toString()).isTrue();
         assertThat(ready.path("signed").asBoolean()).as(ready.toString()).isTrue();
         Path jar = home.resolve("plugins").resolve(module.getKey()).resolve(module.getValue()).resolve("plugin.jar");
+        assertThat(jar).as(module + ": its package is on the disk").isRegularFile();
+        if (!released.has(module.getKey())) {
+          // Its source and its lock are the modules repository's; the core held it to the list's own pin.
+          continue;
+        }
         JsonNode pin = released.path(module.getKey()).path(module.getValue());
         assertThat(Files.size(jar)).as(module + ": the size that was released").isEqualTo(pin.path("size").asLong());
         assertThat(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(jar))))
@@ -99,9 +107,9 @@ class PublishedModulesCoreProcessIT {
           .contains("signature doesn't match");
       assertThat(listed.path("modules")).as("nothing of a list that didn't verify is offered").isEmpty();
 
-      CoreClient.Answer refused = api.admin("POST", "/api/modules/h2/install", "{}");
+      CoreClient.Answer refused = api.admin("POST", "/api/modules/cassandra/install", "{}");
       assertThat(refused.status()).as(refused.body()).isIn(404, 409);
-      assertThat(Files.exists(home.resolve("plugins").resolve("h2"))).as("nothing was downloaded").isFalse();
+      assertThat(Files.exists(home.resolve("plugins").resolve("cassandra"))).as("nothing was downloaded").isFalse();
     } finally {
       core.close();
     }

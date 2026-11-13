@@ -14,12 +14,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * DuckDB as the connector module a release downloads (docs/connector-delivery.md, docs/duckdb.md): the package of
- * {@code modules/duckdb}, installed by the assembled core when the type's form is asked for, and run in a module
+ * DuckDB as the connector module a release downloads (docs/connector-delivery.md): the package of the
+ * {@code duckdb} module, installed by the assembled core when the type's form is asked for, and run in a module
  * host with DuckDB's native library. A person names a database file on this computer; an agent reads it.
  *
- * <p>The file is made by DuckDB itself, from the module's package. The package carries DuckDB for macOS on Apple
- * Silicon and Windows x64, so the test runs there.
+ * <p>The module's source lives in the modules repository: the test takes its package from a checkout of it
+ * ({@link BuiltModule#modulesRepo}) and is skipped without one. The file is made by DuckDB itself, from the module's
+ * package. The package carries DuckDB for macOS on Apple Silicon and Windows x64, so the test runs there.
  */
 class DuckDbModuleCoreProcessIT {
 
@@ -35,7 +36,7 @@ class DuckDbModuleCoreProcessIT {
   @BeforeAll
   static void start() throws Exception {
     Path built = BuiltModule.packageOf("duckdb");
-    assumeTrue(built != null, "Build modules/duckdb first: mvn -pl modules/duckdb -am package");
+    assumeTrue(built != null, BuiltModule.howToBuild("duckdb"));
     String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
     String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
     assumeTrue((os.startsWith("mac") && arch.equals("aarch64")) || (os.startsWith("windows") && arch.equals("amd64")),

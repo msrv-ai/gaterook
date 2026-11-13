@@ -2,9 +2,9 @@
 <!--
   Tests only (ARCHITECTURE.md §2.1, K4): the real plugin-host.jar and plugin fixtures (crash, oom, hang,
   stdout-polluter, secret-thief) run as child processes, exactly as the core runs them; so do the catalog's plugins
-  Jira, ClickHouse and RabbitMQ (K6) against MockWebServer. The jars are copied into
-  target/ with dependency:copy and never put on this module's classpath: PF4J stays out of every classpath
-  but the host's own (the root ban-pf4j execution stays on here).
+  Jira and RabbitMQ (K6) against MockWebServer. The jars are copied into target/ with dependency:copy and never put
+  on this module's classpath: PF4J stays out of every classpath but the host's own (the root ban-pf4j execution stays
+  on here).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -62,20 +62,7 @@
         <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
       </exclusions>
     </dependency>
-    <!--
-      The catalog's plugins (K6) and the ClickHouse connector module, which the same host loads: build order only,
-      the jars are found by path like Jira's.
-    -->
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>modules-clickhouse</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-      </exclusions>
-    </dependency>
+    <!-- The catalog's plugins (K6): build order only, the jars are found by path like Jira's. -->
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
       <artifactId>plugins-rabbitmq</artifactId>
@@ -160,7 +147,6 @@
             <gateway.jiraDir>${project.basedir}/../plugins/jira-service-desk/target</gateway.jiraDir>
             <gateway.fixturesDir>${project.basedir}/../plugins/test-fixtures/target</gateway.fixturesDir>
             <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
-            <gateway.modulesDir>${project.basedir}/../modules</gateway.modulesDir>
           </systemPropertyVariables>
         </configuration>
       </plugin>

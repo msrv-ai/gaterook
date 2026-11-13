@@ -18,11 +18,14 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 
 /**
- * ClickHouse as the connector module a release downloads (docs/connector-delivery.md, docs/clickhouse.md): the
- * package of {@code modules/clickhouse}, installed by the assembled core when the type's form is asked for, and run
- * in a module host. Its HTTP goes through the host's guarded client under the grant the core makes of the module's
+ * ClickHouse as the connector module a release downloads (docs/connector-delivery.md): the package of the
+ * {@code clickhouse} module, installed by the assembled core when the type's form is asked for, and run in a module
+ * host. Its HTTP goes through the host's guarded client under the grant the core makes of the module's
  * {@code access.hosts}: the connection's host on ClickHouse's two HTTP ports and nowhere else. A stand-in for
  * ClickHouse answers on this computer's port 8123, which the environment's policy must allow first.
+ *
+ * <p>The module's source lives in the modules repository: the test takes its package from a checkout of it
+ * ({@link BuiltModule#modulesRepo}) and is skipped without one.
  */
 class ClickHouseModuleCoreProcessIT {
 
@@ -36,7 +39,7 @@ class ClickHouseModuleCoreProcessIT {
   @BeforeAll
   static void start() throws Exception {
     Path built = BuiltModule.packageOf("clickhouse");
-    assumeTrue(built != null, "Build modules/clickhouse first: mvn -pl modules/clickhouse -am package");
+    assumeTrue(built != null, BuiltModule.howToBuild("clickhouse"));
     clickHouse = new MockWebServer();
     clickHouse.setDispatcher(new Dispatcher() {
       @Override

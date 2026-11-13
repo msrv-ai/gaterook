@@ -66,24 +66,5 @@
     },
     "ssh": {"types": ["ssh", "ssh-logs"], "delivery": "bundled"},
     "trino": {"types": ["trino"], "delivery": "bundled"}
-  },
-  "moduleOnly": {
-    "$comment": "Connectors that exist only as modules. Their code lives with their package under modules/<id> and is never compiled into a core, not even with all-bundled: each relies on something only a module host gives it.",
-    "clickhouse": {
-      "types": ["clickhouse"],
-      "why": "It needs nothing of the core but the host's guarded HTTP client, and few first connections are to ClickHouse: as a module it costs the installer nothing."
-    },
-    "duckdb": {
-      "types": ["duckdb"],
-      "why": "Its JDBC driver is a native library, which the native core can't load, and the files it opens are confined by the module host's sandbox."
-    },
-    "h2": {
-      "types": ["h2"],
-      "why": "The H2 client opens its own sockets, which only the module host's TCP gate confines to the connection's host and port."
-    },
-    "msaccess": {
-      "types": ["msaccess"],
-      "why": "UCanAccess and HSQLDB are a large stack for a file format few people use, and the files it opens are confined by the module host's sandbox."
-    }
   }
 }

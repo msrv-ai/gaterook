@@ -84,6 +84,17 @@ test('this checkout: its modules agree with the delivery map and the poms', () =
   assert.ok(modules().some((m) => m.descriptor.id === 'cassandra'));
 });
 
+test('this checkout: the connector API artifact has the version of the API it holds', () => {
+  // Connector modules, also those built outside this checkout, compile against connector-api:<ApiVersion.CURRENT>.
+  const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  const api = /String CURRENT = "([^"]+)"/
+    .exec(read('connector-api/src/main/java/ai/msrv/gaterook/connector/api/ApiVersion.java'))?.[1];
+  assert.match(api ?? '', /^\d+\.\d+\.\d+$/);
+  assert.equal(/<connector-api\.version>([^<]+)<\/connector-api\.version>/.exec(read('pom.xml'))?.[1], api);
+  assert.equal(/<artifactId>connector-api<\/artifactId>\s*(?:<!--[\s\S]*?-->\s*)?<version>([^<]+)<\/version>/
+    .exec(read('connector-api/pom.xml'))?.[1], api);
+});
+
 test('an entry of a JAR is read whether it is deflated or stored', () => {
   const bytes = zip({ 'a.json': { data: '{"a":1}' }, 'b.bin': { data: 'stored', stored: true } });
   assert.equal(readZipEntry(bytes, 'a.json').toString(), '{"a":1}');
@@ -98,21 +109,6 @@ test('the layout is checked: versions, the reactor and the delivery map', (t) =>
   assert.deepEqual(checkModules(fixture(t, { inReactor: false })), ['modules/alpha is not a module of the root pom']);
   assert.deepEqual(checkModules(fixture(t, { delivery: 'bundled' })),
     ["modules/alpha packages a connector that connectors/delivery.json doesn't deliver as a module"]);
-});
-
-test('a connector that exists only as a module needs its module and nothing under connectors/', (t) => {
-  const root = fixture(t);
-  writeFileSync(join(root, 'connectors', 'delivery.json'), JSON.stringify({
-    schema: 1,
-    budget: { bundledImageMegabytes: 3, exempt: {} },
-    connectors: {},
-    moduleOnly: {
-      $comment: 'Connectors that exist only as modules.',
-      alpha: { types: ['alpha'], why: 'It relies on the module host.' },
-      beta: { types: ['beta'], why: 'It relies on the module host.' },
-    },
-  }));
-  assert.deepEqual(checkModules(root), ['beta is module only but modules/beta/module.json is missing']);
 });
 
 test('a package is new, released, or changed without a new version', (t) => {

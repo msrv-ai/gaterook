@@ -56,7 +56,7 @@ test('a map and a build that agree have no problems', (t) => {
   const root = fixture(t);
   assert.deepEqual(checkDelivery(root), []);
   assert.deepEqual(appAssembly(root), { always: ['alpha'], allBundled: ['beta'], bridge: [] });
-  assert.deepEqual(typesByDelivery(root), { bundled: ['alpha', 'alpha-logs'], module: ['beta'], bridge: [], moduleOnly: [] });
+  assert.deepEqual(typesByDelivery(root), { bundled: ['alpha', 'alpha-logs'], module: ['beta'], bridge: [] });
 });
 
 test('a bridge connector is compiled in through the bridge profile and nowhere else', (t) => {
@@ -70,7 +70,7 @@ test('a bridge connector is compiled in through the bridge profile and nowhere e
   };
   const agreed = fixture(t, { map, profile: [], bridge: ['beta'] });
   assert.deepEqual(checkDelivery(agreed), []);
-  assert.deepEqual(typesByDelivery(agreed), { bundled: ['alpha'], module: [], bridge: ['beta'], moduleOnly: [] });
+  assert.deepEqual(typesByDelivery(agreed), { bundled: ['alpha'], module: [], bridge: ['beta'] });
 
   assert.deepEqual(checkDelivery(fixture(t, { map, always: ['alpha', 'beta'], profile: ['beta'] })), [
     'beta is a bridge connector but app/pom.xml always depends on connectors-beta',
@@ -95,39 +95,6 @@ test('a bundled connector must be a dependency of the assembly and not of the pr
     'alpha is bundled but app/pom.xml does not depend on connectors-alpha',
     'alpha is bundled, so it does not belong in the all-bundled profile',
   ]);
-});
-
-test('a module-only connector lives under modules/ and no assembly depends on it', (t) => {
-  const map = {
-    schema: 1,
-    budget: { bundledImageMegabytes: 3, exempt: {} },
-    connectors: {
-      alpha: { types: ['alpha'], delivery: 'bundled' },
-      beta: { types: ['beta'], delivery: 'module', why: 'Its driver is heavy.' },
-    },
-    moduleOnly: {
-      $comment: 'Connectors that exist only as modules.',
-      gamma: { types: ['gamma'], why: 'It relies on the module host.' },
-    },
-  };
-  const missing = fixture(t, { map });
-  assert.deepEqual(checkDelivery(missing), ['gamma is module only but modules/gamma/pom.xml is missing']);
-  assert.deepEqual(typesByDelivery(missing), { bundled: ['alpha'], module: ['beta'], bridge: [], moduleOnly: ['gamma'] });
-
-  const agreed = fixture(t, { map });
-  mkdirSync(join(agreed, 'modules', 'gamma'), { recursive: true });
-  writeFileSync(join(agreed, 'modules', 'gamma', 'pom.xml'), '<project/>');
-  assert.deepEqual(checkDelivery(agreed), []);
-
-  const both = structuredClone(map);
-  both.moduleOnly.alpha = { types: ['alpha-file'], why: 'Twice.' };
-  assert.throws(() => readDelivery(fixture(t, { map: both })), /alpha is listed both as a connector and as module only/);
-  const shared = structuredClone(map);
-  shared.moduleOnly.gamma.types = ['beta'];
-  assert.throws(() => readDelivery(fixture(t, { map: shared })), /beta is listed by both beta and gamma/);
-  const silent = structuredClone(map);
-  delete silent.moduleOnly.gamma.why;
-  assert.throws(() => readDelivery(fixture(t, { map: silent })), /gamma: a module says why it is not compiled in/);
 });
 
 test('a connector directory without an entry, an entry without a directory and a missing reactor module are reported', (t) => {
