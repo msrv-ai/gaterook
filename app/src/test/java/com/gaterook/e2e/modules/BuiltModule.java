@@ -57,8 +57,10 @@ final class BuiltModule implements AutoCloseable {
   }
 
   /**
-   * A module's built package, {@code modules/<id>/target/<id>-<version>.jar}: of this checkout, else of the modules
-   * repository's checkout ({@link #modulesRepo}); {@code null} when neither has built it.
+   * A module's built package, {@code modules/<id>/target/<id>-<version>.jar}, of the version its {@code module.json}
+   * names: of this checkout, else of the modules repository's checkout ({@link #modulesRepo}); {@code null} when
+   * neither has built it. A build folder keeps the packages of earlier versions until it is cleaned, and a test is
+   * about the module as its source is now.
    */
   static Path packageOf(String id) throws Exception {
     List<Path> roots = new ArrayList<>(List.of(Path.of(System.getProperty("gateway.modulesDir", "../modules"))));
@@ -66,16 +68,14 @@ final class BuiltModule implements AutoCloseable {
       roots.add(modulesRepo().resolve("modules"));
     }
     for (Path root : roots) {
-      Path target = root.resolve(id).resolve("target");
-      if (!Files.isDirectory(target)) {
+      Path descriptor = root.resolve(id).resolve("module.json");
+      if (!Files.isRegularFile(descriptor)) {
         continue;
       }
-      try (var files = Files.list(target)) {
-        Path built = files.filter(f -> f.getFileName().toString().matches(id + "-\\d+\\.\\d+\\.\\d+\\.jar"))
-            .findFirst().orElse(null);
-        if (built != null) {
-          return built;
-        }
+      String version = CoreProcess.JSON.readTree(Files.readAllBytes(descriptor)).path("version").asString("");
+      Path built = root.resolve(id).resolve("target").resolve(id + "-" + version + ".jar");
+      if (Files.isRegularFile(built)) {
+        return built;
       }
     }
     return null;
