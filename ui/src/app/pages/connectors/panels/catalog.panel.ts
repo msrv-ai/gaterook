@@ -101,8 +101,16 @@ export class GwCatalogPanel {
   protected readonly problem = computed(() => this.data.catalog.value()?.problem?.trim() || null);
   /** Why GateRook's list of connector modules couldn't be checked, in the core's words; null when it could. */
   protected readonly listProblem = computed(() => this.channel()?.problem?.trim() || null);
-  /** Why nothing is offered: the list of modules that couldn't be read comes before a catalog this build doesn't read. */
-  protected readonly emptyProblem = computed(() => this.listProblem() ?? this.problem());
+  /**
+   * Why nothing is offered: the list of modules that couldn't be read comes before a catalog this build doesn't read.
+   * A build that read its list of modules and has no plugin catalog has a Catalog all the same, an empty one: that
+   * no catalog is configured is then no reason to give.
+   */
+  protected readonly emptyProblem = computed(() => {
+    const list = this.listProblem();
+    if (list) return list;
+    return this.channel() && this.data.catalog.value()?.source === 'none' ? null : this.problem();
+  });
 
   protected readonly errorText = (e: unknown): string => failureText(e);
   protected readonly errorDetails = (e: unknown): string => failureDetails('GET /api/catalog', e);

@@ -931,6 +931,21 @@ describe('Connectors page: Catalog', () => {
     expect(text(el.querySelector('#catalog .gw-empty__text'))).toBe(`${LIST_UNREACHABLE} A plugin you have as a file can still be checked and installed.`);
   });
 
+  it('calls the Catalog empty, not unavailable, when the list of modules was read and offers nothing', async () => {
+    // Every listed module is installed or none fits this build, and this build reads no plugin catalog.
+    setup({
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+    });
+    const { el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(text(panel.querySelector('.gw-empty__title'))).toBe('The catalog is empty');
+    expect(text(panel.querySelector('.gw-empty__text'))).not.toContain('No catalog is configured');
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-22');
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('0 connectors');
+  });
+
   it('reads the modules again when the core accepted another list in the background', async () => {
     let listed = false;
     setup({ types: () => Promise.resolve(listed ? typesWithListedModules() : typesCatalog()) });
