@@ -39,6 +39,34 @@ final class TestServices {
     return Integer.parseInt(value(key));
   }
 
+  /**
+   * An image tag of the repository's {@code test-services/.env}, e.g. {@code GW_REDIS_TAG}, whether or not the ITs use
+   * the Compose servers: the servers an IT starts itself run the versions the Compose services run.
+   */
+  static String tag(String key) {
+    String v = Repository.ENV.get(key);
+    if (v == null) {
+      throw new IllegalStateException(key + " isn't in " + Repository.FILE);
+    }
+    return v;
+  }
+
+  /** The repository's {@code test-services/.env}, found from the working directory (the module's, under Maven) up. */
+  private static final class Repository {
+    static final Path FILE = find();
+    static final Map<String, String> ENV = read(FILE);
+
+    private static Path find() {
+      for (Path p = Path.of("").toAbsolutePath(); p != null; p = p.getParent()) {
+        Path env = p.resolve("test-services").resolve(".env");
+        if (Files.isRegularFile(env)) {
+          return env;
+        }
+      }
+      throw new IllegalStateException("No test-services/.env in " + Path.of("").toAbsolutePath() + " or above it");
+    }
+  }
+
   /** A file the services made in the folder, e.g. {@code run/certs/ca.crt}. */
   static Path file(String relative) {
     return DIR.resolve(relative);

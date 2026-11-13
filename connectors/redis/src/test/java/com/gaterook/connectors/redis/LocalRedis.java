@@ -1,7 +1,9 @@
 package com.gaterook.connectors.redis;
 
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -9,27 +11,27 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 import redis.clients.jedis.DefaultJedisClientConfig;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.RedisProtocol;
 
 /**
- * A real {@code redis-server} for one test class (report 05 §8): on a free loopback port, data and log under
- * {@code target/redis-it/}, no persistence, users from an ACL file. The binary is {@code $GW_REDIS_BIN}, else
- * {@code redis-server} from {@code PATH} (7.0.15 on this machine); {@link #redis62()} is Redis 6.2.11, the Linux binary
- * inside {@code com.github.codemonstur:embedded-redis} 1.4.4, downloaded once into the shared test cache and checked
- * by SHA-256.
+ * A real Redis for one test class (report 05 §8), in a container: the image the Compose services run, by its tag in
+ * {@code test-services/.env} ({@code GW_REDIS_TAG}, 7.0.15; {@code GW_REDIS62_TAG}, 6.2.11, with
+ * {@link Options#withV62()}), on ephemeral ports of 127.0.0.1 only, no persistence, users from an ACL file. Nothing of
+ * Redis needs to be installed; Docker needs to run.
  *
  * <p>Users — passwords are {@code <name>-pass}: {@code default} (everything), {@code ro} (the read-only line of
  * Test connection's hint), {@code rokeys} (the same, keys {@code cache:*} only), {@code rw} (everything but
@@ -44,183 +46,114 @@ final class LocalRedis implements AutoCloseable {
 
   static final String DEFAULT_PASSWORD = "default-pass";
   private static final AtomicInteger SEQUENCE = new AtomicInteger();
-  private static final Path CACHE = Path.of(System.getProperty("user.home"), ".cache", "mcp-gateway-test", "redis");
-  private static final String JAR = "embedded-redis-1.4.4.jar";
-  private static final String JAR_URL = "https://repo1.maven.org/maven2/com/github/codemonstur/embedded-redis/1.4.4/"
-      + JAR;
-  private static final String JAR_SHA256 = "b56845f0a81aa0b6a0c32a309e69081ee7bdeadba9efff6374b0fe9af230db63";
-  private static final String BIN_62 = "redis-server-6.2.6-v5-linux-amd64";
-  private static final String BIN_62_SHA256 = "1f716094e08a25faee2bc7626feb9e13464ed89018ac5c376c5e9cff06bdcf52";
-  /** The "binary" of a Compose server: {@code compose/<version>}. */
-  private static final Path COMPOSE = Path.of("compose");
+  /** The ports inside the container, as in the Compose services. */
+  private static final int PORT = 6379;
+  private static final int TLS_PORT = 6380;
 
-  final Path binary;
-  final Path dir;
   final int port;
   final Integer tlsPort;
   final Certificates certs;
-  private final Process process;
+  /** The name another container (a replica) reaches this server by on {@link Network#SHARED}. */
+  private final String alias;
+  private final GenericContainer<?> container;
 
   /** What to start; {@code openDefault}: the default user needs no password (any password works). */
-  record Options(Path binary, boolean v62, Certificates tls, LocalRedis replicaOf, boolean cluster,
-      boolean openDefault) {
-    static Options of(Path binary) {
-      return new Options(binary, false, null, null, false, false);
+  record Options(boolean v62, Certificates tls, LocalRedis replicaOf, boolean cluster, boolean openDefault) {
+    static Options defaults() {
+      return new Options(false, null, null, false, false);
     }
 
     Options withTls(Certificates c) {
-      return new Options(binary, v62, c, replicaOf, cluster, openDefault);
+      return new Options(v62, c, replicaOf, cluster, openDefault);
     }
 
     Options withReplicaOf(LocalRedis primary) {
-      return new Options(binary, v62, tls, primary, cluster, openDefault);
+      return new Options(v62, tls, primary, cluster, openDefault);
     }
 
     Options withCluster() {
-      return new Options(binary, v62, tls, replicaOf, true, openDefault);
+      return new Options(v62, tls, replicaOf, true, openDefault);
     }
 
+    /** Redis 6.2 and the 6.2 form of the read-only user. */
     Options withV62() {
-      return new Options(binary, true, tls, replicaOf, cluster, openDefault);
+      return new Options(true, tls, replicaOf, cluster, openDefault);
     }
 
     Options withOpenDefault() {
-      return new Options(binary, v62, tls, replicaOf, cluster, true);
+      return new Options(v62, tls, replicaOf, cluster, true);
     }
   }
 
-  private LocalRedis(Path binary, Path dir, int port, Integer tlsPort, Certificates certs, Process process) {
-    this.binary = binary;
-    this.dir = dir;
+  private LocalRedis(int port, Integer tlsPort, Certificates certs, String alias, GenericContainer<?> container) {
     this.port = port;
     this.tlsPort = tlsPort;
     this.certs = certs;
-    this.process = process;
-  }
-
-  /** The redis-server this machine has (7.0.15 here), or {@code $GW_REDIS_BIN}; with the Compose services, theirs. */
-  static Path localBinary() {
-    if (TestServices.enabled()) {
-      return COMPOSE.resolve(TestServices.value("GW_REDIS_TAG"));
-    }
-    String env = System.getenv("GW_REDIS_BIN");
-    if (env != null && !env.isBlank()) {
-      return Path.of(env);
-    }
-    for (String d : System.getenv().getOrDefault("PATH", "/usr/bin").split(":")) {
-      Path p = Path.of(d, "redis-server");
-      if (Files.isExecutable(p)) {
-        return p;
-      }
-    }
-    throw new IllegalStateException("redis-server isn't on PATH; set GW_REDIS_BIN to a redis-server binary");
-  }
-
-  /** Redis 6.2.11 from embedded-redis 1.4.4 (Linux x86-64), from the test cache or downloaded and checked once. */
-  static synchronized Path redis62() {
-    if (TestServices.enabled()) {
-      return COMPOSE.resolve(TestServices.value("GW_REDIS62_TAG"));
-    }
-    try {
-      Path bin = CACHE.resolve("6.2").resolve(BIN_62);
-      if (Files.isExecutable(bin) && sha256(bin).equals(BIN_62_SHA256)) {
-        return bin;
-      }
-      Files.createDirectories(bin.getParent());
-      Path jar = CACHE.resolve(JAR);
-      if (!Files.exists(jar) || !sha256(jar).equals(JAR_SHA256)) {
-        Path part = CACHE.resolve(JAR + ".part");
-        // curl knows this machine's proxy settings (HTTPS_PROXY), which java.net.http would not read by itself.
-        Process curl = new ProcessBuilder("curl", "-sSfL", "-o", part.toString(), JAR_URL).inheritIO().start();
-        if (!curl.waitFor(5, TimeUnit.MINUTES) || curl.exitValue() != 0) {
-          throw new IOException("Downloading " + JAR_URL + " failed");
-        }
-        if (!sha256(part).equals(JAR_SHA256)) {
-          Files.delete(part);
-          throw new IOException(JAR + " doesn't have the expected SHA-256");
-        }
-        Files.move(part, jar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-      }
-      try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(jar))) {
-        for (ZipEntry e = zip.getNextEntry(); e != null; e = zip.getNextEntry()) {
-          if (e.getName().equals(BIN_62)) {
-            Path part = bin.resolveSibling(BIN_62 + ".part");
-            Files.copy(zip, part, StandardCopyOption.REPLACE_EXISTING);
-            Files.move(part, bin, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            break;
-          }
-        }
-      }
-      if (!sha256(bin).equals(BIN_62_SHA256)) {
-        throw new IOException(BIN_62 + " doesn't have the expected SHA-256");
-      }
-      bin.toFile().setExecutable(true);
-      return bin;
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new IllegalStateException(e);
-    }
+    this.alias = alias;
+    this.container = container;
   }
 
   static LocalRedis start(String name, Options o) {
-    if (o.binary().startsWith(COMPOSE)) {
-      return compose(o);
-    }
-    IllegalStateException last = null;
-    for (int attempt = 0; attempt < 3; attempt++) {
-      try {
-        return startOnce(name, o);
-      } catch (IllegalStateException e) {
-        // A port taken between choosing and binding it: try another.
-        last = e;
-      }
-    }
-    throw last;
+    return TestServices.enabled() ? compose(o) : container(name, o);
   }
 
-  private static LocalRedis startOnce(String name, Options o) {
+  private static LocalRedis container(String name, Options o) {
+    String image = "redis:" + TestServices.tag(o.v62() ? "GW_REDIS62_TAG" : "GW_REDIS_TAG");
+    if (!DockerClientFactory.instance().isDockerAvailable()) {
+      throw new IllegalStateException("The Redis ITs run " + image + " in a container and need Docker; or use the "
+          + "Compose services (test-services/README.md)");
+    }
     try {
       Path dir = Path.of("target", "redis-it", name + "-" + ProcessHandle.current().pid() + "-"
           + SEQUENCE.incrementAndGet()).toAbsolutePath();
       Files.createDirectories(dir);
       Path acl = dir.resolve("users.acl");
       Files.writeString(acl, acl(o.v62(), o.openDefault()));
-      int port = freePort();
-      List<String> cmd = new ArrayList<>(List.of(o.binary().toString(),
-          "--bind", "127.0.0.1", "--port", Integer.toString(port), "--save", "", "--appendonly", "no",
-          "--dir", dir.toString(), "--logfile", dir.resolve("redis.log").toString(), "--daemonize", "no",
-          "--aclfile", acl.toString(), "--protected-mode", "no"));
-      Integer tlsPort = null;
+      String alias = "redis-" + dir.getFileName();
+      List<Integer> ports = new ArrayList<>(List.of(PORT));
+      List<String> cmd = new ArrayList<>(List.of("redis-server", "--port", Integer.toString(PORT), "--save", "",
+          "--appendonly", "no", "--aclfile", "/conf/users.acl", "--protected-mode", "no"));
+      GenericContainer<?> c = new GenericContainer<>(DockerImageName.parse(image))
+          .withNetwork(Network.SHARED)
+          .withNetworkAliases(alias)
+          .withCopyFileToContainer(MountableFile.forHostPath(acl, 0644), "/conf/users.acl");
       if (o.tls() != null) {
-        tlsPort = freePort();
-        cmd.addAll(List.of("--tls-port", Integer.toString(tlsPort), "--tls-cert-file", o.tls().serverCert().toString(),
-            "--tls-key-file", o.tls().serverKey().toString(), "--tls-ca-cert-file", o.tls().ca().toString(),
-            "--tls-auth-clients", "no"));
+        ports.add(TLS_PORT);
+        c.withCopyFileToContainer(MountableFile.forHostPath(o.tls().serverCert(), 0644), "/certs/server.crt")
+            .withCopyFileToContainer(MountableFile.forHostPath(o.tls().serverKey(), 0644), "/certs/server.key")
+            .withCopyFileToContainer(MountableFile.forHostPath(o.tls().ca(), 0644), "/certs/ca.crt");
+        cmd.addAll(List.of("--tls-port", Integer.toString(TLS_PORT), "--tls-cert-file", "/certs/server.crt",
+            "--tls-key-file", "/certs/server.key", "--tls-ca-cert-file", "/certs/ca.crt", "--tls-auth-clients", "no"));
       }
       if (o.replicaOf() != null) {
-        cmd.addAll(List.of("--replicaof", "127.0.0.1", Integer.toString(o.replicaOf().port), "--masteruser", "default",
+        cmd.addAll(List.of("--replicaof", o.replicaOf().alias, Integer.toString(PORT), "--masteruser", "default",
             "--masterauth", DEFAULT_PASSWORD, "--replica-read-only", "yes"));
       }
       if (o.cluster()) {
-        cmd.addAll(List.of("--cluster-enabled", "yes", "--cluster-config-file", dir.resolve("nodes.conf").toString()));
+        cmd.addAll(List.of("--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf"));
       }
-      Process p = new ProcessBuilder(cmd).redirectErrorStream(true)
-          .redirectOutput(dir.resolve("stdout.log").toFile()).start();
-      LocalRedis r = new LocalRedis(o.binary(), dir, port, tlsPort, o.tls(), p);
+      List<PortBinding> loopback = ports.stream()
+          .map(p -> new PortBinding(Ports.Binding.bindIp("127.0.0.1"), ExposedPort.tcp(p))).toList();
+      c.withExposedPorts(ports.toArray(Integer[]::new))
+          // On 127.0.0.1 only, as the Compose services publish them: the users' passwords are no secret.
+          .withCreateContainerCmdModifier(create -> create.getHostConfig().withPublishAllPorts(false)
+              .withPortBindings(loopback))
+          .withCommand(cmd.toArray(String[]::new))
+          .waitingFor(Wait.forLogMessage(".*Ready to accept connections.*", 1)
+              .withStartupTimeout(Duration.ofSeconds(60)));
+      c.start();
+      LocalRedis r = new LocalRedis(c.getMappedPort(PORT), o.tls() == null ? null : c.getMappedPort(TLS_PORT), o.tls(),
+          alias, c);
       long until = System.nanoTime() + Duration.ofSeconds(15).toNanos();
-      while (System.nanoTime() < until) {
-        if (!p.isAlive()) {
-          throw new IllegalStateException("redis-server exited: " + r.log());
-        }
-        if (r.answers()) {
-          return r;
+      while (!r.answers()) {
+        if (System.nanoTime() > until) {
+          String log = c.getLogs();
+          r.close();
+          throw new IllegalStateException(image + " doesn't answer on 127.0.0.1:" + r.port + ": " + log);
         }
         Thread.sleep(25);
       }
-      r.close();
-      throw new IllegalStateException("redis-server didn't start in 15 s: " + r.log());
+      return r;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     } catch (InterruptedException e) {
@@ -249,8 +182,8 @@ final class LocalRedis implements AutoCloseable {
     if (o.tls() != null && tls == null) {
       throw new IllegalArgumentException("The test services have TLS on the primary and on 6.2 only");
     }
-    LocalRedis r = new LocalRedis(o.binary(), null, TestServices.port(port), o.tls() == null ? null
-        : TestServices.port(tls), o.tls(), null);
+    LocalRedis r = new LocalRedis(TestServices.port(port), o.tls() == null ? null : TestServices.port(tls), o.tls(),
+        null, null);
     if (!r.answers()) {
       throw new IllegalStateException("Redis of the test services (scripts/test-services.sh up redis) doesn't answer "
           + "on 127.0.0.1:" + r.port);
@@ -299,20 +232,6 @@ final class LocalRedis implements AutoCloseable {
     }
   }
 
-  String log() {
-    if (dir == null) {
-      return "(docker logs of the Compose service on port " + port + ")";
-    }
-    try {
-      Path f = dir.resolve("redis.log");
-      String log = Files.exists(f) ? Files.readString(f) : "";
-      Path out = dir.resolve("stdout.log");
-      return log + (Files.exists(out) ? Files.readString(out) : "");
-    } catch (IOException e) {
-      return e.toString();
-    }
-  }
-
   static int freePort() throws IOException {
     try (ServerSocket s = new ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
       return s.getLocalPort();
@@ -321,29 +240,8 @@ final class LocalRedis implements AutoCloseable {
 
   @Override
   public void close() {
-    if (process == null) {
-      return; // the Compose service keeps running
-    }
-    process.destroy();
-    try {
-      if (!process.waitFor(5, TimeUnit.SECONDS)) {
-        process.destroyForcibly().waitFor(5, TimeUnit.SECONDS);
-      }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
-  }
-
-  static String sha256(Path f) throws IOException {
-    try (InputStream in = Files.newInputStream(f)) {
-      MessageDigest d = MessageDigest.getInstance("SHA-256");
-      byte[] buf = new byte[1 << 16];
-      for (int n; (n = in.read(buf)) > 0; ) {
-        d.update(buf, 0, n);
-      }
-      return HexFormat.of().formatHex(d.digest());
-    } catch (java.security.NoSuchAlgorithmException e) {
-      throw new IllegalStateException(e);
+    if (container != null) {
+      container.stop(); // the Compose service keeps running
     }
   }
 

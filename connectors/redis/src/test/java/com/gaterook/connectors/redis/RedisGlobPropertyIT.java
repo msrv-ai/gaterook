@@ -48,7 +48,7 @@ class RedisGlobPropertyIT {
 
   @BeforeAll
   static void start() {
-    redis = LocalRedis.start("glob", LocalRedis.Options.of(LocalRedis.localBinary()));
+    redis = LocalRedis.start("glob", LocalRedis.Options.defaults());
     signed = signedChars(redis);
     KEYS.addAll(randomKeys(new Random(SEED), 1_000));
     seed(redis, KEYS);

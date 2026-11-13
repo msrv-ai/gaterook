@@ -39,7 +39,7 @@ class Redis62IT {
   static void start() {
     certs = LocalRedis.Certificates.create(Path.of("target", "redis-it", "tls62-" + ProcessHandle.current().pid())
         .toAbsolutePath());
-    redis = LocalRedis.start("v62", LocalRedis.Options.of(LocalRedis.redis62()).withV62().withTls(certs));
+    redis = LocalRedis.start("v62", LocalRedis.Options.defaults().withV62().withTls(certs));
     try (Jedis j = redis.admin()) {
       j.set("cache:str", "hello");
       j.hset("cache:hash", Map.of("a", "1"));

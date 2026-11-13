@@ -38,7 +38,7 @@ Direct Compose use is also possible: `docker compose -f test-services/docker-com
 
 ## Services
 
-The committed [.env](.env) contains image pins, ports, and disposable passwords. Both Compose and the test fixtures read it.
+The committed [.env](.env) contains image pins, ports, and disposable passwords. Both Compose and the test fixtures read it. Without these services the Redis ITs start the same images themselves (`GW_REDIS_TAG`, `GW_REDIS62_TAG`) in containers on ephemeral loopback ports, so they need Docker but no local Redis.
 
 | Service | Image / behavior | Loopback port | Profile |
 | --- | --- | --- | --- |

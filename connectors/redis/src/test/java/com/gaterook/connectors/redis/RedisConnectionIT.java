@@ -43,9 +43,9 @@ class RedisConnectionIT {
   static void start() {
     certs = LocalRedis.Certificates.create(Path.of("target", "redis-it", "tls-" + ProcessHandle.current().pid())
         .toAbsolutePath());
-    primary = LocalRedis.start("probe", LocalRedis.Options.of(LocalRedis.localBinary()).withTls(certs));
-    replica = LocalRedis.start("replica", LocalRedis.Options.of(LocalRedis.localBinary()).withReplicaOf(primary));
-    open = LocalRedis.start("open", LocalRedis.Options.of(LocalRedis.localBinary()).withOpenDefault());
+    primary = LocalRedis.start("probe", LocalRedis.Options.defaults().withTls(certs));
+    replica = LocalRedis.start("replica", LocalRedis.Options.defaults().withReplicaOf(primary));
+    open = LocalRedis.start("open", LocalRedis.Options.defaults().withOpenDefault());
     try (Jedis j = primary.admin()) {
       for (int i = 0; i < 20; i++) {
         j.set("cache:" + i, "v");
@@ -311,8 +311,7 @@ class RedisConnectionIT {
 
   @Test
   void aClusterNodeIsRefusedWithWhatToDoInstead() {
-    try (LocalRedis cluster = LocalRedis.start("cluster", LocalRedis.Options.of(LocalRedis.localBinary())
-        .withCluster())) {
+    try (LocalRedis cluster = LocalRedis.start("cluster", LocalRedis.Options.defaults().withCluster())) {
       TestResult r = test(cfg(cluster, null).build(), TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));
       assertThat(r.ok()).isFalse();
       assertThat(r.error().code()).isEqualTo("redis.cluster");

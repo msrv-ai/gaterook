@@ -32,7 +32,7 @@ class RedisWriteIT {
 
   @BeforeAll
   static void start() {
-    redis = LocalRedis.start("writes", LocalRedis.Options.of(LocalRedis.localBinary()));
+    redis = LocalRedis.start("writes", LocalRedis.Options.defaults());
   }
 
   @AfterAll

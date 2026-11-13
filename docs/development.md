@@ -195,7 +195,7 @@ node --test 'catalog/*.test.mjs'
 mvn -B -ntp verify
 ```
 
-Maven uses Surefire for unit tests and Failsafe for integration tests. Some default integration fixtures need local server binaries; heavy profiles may download pinned fixtures. For a portable Docker-backed suite, follow [test services](../test-services/README.md):
+Maven uses Surefire for unit tests and Failsafe for integration tests. Some default integration fixtures need local server binaries; heavy profiles may download pinned fixtures. The Redis ITs need no local Redis: they start the images of `test-services/.env` in Docker containers with Testcontainers. For a portable Docker-backed suite, follow [test services](../test-services/README.md):
 
 ```bash
 scripts/test-services.sh up

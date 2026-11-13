@@ -41,7 +41,7 @@ import redis.clients.jedis.params.XAddParams;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The tools against a real redis-server (7.0.15 here; report 05 §8): every type and its pages, long and binary
+ * The tools against a real Redis ({@link LocalRedis}, 7.0.15; report 05 §8): every type and its pages, long and binary
  * values, SCAN with MATCH and TYPE over 5,000 keys, the connection's key lists, deadlines and cancellation, the pool —
  * and that nothing but read commands ever reached the server, by its own command statistics.
  */
@@ -53,7 +53,7 @@ class RedisIT {
 
   @BeforeAll
   static void start() {
-    redis = LocalRedis.start("it", LocalRedis.Options.of(LocalRedis.localBinary()));
+    redis = LocalRedis.start("it", LocalRedis.Options.defaults());
     try (Jedis j = redis.admin()) {
       j.set("cache:str", "hello", SetParams.setParams().ex(3_600));
       j.hset("cache:hash", Map.of("a", "1", "b", "2", "c", "3"));

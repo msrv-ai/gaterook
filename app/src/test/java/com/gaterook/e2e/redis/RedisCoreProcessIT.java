@@ -30,8 +30,8 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The Redis connector through the assembled core (step C3, ARCHITECTURE.md §10): the window's admin API tests and
- * saves a connection to the machine's redis-server over TLS (a private CA, full verification for localhost) as the
+ * The Redis connector through the assembled core (step C3, ARCHITECTURE.md §10): the window's admin API tests and saves
+ * a connection to Redis ({@link LocalRedisServer}) over TLS (a private CA, full verification for localhost) as the
  * read-only ACL user, with a key denylist; an endpoint and a token; an agent then reads, scans with cursors and is
  * refused a denied key. A value holds the connection's own password: the agent sees {@code ‹masked›} (§9 "the agent
  * never sees a secret"), and the server's command statistics show that no write command ever ran.
@@ -60,9 +60,8 @@ class RedisCoreProcessIT {
 
   @BeforeAll
   static void start() throws Exception {
-    Path binary = LocalRedisServer.binary();
-    assumeTrue(binary != null, "redis-server isn't on PATH; set GW_REDIS_BIN to run this test");
-    redis = LocalRedisServer.start(binary, ADMIN_PASSWORD, RO_PASSWORD);
+    assumeTrue(LocalRedisServer.available(), "The test runs Redis in a container: Docker isn't available");
+    redis = LocalRedisServer.start(ADMIN_PASSWORD, RO_PASSWORD);
     try (Jedis j = redis.admin()) {
       j.set("cache:greeting", "hello from redis");
       // A value that quotes the connection's own password: the core masks it in the answer.

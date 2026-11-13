@@ -15,7 +15,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The native smoke's fixture touch ({@code smoke/redis.json}, fixture {@code redis}) holds against the fixture it
- * describes: the local redis-server with TLS for localhost, user ro, the list smoke:list.
+ * describes: a Redis with TLS for localhost ({@link LocalRedis}), user ro, the list smoke:list.
  */
 class SmokeFixtureIT {
 
@@ -30,7 +30,7 @@ class SmokeFixtureIT {
     assertThat(touch).isNotNull();
     LocalRedis.Certificates certs = LocalRedis.Certificates.create(Path.of("target", "redis-it",
         "smoke-tls-" + ProcessHandle.current().pid()).toAbsolutePath());
-    try (LocalRedis redis = LocalRedis.start("smoke", LocalRedis.Options.of(LocalRedis.localBinary())
+    try (LocalRedis redis = LocalRedis.start("smoke", LocalRedis.Options.defaults()
         .withTls(certs)); RedisConnector connector = new RedisConnector(Clock.systemUTC())) {
       try (Jedis j = redis.admin()) {
         j.rpush("smoke:list", "a", "b", "c");

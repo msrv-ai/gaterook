@@ -212,6 +212,12 @@
       <artifactId>de.flapdoodle.embed.mongo</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Redis for the Redis e2e, in a container (LocalRedisServer). -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
     <!--
       Build order only (e2e/plugins, K6): the plugin host and the catalog's plugin JARs are packaged before the core
       process of the e2e spawns them; found by path, never on this module's classpath (PF4J stays banned here).

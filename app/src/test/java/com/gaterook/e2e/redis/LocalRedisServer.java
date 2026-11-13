@@ -1,10 +1,11 @@
 package com.gaterook.e2e.redis;
 
 import com.gaterook.e2e.TestServices;
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -13,59 +14,53 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 import redis.clients.jedis.DefaultJedisClientConfig;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.RedisProtocol;
 
 /**
- * The machine's {@code redis-server} ({@code $GW_REDIS_BIN} or {@code PATH}; 7.0.15 here) for the end-to-end test:
- * loopback, ephemeral ports, no persistence, data under {@code target/}, TLS on a second port with a certificate for
- * {@code localhost} from a private CA made with openssl. The connector module's ITs have the full fixture; this one
- * has what the core's pipeline needs: the users {@code default} (everything) and {@code ro} (the read-only line of
- * Test connection's hint), with passwords the test chooses. With the Compose services ({@link TestServices}) the
- * server is their primary (the CA of {@code run/certs}): {@code ro} gets the chosen password for the run, the default
- * user keeps its own, and closing reloads the users of the ACL file.
+ * Redis for the end-to-end test, in a container: the image the Compose services run ({@code GW_REDIS_TAG} of
+ * {@code test-services/.env}, 7.0.15), on ephemeral ports of 127.0.0.1 only, no persistence, TLS on a second port with
+ * a certificate for {@code localhost} from a private CA made with openssl. The connector module's ITs have the full
+ * fixture; this one has what the core's pipeline needs: the users {@code default} (everything) and {@code ro} (the
+ * read-only line of Test connection's hint), with passwords the test chooses. With the Compose services
+ * ({@link TestServices}) the server is their primary (the CA of {@code run/certs}): {@code ro} gets the chosen password
+ * for the run, the default user keeps its own, and closing reloads the users of the ACL file.
  */
 final class LocalRedisServer implements AutoCloseable {
 
-  final Path dir;
+  /** The ports inside the container, as in the Compose services. */
+  private static final int PORT = 6379;
+  private static final int TLS_PORT = 6380;
+
   final int port;
   final int tlsPort;
   final String caPem;
   private final String adminPassword;
-  private final Process process;
+  private final GenericContainer<?> container;
 
-  private LocalRedisServer(Path dir, int port, int tlsPort, String caPem, String adminPassword, Process process) {
-    this.dir = dir;
+  private LocalRedisServer(int port, int tlsPort, String caPem, String adminPassword, GenericContainer<?> container) {
     this.port = port;
     this.tlsPort = tlsPort;
     this.caPem = caPem;
     this.adminPassword = adminPassword;
-    this.process = process;
+    this.container = container;
   }
 
-  /** The binary, or {@code null} when this machine has none (the test is skipped); the Compose services need none. */
-  static Path binary() {
-    if (TestServices.enabled()) {
-      return Path.of("compose");
-    }
-    String env = System.getenv("GW_REDIS_BIN");
-    if (env != null && !env.isBlank()) {
-      return Path.of(env);
-    }
-    for (String d : System.getenv().getOrDefault("PATH", "/usr/bin").split(":")) {
-      Path p = Path.of(d, "redis-server");
-      if (Files.isExecutable(p)) {
-        return p;
-      }
-    }
-    return null;
+  /** Whether there is a server to have: the Compose services, or Docker to run one in (else the test is skipped). */
+  static boolean available() {
+    return TestServices.enabled() || DockerClientFactory.instance().isDockerAvailable();
   }
 
-  static LocalRedisServer start(Path binary, String adminPassword, String roPassword) throws Exception {
+  static LocalRedisServer start(String adminPassword, String roPassword) throws Exception {
     if (TestServices.enabled()) {
-      LocalRedisServer r = new LocalRedisServer(null, TestServices.port("GW_REDIS_PORT"),
+      LocalRedisServer r = new LocalRedisServer(TestServices.port("GW_REDIS_PORT"),
           TestServices.port("GW_REDIS_TLS_PORT"), Files.readString(TestServices.file("run/certs/ca.crt")),
           "default-pass", null);
       try (Jedis j = r.admin()) {
@@ -88,28 +83,37 @@ final class LocalRedisServer implements AutoCloseable {
         "user default on >" + adminPassword + " ~* &* +@all",
         "user ro on >" + roPassword + " ~* resetchannels -@all +@read +@connection -@dangerous -dump -xread -lolwut",
         ""));
-    int port = freePort();
-    int tlsPort = freePort();
-    Process p = new ProcessBuilder(List.of(binary.toString(), "--bind", "127.0.0.1", "--port", Integer.toString(port),
-        "--tls-port", Integer.toString(tlsPort), "--tls-cert-file", dir.resolve("server.crt").toString(),
-        "--tls-key-file", dir.resolve("server.key").toString(), "--tls-ca-cert-file", dir.resolve("ca.crt").toString(),
-        "--tls-auth-clients", "no", "--save", "", "--appendonly", "no", "--dir", dir.toString(), "--logfile",
-        dir.resolve("redis.log").toString(), "--aclfile", dir.resolve("users.acl").toString(), "--protected-mode",
-        "no")).redirectErrorStream(true).redirectOutput(dir.resolve("stdout.log").toFile()).start();
-    LocalRedisServer r = new LocalRedisServer(dir, port, tlsPort, Files.readString(dir.resolve("ca.crt")),
-        adminPassword, p);
+    String image = "redis:" + TestServices.tag("GW_REDIS_TAG");
+    List<PortBinding> loopback = List.of(PORT, TLS_PORT).stream()
+        .map(p -> new PortBinding(Ports.Binding.bindIp("127.0.0.1"), ExposedPort.tcp(p))).toList();
+    GenericContainer<?> c = new GenericContainer<>(DockerImageName.parse(image))
+        .withCopyFileToContainer(MountableFile.forHostPath(dir.resolve("users.acl"), 0644), "/conf/users.acl")
+        .withCopyFileToContainer(MountableFile.forHostPath(dir.resolve("server.crt"), 0644), "/certs/server.crt")
+        .withCopyFileToContainer(MountableFile.forHostPath(dir.resolve("server.key"), 0644), "/certs/server.key")
+        .withCopyFileToContainer(MountableFile.forHostPath(dir.resolve("ca.crt"), 0644), "/certs/ca.crt")
+        .withExposedPorts(PORT, TLS_PORT)
+        // On 127.0.0.1 only, as the Compose services publish them.
+        .withCreateContainerCmdModifier(create -> create.getHostConfig().withPublishAllPorts(false)
+            .withPortBindings(loopback))
+        .withCommand("redis-server", "--port", Integer.toString(PORT), "--tls-port", Integer.toString(TLS_PORT),
+            "--tls-cert-file", "/certs/server.crt", "--tls-key-file", "/certs/server.key", "--tls-ca-cert-file",
+            "/certs/ca.crt", "--tls-auth-clients", "no", "--save", "", "--appendonly", "no", "--aclfile",
+            "/conf/users.acl", "--protected-mode", "no")
+        .waitingFor(Wait.forLogMessage(".*Ready to accept connections.*", 1)
+            .withStartupTimeout(Duration.ofSeconds(60)));
+    c.start();
+    LocalRedisServer r = new LocalRedisServer(c.getMappedPort(PORT), c.getMappedPort(TLS_PORT),
+        Files.readString(dir.resolve("ca.crt")), adminPassword, c);
     long until = System.nanoTime() + Duration.ofSeconds(15).toNanos();
-    while (System.nanoTime() < until) {
-      if (!p.isAlive()) {
-        throw new IllegalStateException("redis-server exited: " + Files.readString(dir.resolve("stdout.log")));
-      }
-      if (r.answers()) {
-        return r;
+    while (!r.answers()) {
+      if (System.nanoTime() > until) {
+        String log = c.getLogs();
+        r.close();
+        throw new IllegalStateException(image + " doesn't answer on 127.0.0.1:" + r.port + ": " + log);
       }
       Thread.sleep(25);
     }
-    r.close();
-    throw new IllegalStateException("redis-server didn't start in 15 s");
+    return r;
   }
 
   /** A client of the test itself (seeding, checks), as the default user. */
@@ -132,12 +136,6 @@ final class LocalRedisServer implements AutoCloseable {
     }
   }
 
-  private static int freePort() throws IOException {
-    try (ServerSocket s = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
-      return s.getLocalPort();
-    }
-  }
-
   private static void run(Path dir, String... cmd) throws IOException, InterruptedException {
     Process p = new ProcessBuilder(cmd).directory(dir.toFile()).redirectErrorStream(true).start();
     String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -148,19 +146,12 @@ final class LocalRedisServer implements AutoCloseable {
 
   @Override
   public void close() {
-    if (process == null) {
+    if (container == null) {
       try (Jedis j = admin()) {
         j.aclLoad(); // the Compose service keeps running, with the users of its ACL file
       }
       return;
     }
-    process.destroy();
-    try {
-      if (!process.waitFor(5, TimeUnit.SECONDS)) {
-        process.destroyForcibly().waitFor(5, TimeUnit.SECONDS);
-      }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
+    container.stop();
   }
 }
