@@ -5,7 +5,7 @@
   "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Cypher reads in read-only transactions, the graph's schema and its nodes and paths. Writes wait for approval.",
-  "moduleClass": "ai.msrv.gaterook.connectors.neo4j.module.Neo4jModule",
+  "moduleClass": "com.gaterook.connectors.neo4j.module.Neo4jModule",
   "requires": {
     "gateway": ">=0.9.2 & <1.0.0",
     "connectorApi": ">=1.2.0 & <2.0.0"

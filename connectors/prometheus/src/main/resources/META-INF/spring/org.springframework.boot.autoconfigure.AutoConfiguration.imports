@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.prometheus.boot.PrometheusConnectorsAutoConfiguration
+com.gaterook.connectors.prometheus.boot.PrometheusConnectorsAutoConfiguration

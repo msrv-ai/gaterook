@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.redis.boot.RedisConnectorsAutoConfiguration
+com.gaterook.connectors.redis.boot.RedisConnectorsAutoConfiguration

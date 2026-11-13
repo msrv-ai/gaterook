@@ -1,5 +1,0 @@
-{
-  "resources": [
-    { "glob": "ai/msrv/gaterook/bridge/build.properties" }
-  ]
-}

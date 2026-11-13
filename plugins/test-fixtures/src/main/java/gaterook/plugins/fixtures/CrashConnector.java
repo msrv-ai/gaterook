@@ -1,10 +1,10 @@
 package gaterook.plugins.fixtures;
 
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.ExecContext;
-import ai.msrv.gaterook.connector.api.SecretResolver;
-import ai.msrv.gaterook.connector.api.ToolCall;
-import ai.msrv.gaterook.connector.api.ToolResult;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.SecretResolver;
+import com.gaterook.connector.api.ToolCall;
+import com.gaterook.connector.api.ToolResult;
 
 /**
  * {@code crash_now} ends the whole plugin process with exit code 3, as a plugin calling {@code System.exit} would; the

@@ -1,12 +1,12 @@
 package gaterook.plugins.fixtures;
 
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.ConnectorException;
-import ai.msrv.gaterook.connector.api.ExecContext;
-import ai.msrv.gaterook.connector.api.SecretResolver;
-import ai.msrv.gaterook.connector.api.TestResult;
-import ai.msrv.gaterook.connector.api.ToolCall;
-import ai.msrv.gaterook.connector.api.ToolResult;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.SecretResolver;
+import com.gaterook.connector.api.TestResult;
+import com.gaterook.connector.api.ToolCall;
+import com.gaterook.connector.api.ToolResult;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

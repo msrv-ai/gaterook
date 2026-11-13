@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.spanner.boot.SpannerConnectorsAutoConfiguration
+com.gaterook.connectors.spanner.boot.SpannerConnectorsAutoConfiguration

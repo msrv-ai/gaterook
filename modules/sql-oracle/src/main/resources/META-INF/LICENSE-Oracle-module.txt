@@ -1,6 +1,6 @@
 This package is GateRook's Oracle Database connector with the libraries it needs, unmodified, in one file.
 
-GateRook's own code (ai.msrv.gaterook.connectors.*, https://github.com/gaterook/gaterook) is under the Apache
+GateRook's own code (com.gaterook.connectors.*, https://github.com/gaterook/gaterook) is under the Apache
 License 2.0.
 
 It includes:

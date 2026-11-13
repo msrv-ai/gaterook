@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.redshift.boot.RedshiftConnectorsAutoConfiguration
+com.gaterook.connectors.redshift.boot.RedshiftConnectorsAutoConfiguration

@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.trino.boot.TrinoConnectorsAutoConfiguration
+com.gaterook.connectors.trino.boot.TrinoConnectorsAutoConfiguration

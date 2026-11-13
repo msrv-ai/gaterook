@@ -2,9 +2,9 @@ package gaterook.plugins.jira;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ai.msrv.gaterook.connector.api.ToolDefinition;
-import ai.msrv.gaterook.plugin.protocol.PluginManifest;
-import ai.msrv.gaterook.plugin.protocol.WireCodec;
+import com.gaterook.connector.api.ToolDefinition;
+import com.gaterook.plugin.protocol.PluginManifest;
+import com.gaterook.plugin.protocol.WireCodec;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

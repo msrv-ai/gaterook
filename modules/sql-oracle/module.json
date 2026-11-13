@@ -5,7 +5,7 @@
   "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Schemas, tables and queries on Oracle Database 19c and later. Writes wait for approval.",
-  "moduleClass": "ai.msrv.gaterook.connectors.sql.oracle.module.OracleModule",
+  "moduleClass": "com.gaterook.connectors.sql.oracle.module.OracleModule",
   "requires": {
     "gateway": ">=0.9.2 & <1.0.0",
     "connectorApi": ">=1.2.0 & <2.0.0"

@@ -12,7 +12,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
   </parent>
@@ -21,16 +21,16 @@
   <name>GateRook · Plugin host</name>
 
   <properties>
-    <start-class>ai.msrv.gaterook.pluginhost.Main</start-class>
+    <start-class>com.gaterook.pluginhost.Main</start-class>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-protocol</artifactId>
     </dependency>
     <dependency>

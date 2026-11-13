@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.cloudflare.boot.CloudflareConnectorsAutoConfiguration
+com.gaterook.connectors.cloudflare.boot.CloudflareConnectorsAutoConfiguration

@@ -1,0 +1,439 @@
+package com.gaterook.connectors.azure;
+
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.SecretResolver;
+import com.gaterook.connectors.cloudauth.AzureCloud;
+import com.gaterook.connectors.cloudauth.AzureCloud.Audience;
+import com.gaterook.connectors.cloudauth.AzureCredentials;
+import com.gaterook.connectors.cloudauth.CloudCredentials;
+import com.gaterook.connectors.support.OutputSanitizer;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import javax.net.ssl.SSLException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+
+/**
+ * Azure Resource Manager over {@code java.net.http}, with an Entra ID token of the connection for Resource Manager.
+ *
+ * <p>Every URL is the gateway's own: the cloud's Resource Manager host (or, in a development build, the test endpoint
+ * the core configured with the test sign-in) and a path built from checked, percent-encoded segments
+ * ({@link ResourceIds}). The token goes only where {@link AzureCredentials#sendsTokensTo} allows it, never to a
+ * {@code nextLink} or {@code Location} of another host; redirects are never followed; answers are read up to 8 MB;
+ * every request runs against the call's deadline. Each token's tenant must be the connection's pinned tenant, and the
+ * token goes to the call's taint.
+ */
+final class Arm {
+
+  static final long MAX_BODY = 8L * 1024 * 1024;
+  static final Duration MARGIN = Duration.ofMillis(150);
+  static final Duration MAX_REQUEST = Duration.ofSeconds(30);
+  private static final JsonMapper JSON = JsonMapper.builder().build();
+
+  /** One answer of Resource Manager. {@code body} is JSON, else an object holding the text under {@code text}. */
+  record Answer(int status, Map<String, List<String>> headers, JsonNode body, boolean truncated) {
+    boolean ok() {
+      return status / 100 == 2;
+    }
+
+    String header(String name) {
+      for (Map.Entry<String, List<String>> e : headers.entrySet()) {
+        if (e.getKey() != null && e.getKey().equalsIgnoreCase(name) && !e.getValue().isEmpty()) {
+          return e.getValue().getFirst();
+        }
+      }
+      return null;
+    }
+  }
+
+  /** One data-plane answer (Storage, Service Bus, Key Vault): its bytes, read up to the request's limit. */
+  record Raw(int status, Map<String, List<String>> headers, byte[] body, boolean truncated) {
+    boolean ok() {
+      return status / 100 == 2;
+    }
+
+    String header(String name) {
+      for (Map.Entry<String, List<String>> e : headers.entrySet()) {
+        if (e.getKey() != null && e.getKey().equalsIgnoreCase(name) && !e.getValue().isEmpty()) {
+          return e.getValue().getFirst();
+        }
+      }
+      return null;
+    }
+
+    String text() {
+      return new String(body, StandardCharsets.UTF_8);
+    }
+  }
+
+  private final HttpClient http;
+  private final CloudCredentials cloud;
+  private final CloudCredentials.Owner owner;
+  private final Settings settings;
+  private final SecretResolver secrets;
+  private final ExecContext ctx;
+  private final boolean pinned;
+
+  /**
+   * @param pinned whether tokens must belong to the connection's pinned tenant; Test connection reads without the pin
+   *               and records the tenant it found
+   */
+  Arm(HttpClient http, CloudCredentials cloud, CloudCredentials.Owner owner, Settings settings, SecretResolver secrets,
+      ExecContext ctx, boolean pinned) {
+    this.http = http;
+    this.cloud = cloud;
+    this.owner = owner;
+    this.settings = settings;
+    this.secrets = secrets;
+    this.ctx = ctx;
+    this.pinned = pinned;
+  }
+
+  /** A client for Resource Manager: HTTP/1.1, no proxy, no redirects; no per-connection state. */
+  static HttpClient client() {
+    return HttpClient.newBuilder()
+        .version(HttpClient.Version.HTTP_1_1)
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .proxy(HttpClient.Builder.NO_PROXY)
+        .connectTimeout(Duration.ofSeconds(5))
+        .build();
+  }
+
+  ExecContext ctx() {
+    return ctx;
+  }
+
+  AzureCloud cloudOf() {
+    return settings.credentials().cloud();
+  }
+
+  /** {@code <base><path>?api-version=…&…}: the path already encoded, the parameters encoded here. */
+  URI url(String encodedPath, Map<String, String> query) {
+    URI base = cloud.azure().base(cloudOf(), Audience.ARM);
+    String b = base.toString().endsWith("/") ? base.toString().substring(0, base.toString().length() - 1)
+        : base.toString();
+    StringBuilder q = new StringBuilder();
+    for (Map.Entry<String, String> e : query.entrySet()) {
+      q.append(q.isEmpty() ? '?' : '&').append(encode(e.getKey())).append('=').append(encode(e.getValue()));
+    }
+    return URI.create(b + encodedPath + q);
+  }
+
+  /** {@code https://<host>} of a data-plane audience (or its test endpoint): {@link AzureCredentials#dataPlane}. */
+  URI dataPlane(Audience audience, String host) {
+    return cloud.azure().dataPlane(cloudOf(), audience, host);
+  }
+
+  /** A query map with {@code api-version} first. */
+  static Map<String, String> query(String apiVersion) {
+    Map<String, String> q = new LinkedHashMap<>();
+    q.put("api-version", apiVersion);
+    return q;
+  }
+
+  static String encode(String s) {
+    return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  /** The call's token for Resource Manager, of the pinned tenant, tainted. */
+  AzureCredentials.AccessToken token() throws ConnectorException {
+    return token(Audience.ARM);
+  }
+
+  /** The call's token for {@code audience}, of the pinned tenant, tainted. */
+  AzureCredentials.AccessToken token(Audience audience) throws ConnectorException {
+    AzureCredentials.AccessToken t = cloud.azure().token(owner, settings.credentials(), audience, secrets,
+        ctx.remaining().minus(MARGIN));
+    ctx.taint(t.value());
+    if (pinned) {
+      String pin = settings.pinnedTenant();
+      if (pin == null) {
+        throw ConnectorException.denied("Test the connection once: GateRook pins the Azure tenant its sign-in "
+            + "belongs to before agents read through it.");
+      }
+      if (t.tenantId() != null && !pin.equals(t.tenantId())) {
+        cloud.azure().invalidate(owner.id(), audience);
+        throw ConnectorException.denied("The Azure sign-in now belongs to tenant " + t.tenantId() + ", not " + pin
+            + ". Sign in to the connection's tenant (az login --tenant " + pin + "), or test the connection again.");
+      }
+    }
+    return t;
+  }
+
+  /** A GET whose answer must be 2xx: other answers become errors for the agent. */
+  JsonNode get(URI uri, String what) throws ConnectorException {
+    Answer a = send("GET", uri, null, what);
+    if (!a.ok()) {
+      throw error(a, what);
+    }
+    return a.body();
+  }
+
+  /** A read-only POST (Resource Graph, metrics batch): the answer must be 2xx. */
+  JsonNode post(URI uri, JsonNode body, String what) throws ConnectorException {
+    Answer a = send("POST", uri, body, what);
+    if (!a.ok()) {
+      throw error(a, what);
+    }
+    return a.body();
+  }
+
+  /** One request, any answer: the API tools hand 4xx answers to the agent as data. */
+  Answer send(String method, URI uri, JsonNode body, String what) throws ConnectorException {
+    if (!cloud.azure().sendsTokensTo(cloudOf(), Audience.ARM, uri)) {
+      throw new IllegalArgumentException("Not a Resource Manager URL of " + cloudOf().id() + ": " + uri.getScheme()
+          + "://" + uri.getHost());
+    }
+    AzureCredentials.AccessToken token = token();
+    HttpRequest.Builder b = HttpRequest.newBuilder(uri)
+        .header("Authorization", "Bearer " + token.value())
+        .header("Accept", "application/json")
+        .header("x-ms-client-request-id", requestId());
+    HttpRequest.BodyPublisher publisher = body == null ? HttpRequest.BodyPublishers.noBody()
+        : HttpRequest.BodyPublishers.ofString(body.toString());
+    if (body != null) {
+      b.header("Content-Type", "application/json");
+    }
+    b.method(method, publisher);
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    HttpRequest built = b.timeout(left.compareTo(MAX_REQUEST) > 0 ? MAX_REQUEST : left).build();
+    Raw raw = exchange(built, uri, MAX_BODY, what);
+    int status = raw.status();
+    byte[] bytes = raw.body();
+    boolean truncated = raw.truncated();
+    Map<String, List<String>> headers = raw.headers();
+    if (truncated && status / 100 == 2) {
+      throw ConnectorException.resourceError(what + " answered with more than " + (MAX_BODY >> 20) + " MB. Narrow "
+          + "the request ($filter, $top, $select).", null);
+    }
+    if (status == 401) {
+      cloud.azure().invalidate(owner.id(), Audience.ARM);
+    }
+    JsonNode tree;
+    if (bytes.length == 0) {
+      tree = JsonNodeFactory.instance.objectNode();
+    } else {
+      try {
+        tree = JSON.readTree(bytes);
+      } catch (JacksonException e) {
+        tree = JsonNodeFactory.instance.objectNode().put("text", excerpt(new String(bytes, StandardCharsets.UTF_8)));
+      }
+    }
+    return new Answer(status, headers, tree, truncated);
+  }
+
+  /**
+   * One data-plane request of {@code audience}: a Storage account's service, a vault, a namespace, on a URL of
+   * {@link AzureCredentials#dataPlane}. The answer's bytes are read up to {@code max}; a 401 drops the token.
+   *
+   * @param headers sent as given, after the token, the API version headers the caller chose and the request id
+   */
+  Raw raw(Audience audience, String method, URI uri, Map<String, String> headers, byte[] body, long max, String what)
+      throws ConnectorException {
+    if (!cloud.azure().sendsTokensTo(cloudOf(), audience, uri)) {
+      throw new IllegalArgumentException("Not a " + audience.title() + " URL of " + cloudOf().id() + ": "
+          + uri.getScheme() + "://" + uri.getHost());
+    }
+    AzureCredentials.AccessToken token = token(audience);
+    HttpRequest.Builder b = HttpRequest.newBuilder(uri)
+        .header("Authorization", "Bearer " + token.value())
+        .header("x-ms-client-request-id", requestId());
+    headers.forEach(b::header);
+    b.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(body));
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    Raw r = exchange(b.timeout(left.compareTo(MAX_REQUEST) > 0 ? MAX_REQUEST : left).build(), uri, max, what);
+    if (r.status() == 401) {
+      cloud.azure().invalidate(owner.id(), audience);
+    }
+    return r;
+  }
+
+  /**
+   * {@link #raw}, with the answer's header names in the case the server sent them. {@code java.net.http} gives them in
+   * lower case, and Service Bus sends a message's application properties as headers whose names are case-sensitive
+   * for its receivers: a resubmitted copy must keep them. {@code HttpURLConnection} keeps the case; the same token,
+   * host check, proxy, redirect, size and deadline rules apply.
+   */
+  Raw rawKeepingHeaderCase(Audience audience, String method, URI uri, Map<String, String> headers, byte[] body,
+      long max, String what) throws ConnectorException {
+    if (!cloud.azure().sendsTokensTo(cloudOf(), audience, uri)) {
+      throw new IllegalArgumentException("Not a " + audience.title() + " URL of " + cloudOf().id() + ": "
+          + uri.getScheme() + "://" + uri.getHost());
+    }
+    AzureCredentials.AccessToken token = token(audience);
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    int timeout = (int) Math.max(1, Math.min(left.toMillis(), MAX_REQUEST.toMillis()));
+    java.net.HttpURLConnection c = null;
+    try {
+      c = (java.net.HttpURLConnection) uri.toURL().openConnection(java.net.Proxy.NO_PROXY);
+      c.setInstanceFollowRedirects(false);
+      c.setUseCaches(false);
+      c.setConnectTimeout(Math.min(timeout, 5_000));
+      c.setReadTimeout(timeout);
+      c.setRequestMethod(method);
+      c.setRequestProperty("Authorization", "Bearer " + token.value());
+      c.setRequestProperty("x-ms-client-request-id", requestId());
+      headers.forEach(c::setRequestProperty);
+      if (body != null) {
+        c.setDoOutput(true);
+        c.setFixedLengthStreamingMode(body.length);
+        try (java.io.OutputStream out = c.getOutputStream()) {
+          out.write(body);
+        }
+      }
+      int status = c.getResponseCode();
+      Map<String, List<String>> received = new java.util.LinkedHashMap<>();
+      c.getHeaderFields().forEach((k, v) -> {
+        if (k != null) {
+          received.put(k, v);
+        }
+      });
+      InputStream stream = status >= 400 ? c.getErrorStream() : c.getInputStream();
+      ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
+      boolean truncated = false;
+      if (stream != null) {
+        try (InputStream in = stream) {
+          byte[] buf = new byte[16384];
+          long total = 0;
+          int n;
+          while ((n = in.read(buf)) > 0) {
+            if (total + n > max) {
+              out.write(buf, 0, (int) (max - total));
+              truncated = true;
+              break;
+            }
+            total += n;
+            out.write(buf, 0, n);
+          }
+        }
+      }
+      if (status == 401) {
+        cloud.azure().invalidate(owner.id(), audience);
+      }
+      return new Raw(status, received, out.toByteArray(), truncated);
+    } catch (java.net.SocketTimeoutException e) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    } catch (ConnectException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
+    } catch (SSLException e) {
+      throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
+    } finally {
+      if (c != null && body == null) {
+        c.disconnect();
+      }
+    }
+  }
+
+  /** Sends one request and reads up to {@code max} bytes of the answer; transport failures become refusals. */
+  private Raw exchange(HttpRequest built, URI uri, long max, String what) throws ConnectorException {
+    try {
+      HttpResponse<InputStream> r = http.send(built, HttpResponse.BodyHandlers.ofInputStream());
+      try (InputStream in = r.body()) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
+        byte[] buf = new byte[16384];
+        long total = 0;
+        int n;
+        boolean truncated = false;
+        while ((n = in.read(buf)) > 0) {
+          if (total + n > max) {
+            out.write(buf, 0, (int) (max - total));
+            truncated = true;
+            break;
+          }
+          total += n;
+          out.write(buf, 0, n);
+        }
+        return new Raw(r.statusCode(), r.headers().map(), out.toByteArray(), truncated);
+      }
+    } catch (HttpConnectTimeoutException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + " (timed out). Check that this computer "
+          + "can reach Azure.", e);
+    } catch (HttpTimeoutException e) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    } catch (ConnectException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
+    } catch (SSLException e) {
+      throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw ConnectorException.timeout(what + " was cancelled.");
+    }
+  }
+
+  /** What a Resource Manager refusal means and what to do. */
+  ConnectorException error(Answer a, String what) {
+    JsonNode error = a.body().path("error");
+    String code = error.path("code").asString("");
+    String message = excerpt(error.path("message").asString(a.body().path("text").asString("")));
+    String identity = settings.credentials().identity();
+    return switch (a.status()) {
+      case 400 -> ConnectorException.badInput(what + " refused the request (" + code + "): " + message);
+      case 401 -> ConnectorException.unavailable(what + " refused the token (" + code + "): " + message
+          + ". Sign in again (az login or Test connection), then try again.", null);
+      case 403 -> ConnectorException.resourceError(what + " denied " + identity + " (" + code + "): " + message
+          + (code.equals("AuthorizationFailed") ? " Assign the Reader role on the subscription or resource group."
+              : ""), null);
+      case 404 -> ConnectorException.resourceError(what + ": not found (" + code + "). " + message, null);
+      case 429 -> ConnectorException.resourceError(what + " is throttled by Azure Resource Manager"
+          + (a.header("Retry-After") == null ? "" : ": retry after " + a.header("Retry-After") + " s")
+          + ". Requests are shared with people and other tools.", null);
+      default -> a.status() >= 500
+          ? ConnectorException.unavailable(what + " failed (" + a.status() + (code.isEmpty() ? "" : ", " + code)
+              + "): " + message, null)
+          : ConnectorException.resourceError(what + " answered " + a.status() + (code.isEmpty() ? "" : " (" + code
+              + ")") + ": " + message, null);
+    };
+  }
+
+  private String requestId() {
+    String id = ctx.callId();
+    return id == null || !id.matches("[A-Za-z0-9_-]{1,64}") ? java.util.UUID.randomUUID().toString() : id;
+  }
+
+  static String excerpt(String text) {
+    if (text == null || text.isBlank()) {
+      return "";
+    }
+    String t = OutputSanitizer.sanitize(text.strip());
+    return t.length() <= 600 ? t : t.substring(0, 599) + "…";
+  }
+
+  static String host(URI uri) {
+    return uri.getPort() < 0 ? uri.getHost() : uri.getHost() + ":" + uri.getPort();
+  }
+
+  private static String reason(Throwable e) {
+    String m = e.getMessage();
+    return m == null || m.isBlank() ? e.getClass().getSimpleName() : m;
+  }
+}

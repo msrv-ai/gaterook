@@ -1,0 +1,51 @@
+package com.gaterook.core.mcp.internal;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * One parsed JSON-RPC request with its era (ARCHITECTURE.md §5 step 3).
+ *
+ * @param id                 the request id; {@code null} for a notification
+ * @param version            the revision the answer speaks ({@code 2026-07-28}, {@code 2025-11-25}, …)
+ * @param clientCapabilities modern: from {@code _meta}; legacy: from {@code initialize}, and on later requests what the
+ *                           dispatcher knows ({@link BridgeClient}, else the principal's last {@code initialize})
+ * @param clientInfo         what the client says it is ({@code _meta} or {@code initialize}); shown, never trusted
+ * @param traceparent        {@code params._meta.traceparent} as sent (validated where it is used)
+ */
+public record Envelope(Era era, String version, JsonNode id, String method, ObjectNode params,
+    JsonNode clientCapabilities, JsonNode clientInfo, String traceparent) {
+
+  public boolean notification() {
+    return id == null;
+  }
+
+  /** The client accepts URL elicitation in this request (MRTR approvals, A3). */
+  public boolean elicitationUrl() {
+    return era == Era.MODERN && clientCapabilities != null
+        && clientCapabilities.path("elicitation").path("url").isObject();
+  }
+
+  /** The client takes tasks of the 2026-07-28 Tasks extension in this request ({@link CallTasks}). */
+  public boolean takesTasks() {
+    return era == Era.MODERN && clientCapabilities != null
+        && clientCapabilities.path("extensions").path(CallTasks.EXTENSION).isObject();
+  }
+
+  public JsonNode meta() {
+    JsonNode meta = params.path("_meta");
+    return meta.isObject() ? meta : JsonNodeFactory.instance.objectNode();
+  }
+
+  /** A rendering capability only; it never grants authority to decide an approval. */
+  public boolean supportsUi() {
+    if (clientCapabilities == null) return false;
+    JsonNode types = clientCapabilities.path("extensions").path(McpAppResource.EXTENSION).path("mimeTypes");
+    if (!types.isArray()) return false;
+    for (JsonNode type : types) {
+      if (type.isString() && McpAppResource.MIME_TYPE.equals(type.asString())) return true;
+    }
+    return false;
+  }
+}

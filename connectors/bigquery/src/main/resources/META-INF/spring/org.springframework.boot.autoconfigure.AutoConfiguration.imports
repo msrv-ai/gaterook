@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.bigquery.boot.BigQueryConnectorsAutoConfiguration
+com.gaterook.connectors.bigquery.boot.BigQueryConnectorsAutoConfiguration

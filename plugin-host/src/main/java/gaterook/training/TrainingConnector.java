@@ -1,18 +1,18 @@
 package gaterook.training;
 
-import ai.msrv.gaterook.connector.api.ActionPreview;
-import ai.msrv.gaterook.connector.api.Classification;
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.Connector;
-import ai.msrv.gaterook.connector.api.ConnectorException;
-import ai.msrv.gaterook.connector.api.ConnectorManifest;
-import ai.msrv.gaterook.connector.api.ExecContext;
-import ai.msrv.gaterook.connector.api.PolicyView;
-import ai.msrv.gaterook.connector.api.SecretResolver;
-import ai.msrv.gaterook.connector.api.TestResult;
-import ai.msrv.gaterook.connector.api.ToolCall;
-import ai.msrv.gaterook.connector.api.ToolDefinition;
-import ai.msrv.gaterook.connector.api.ToolResult;
+import com.gaterook.connector.api.ActionPreview;
+import com.gaterook.connector.api.Classification;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.Connector;
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ConnectorManifest;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.PolicyView;
+import com.gaterook.connector.api.SecretResolver;
+import com.gaterook.connector.api.TestResult;
+import com.gaterook.connector.api.ToolCall;
+import com.gaterook.connector.api.ToolDefinition;
+import com.gaterook.connector.api.ToolResult;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
@@ -27,7 +27,7 @@ import tools.jackson.databind.node.ObjectNode;
  * real one does — secrets over the callback, the guarded HTTP client, a table result, a log line, classify and
  * describeAction — so the host's classes for all of that land in the cache.
  *
- * <p>It lives outside {@code ai.msrv.gaterook} because a plugin's {@code connectorClass} may not be there (those packages
+ * <p>It lives outside {@code com.gaterook} because a plugin's {@code connectorClass} may not be there (those packages
  * are the host's and the SPI's), and it is one class without nested ones: {@code Train} copies this single class file
  * into the training plugin's jar.
  */

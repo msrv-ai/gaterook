@@ -11,7 +11,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -22,16 +22,16 @@
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
     <!-- A server at a URL that signs in with Google Cloud or AWS credentials: tokens and SigV4 from the core's own. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-cloud-auth</artifactId>
     </dependency>
     <dependency>

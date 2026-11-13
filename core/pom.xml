@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  The gateway core: a Spring Boot application (ai.msrv.gaterook.core.GatewayApplication) cut into Spring Modulith
+  The gateway core: a Spring Boot application (com.gaterook.core.GatewayApplication) cut into Spring Modulith
   modules (ARCHITECTURE.md §2.2). It reaches connectors only through Connector beans; it never imports a connector
   implementation. Assembled with every connector by `app`, which owns repackaging and the native image.
 -->
@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
   </parent>
@@ -20,21 +20,21 @@
   <dependencies>
     <!-- ── Our modules ── -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-protocol</artifactId>
     </dependency>
     <!-- Egress guard for the catalog, plugin downloads and OpenAPI by URL. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
     <!-- GCP Secret Manager and AWS Secrets Manager credentials. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-cloud-auth</artifactId>
     </dependency>
 
@@ -161,7 +161,7 @@
       earlier build (or skipped on a fresh checkout). Never on this module's classpath.
     -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-host</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -171,7 +171,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-jira-service-desk</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -181,7 +181,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-test-fixtures</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -212,13 +212,13 @@
         <includes>
           <include>gw-bridge.mjs</include>
         </includes>
-        <targetPath>ai/msrv/gaterook/core/clients/bridge</targetPath>
+        <targetPath>com/gaterook/core/clients/bridge</targetPath>
       </resource>
       <!-- The MCP App shares the application runtime stylesheet. -->
       <resource>
         <directory>${project.basedir}/../assets</directory>
         <includes><include>gw-kit.css</include></includes>
-        <targetPath>ai/msrv/gaterook/core/mcp/apps</targetPath>
+        <targetPath>com/gaterook/core/mcp/apps</targetPath>
       </resource>
     </resources>
     <plugins>

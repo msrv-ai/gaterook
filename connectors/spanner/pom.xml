@@ -9,7 +9,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -18,15 +18,15 @@
   <name>GateRook · Connectors · Spanner</name>
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-cloud-auth</artifactId>
     </dependency>
     <dependency>

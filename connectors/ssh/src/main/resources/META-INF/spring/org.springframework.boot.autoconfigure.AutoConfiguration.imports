@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.ssh.boot.SshConnectorsAutoConfiguration
+com.gaterook.connectors.ssh.boot.SshConnectorsAutoConfiguration

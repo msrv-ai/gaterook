@@ -96,7 +96,7 @@ export const PROXIES = '(dynamic proxies)';
 const JDK = ['java.', 'javax.', 'jdk.', 'sun.', 'com.sun.', 'org.graalvm.', 'com.oracle.svm.', 'com.oracle.graal.',
   'org.w3c.', 'org.xml.', 'org.ietf.', 'org.jcp.'];
 const GENERATED = ['$$Lambda', '$$SpringCGLIB', '$HibernateProxy', '$$EnhancerBySpring', '$$FastClassBySpring'];
-/** Package names under ai.msrv.gaterook.connectors that differ from their module's directory. */
+/** Package names under com.gaterook.connectors that differ from their module's directory. */
 const PACKAGE_MODULE = { cloudauth: 'cloud-auth', mcpserver: 'mcp-server', mcp: 'mcp-server' };
 
 /**
@@ -117,9 +117,9 @@ export function originOfClass(className, index) {
     if (inner < 0) break;
     probe = probe.slice(0, inner);
   }
-  const connector = /^ai\.msrv\.gaterook\.connectors\.([a-z0-9]+)\./.exec(cls)?.[1];
+  const connector = /^com\.gaterook\.connectors\.([a-z0-9]+)\./.exec(cls)?.[1];
   if (connector) return `module:${PACKAGE_MODULE[connector] ?? connector}`;
-  if (cls.startsWith('ai.msrv.gaterook.')) return 'module:core';
+  if (cls.startsWith('com.gaterook.')) return 'module:core';
   const pkg = cls.includes('.') ? cls.slice(0, cls.lastIndexOf('.')) : '';
   const owners = index.packages.get(pkg);
   if (owners?.size === 1) return [...owners][0];

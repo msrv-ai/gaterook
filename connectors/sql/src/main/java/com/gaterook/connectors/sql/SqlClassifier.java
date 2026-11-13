@@ -1,0 +1,957 @@
+package com.gaterook.connectors.sql;
+
+import com.gaterook.connectors.sql.FunctionRules.FunctionRef;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.Alias;
+import net.sf.jsqlparser.expression.AnalyticExpression;
+import net.sf.jsqlparser.expression.ArrayExpression;
+import net.sf.jsqlparser.expression.CastExpression;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.JsonAggregateFunction;
+import net.sf.jsqlparser.expression.JsonExpression;
+import net.sf.jsqlparser.expression.KeepExpression;
+import net.sf.jsqlparser.expression.MySQLGroupConcat;
+import net.sf.jsqlparser.expression.TimezoneExpression;
+import net.sf.jsqlparser.expression.TranscodingFunction;
+import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.VariableAssignment;
+import net.sf.jsqlparser.expression.operators.relational.FullTextSearch;
+import net.sf.jsqlparser.expression.operators.relational.IsUnknownExpression;
+import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.schema.Table;
+import net.sf.jsqlparser.statement.Commit;
+import net.sf.jsqlparser.statement.DescribeStatement;
+import net.sf.jsqlparser.statement.ExplainStatement;
+import net.sf.jsqlparser.statement.ResetStatement;
+import net.sf.jsqlparser.statement.RollbackStatement;
+import net.sf.jsqlparser.statement.SavepointStatement;
+import net.sf.jsqlparser.statement.SetStatement;
+import net.sf.jsqlparser.statement.ShowColumnsStatement;
+import net.sf.jsqlparser.statement.ShowStatement;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.Statements;
+import net.sf.jsqlparser.statement.UnsupportedStatement;
+import net.sf.jsqlparser.statement.UseStatement;
+import net.sf.jsqlparser.statement.alter.AlterSession;
+import net.sf.jsqlparser.statement.alter.AlterSystemStatement;
+import net.sf.jsqlparser.statement.create.schema.CreateSchema;
+import net.sf.jsqlparser.statement.create.table.ColDataType;
+import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.create.view.AlterView;
+import net.sf.jsqlparser.statement.create.view.CreateView;
+import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.statement.drop.Drop;
+import net.sf.jsqlparser.statement.execute.Execute;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.merge.Merge;
+import net.sf.jsqlparser.statement.select.LateralSubSelect;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.ParenthesedFromItem;
+import net.sf.jsqlparser.statement.select.ParenthesedSelect;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.TableFunction;
+import net.sf.jsqlparser.statement.select.TableStatement;
+import net.sf.jsqlparser.statement.select.Values;
+import net.sf.jsqlparser.statement.select.WithItem;
+import net.sf.jsqlparser.statement.show.ShowTablesStatement;
+import net.sf.jsqlparser.statement.update.Update;
+import net.sf.jsqlparser.statement.upsert.Upsert;
+import net.sf.jsqlparser.util.TablesNamesFinder;
+
+/**
+ * What a statement does, without I/O (report 04 §3.5, §7.2): JSqlParser 5.4 picks the route, the database is the
+ * guarantee. Each statement gets a class — READ &lt; DML &lt; DDL &lt; FORBIDDEN, or UNPARSED — and the call gets the
+ * highest. What the parser can't read, or reads differently from the server's lexer, is UNPARSED: fail closed.
+ */
+final class SqlClassifier {
+
+  /** The class of one statement, in increasing order of what it may do. */
+  enum Kind { READ, DML, DDL, FORBIDDEN, UNPARSED }
+
+  /**
+   * One statement.
+   *
+   * @param type      {@code SELECT}, {@code UPDATE}, {@code CREATE TABLE}… for the approver and the result
+   * @param tables    the tables it touches as the parser names them (CTE names left out); {@code null} when the
+   *                  parser can't say ({@code CALL}, {@code SHOW TABLES})
+   * @param targets   for DML and DDL, the tables it changes (a subset of {@code tables}, or {@code null})
+   * @param functions every function call, wherever it is
+   */
+  record StatementFacts(Kind kind, String type, List<String> tables, List<String> targets,
+      List<FunctionRef> functions) {}
+
+  /**
+   * A whole call.
+   *
+   * @param problem why it is UNPARSED or too complex, in words for the agent; {@code null} otherwise
+   */
+  record Analysis(Kind kind, List<StatementFacts> statements, String problem, boolean tooComplex) {
+
+    int count() {
+      return statements.size();
+    }
+
+    boolean parsed() {
+      return kind != Kind.UNPARSED && !tooComplex;
+    }
+
+    List<FunctionRef> functions() {
+      List<FunctionRef> out = new ArrayList<>();
+      statements.forEach(s -> out.addAll(s.functions()));
+      return out;
+    }
+  }
+
+  /** The type of a statement that assigns a user variable ({@code SELECT @v := …}). */
+  static final String VARIABLE_ASSIGNMENT = "user variable assignment";
+  /** The type of a statement that creates a temporary table, view or sequence. */
+  static final String TEMPORARY_OBJECT = "temporary object";
+
+  static final int MAX_LENGTH = 100_000;
+  static final int MAX_NESTING = 64;
+  private static final long PARSE_TIMEOUT_MS = 2_000;
+
+  /** Words that start a statement the parser doesn't know and that the gateway never runs: it owns sessions. */
+  static final Set<String> FORBIDDEN_FIRST_WORDS = Set.of("BEGIN", "START", "RELEASE", "COPY", "LISTEN", "UNLISTEN",
+      "NOTIFY", "PREPARE", "DEALLOCATE", "VACUUM", "LOAD", "HANDLER", "KILL", "COMMIT", "ROLLBACK", "SAVEPOINT", "END",
+      "ABORT", "SET", "RESET", "DISCARD", "USE", "SHUTDOWN", "FLUSH", "XA", "INSTALL", "UNINSTALL", "LOCK", "UNLOCK",
+      "CHECKPOINT", "RESTART", "CLONE", "BINLOG", "PURGE", "CHANGE", "DECLARE");
+
+  /** Why a statement is UNPARSED when the parser gave up on it. */
+  private static final String NOT_ANALYZED = "The gateway couldn't analyze this statement.";
+
+  /**
+   * {@code CREATE [GLOBAL | LOCAL | OR REPLACE | UNLOGGED | PRIVATE] TEMP[ORARY] …}: a session's own object, which
+   * would stay in the pooled session after the call and, as a temporary table, hide the real one of that name from
+   * later calls. Wherever it is in the code: {@code EXPLAIN ANALYZE} runs the statement it explains, and CREATE is a
+   * reserved word in every dialect, so it starts nothing else.
+   */
+  private static final Pattern CREATE_TEMPORARY = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$#@])CREATE(?:\\s+(?:GLOBAL|LOCAL|OR|REPLACE|UNLOGGED|PRIVATE))*\\s+TEMP(?:ORARY)?\\b");
+  /** PostgreSQL {@code SELECT … INTO [TEMP | TEMPORARY] [TABLE] t}: a temporary table, as above. */
+  private static final Pattern SELECT_INTO_TEMPORARY = Pattern.compile(
+      "(?i)(?<!\\b(?:INSERT|MERGE)\\s{1,64})\\bINTO\\s+TEMP(?:ORARY)?\\b");
+  /**
+   * PostgreSQL's temporary schema named as a qualifier ({@code pg_temp.t}, {@code "pg_temp_3".f}): whatever is created
+   * there is the session's own object, a temporary table, view, sequence, type or function, as above.
+   */
+  private static final Pattern POSTGRES_TEMPORARY_SCHEMA = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])pg_temp(?:_[0-9]+)?\\s*\\.");
+  /** MySQL {@code @v := …} or {@code … INTO @v}: a user variable, which outlives the call in the pooled session. */
+  private static final Pattern MYSQL_ASSIGNMENT = Pattern.compile("(?i):=|\\bINTO\\s+@");
+  private static final Set<String> SQLSERVER_FORBIDDEN_FIRST_WORDS = Set.of("EXEC", "EXECUTE", "DBCC", "BACKUP",
+      "RESTORE", "WAITFOR", "RECONFIGURE", "BULK", "RAISERROR", "THROW", "PRINT", "IF", "WHILE", "GOTO",
+      "RETURN", "ENABLE", "DISABLE", "DENY", "GRANT", "REVOKE");
+  private static final Pattern SQLSERVER_SEQUENCE = Pattern.compile("(?i)\\bNEXT\\s+VALUE\\s+FOR\\b");
+  private static final Pattern SQLSERVER_EXTERNAL = Pattern.compile(
+      "(?i)\\b(?:OPENROWSET|OPENQUERY|OPENDATASOURCE|OPENXML)\\s*\\(");
+  private static final Pattern SQLSERVER_LOCAL_VARIABLE = Pattern.compile("(?<!@)@(?!@)");
+  private static final Pattern SQLSERVER_SESSION_OBJECT = Pattern.compile(
+      "(?i)\\b(?:CREATE|ALTER|DROP)\\s+(?:LOGIN|USER|ROLE|SERVER|DATABASE|CREDENTIAL|ENDPOINT|ASSEMBLY|PROCEDURE|"
+          + "FUNCTION|TRIGGER|SYNONYM|SEQUENCE)\\b");
+  private static final Pattern SQLSERVER_TEMP_NAME = Pattern.compile("(?:^|[^\\w])#{1,2}[\\w]");
+  private static final Pattern SQLSERVER_SESSION_HINT = Pattern.compile("(?i)\\b(?:QUERYTRACEON|UPDLOCK|XLOCK|TABLOCKX)\\b");
+  private static final Pattern SQLSERVER_OUTPUT = Pattern.compile("(?i)\\bOUTPUT\\b");
+  private static final Set<String> SQLSERVER_CAST_TYPES = Set.of("bigint", "int", "integer", "smallint", "tinyint",
+      "bit", "decimal", "numeric", "money", "smallmoney", "float", "real", "date", "datetime", "datetime2",
+      "datetimeoffset", "smalldatetime", "time", "char", "varchar", "text", "nchar", "nvarchar", "ntext",
+      "binary", "varbinary", "image", "uniqueidentifier", "xml", "sql_variant");
+  private static final Pattern SQLSERVER_TYPE_ARGUMENTS = Pattern.compile("(?i)\\s*\\(\\s*(?:max|[0-9]+)"
+      + "(?:\\s*,\\s*[0-9]+)?\\s*\\)\\s*$");
+  /**
+   * SQLite statements the gateway never runs: PRAGMA changes how the connection or the file behaves
+   * ({@code writable_schema}, {@code query_only}, journal and checkpoint settings), ATTACH and DETACH open other files,
+   * REINDEX and ANALYZE are maintenance a person runs outside GateRook.
+   */
+  private static final Set<String> SQLITE_FORBIDDEN_FIRST_WORDS = Set.of("PRAGMA", "ATTACH", "DETACH", "REINDEX",
+      "ANALYZE");
+  /** SQLite's temporary schema as a qualifier ({@code temp.t}, {@code "temp".t}, {@code [temp].t}). */
+  private static final Pattern SQLITE_TEMPORARY_SCHEMA = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])temp(?:orary)?\\s*\\.");
+  private static final Pattern ORACLE_SEQUENCE = Pattern.compile("(?i)\\b(?:NEXTVAL|CURRVAL)\\b");
+  private static final Pattern ORACLE_PACKAGE = Pattern.compile("(?i)\\b(?:DBMS_[A-Z0-9_$#]*|UTL_[A-Z0-9_$#]*)\\s*\\.");
+  private static final Pattern ORACLE_INLINE_PLSQL = Pattern.compile("(?i)\\bWITH\\s+(?:FUNCTION|PROCEDURE)\\b");
+  /** The word SELECT in code, not the end or the start of a longer name. */
+  private static final Pattern SELECT_KEYWORD = Pattern.compile("(?<![\\p{L}\\p{N}_$#@])SELECT(?![\\p{L}\\p{N}_$#@])",
+      Pattern.CASE_INSENSITIVE);
+
+  /**
+   * The parser waits on its own task to stop at a deadline; without an executor every parse would start a platform
+   * thread. A virtual thread per parse costs nothing.
+   */
+  private static final ExecutorService PARSER = Executors.newThreadPerTaskExecutor(
+      Thread.ofVirtual().name("sql-parse-", 0).factory());
+
+  private SqlClassifier() {}
+
+  static Analysis analyze(String sql, boolean mysql) {
+    return analyze(sql, SqlSyntax.of(mysql));
+  }
+
+  static Analysis analyze(String sql, SqlDialect dialect) {
+    return analyze(sql, dialect.syntax());
+  }
+
+  static Analysis analyze(String sql, SqlSyntax syntax) {
+    if (sql == null || sql.isBlank()) {
+      return unparsed(List.of(), "The statement is empty.");
+    }
+    if (sql.length() > MAX_LENGTH) {
+      return tooComplex("The statement is longer than " + MAX_LENGTH + " characters.");
+    }
+    if (CCJSqlParserUtil.getNestingDepth(sql) > MAX_NESTING) {
+      return tooComplex("The statement nests deeper than " + MAX_NESTING + " levels.");
+    }
+    SqlLexer.Scan scan = SqlLexer.scan(sql, syntax);
+    if (scan.unterminated()) {
+      return notAnalyzed(sql, syntax, "A quote or comment isn't closed.");
+    }
+    if (scan.executableComment()) {
+      return notAnalyzed(sql, syntax, "It contains a comment the server acts on (/*! … */ or a /*+ … */ hint): the "
+          + "server runs or applies what the gateway reads as a comment.");
+    }
+    List<String> pieces = scan.statements();
+    // The parser reads what the server's lexer reads, not the text as sent; what can't be made to match is not read.
+    String text = SqlParserText.of(scan, syntax);
+    if (text == null) {
+      return notAnalyzed(sql, syntax, NOT_ANALYZED);
+    }
+    Statements statements;
+    try {
+      statements = CCJSqlParserUtil.parseStatements(text, PARSER,
+          p -> SqlParserText.configure(p, syntax).withTimeOut(PARSE_TIMEOUT_MS));
+    } catch (JSQLParserException | RuntimeException e) {
+      return notAnalyzed(sql, syntax, NOT_ANALYZED);
+    }
+    if (statements == null || statements.isEmpty()) {
+      return notAnalyzed(sql, syntax, "The gateway found no statement in it.");
+    }
+    if (statements.size() != pieces.size()) {
+      // The parser and the server's lexer disagree about where statements end: trust neither.
+      return notAnalyzed(sql, syntax, "The gateway reads " + statements.size() + " statement(s) where the database "
+          + "would read " + pieces.size() + ".");
+    }
+    List<StatementFacts> facts = new ArrayList<>();
+    String doubt = null;
+    for (int i = 0; i < statements.size(); i++) {
+      Checked checked = checked(statements.get(i), pieces.get(i), syntax);
+      StatementFacts f = checked.facts();
+      if (doubt == null) {
+        doubt = checked.doubt();
+      }
+      String session = sessionState(pieces.get(i), syntax);
+      facts.add(session == null ? f : new StatementFacts(Kind.FORBIDDEN, session, f.tables(), f.targets(),
+          f.functions()));
+    }
+    Kind kind = Kind.READ;
+    for (StatementFacts f : facts) {
+      if (f.kind().ordinal() > kind.ordinal()) {
+        kind = f.kind();
+      }
+    }
+    String problem = kind == Kind.UNPARSED ? doubt != null ? doubt : "The gateway couldn't analyze " + facts.stream()
+        .filter(f -> f.kind() == Kind.UNPARSED).findFirst().map(StatementFacts::type).orElse("it") + "." : null;
+    return new Analysis(kind, List.copyOf(facts), problem, false);
+  }
+
+  /**
+   * The gateway gave up on the text, before or after the parser read it. What is refused everywhere stays refused all
+   * the same, read from the code the server will run: a statement of session or transaction control, or one that
+   * leaves something in the pooled session ({@link #sessionState}), is FORBIDDEN, and the calls in the text are the
+   * statement's functions, so a denied one is refused for every tool. Anything else is UNPARSED, which only some
+   * tools and environments let a person approve.
+   */
+  private static Analysis notAnalyzed(String sql, SqlSyntax syntax, String problem) {
+    List<StatementFacts> facts = new ArrayList<>();
+    boolean forbidden = false;
+    for (String piece : SqlLexer.scan(serverCode(sql, syntax), syntax).statements()) {
+      String word = SqlLexer.scan(piece, syntax).firstKeyword();
+      String session = sessionState(piece, syntax);
+      forbidden |= session != null;
+      String type = session != null ? session : word.isEmpty() ? "statement" : word;
+      facts.add(new StatementFacts(session != null ? Kind.FORBIDDEN : Kind.UNPARSED, type, null, null,
+          SqlCalls.calls(piece, syntax, Map.of())));
+    }
+    if (forbidden) {
+      return new Analysis(Kind.FORBIDDEN, List.copyOf(facts), null, false);
+    }
+    return new Analysis(Kind.UNPARSED, List.copyOf(facts), problem, false);
+  }
+
+  /**
+   * The text as the server will run it, for the checks that hold whether or not the statement can be analyzed: MySQL
+   * and MariaDB run the inside of {@code /*!…*}{@code /} and {@code /*M!…*}{@code /} (after an optional version
+   * number) as code, so their markers are blanked and what they hold is read like the rest. Optimizer hints stay
+   * comments: what they hold is no statement.
+   */
+  static String serverCode(String sql, SqlSyntax syntax) {
+    SqlLexer.Scan scan = SqlLexer.scan(sql, syntax);
+    if (syntax != SqlSyntax.MYSQL || !scan.executableComment()) {
+      return sql;
+    }
+    StringBuilder out = new StringBuilder(sql);
+    for (SqlLexer.Segment s : scan.segments()) {
+      if (s.kind() != SqlLexer.Kind.EXECUTABLE_COMMENT || sql.startsWith("/*+", s.start())) {
+        continue;
+      }
+      int body = s.start() + (sql.startsWith("/*!", s.start()) ? 3 : 4);
+      while (body < s.end() && Character.isDigit(sql.charAt(body))) {
+        body++;
+      }
+      int close = sql.startsWith("*/", s.end() - 2) && s.end() - 2 >= body ? s.end() - 2 : s.end();
+      for (int i = s.start(); i < body; i++) {
+        out.setCharAt(i, ' ');
+      }
+      for (int i = close; i < s.end(); i++) {
+        out.setCharAt(i, ' ');
+      }
+    }
+    return out.toString();
+  }
+
+  /**
+   * What a statement would leave in the pooled session after its call, or how it would take the session or the
+   * transaction over, read from its code (literals and comments left out), whether or not the parser reads it:
+   * {@link #TEMPORARY_OBJECT}, {@link #VARIABLE_ASSIGNMENT} (MySQL), the first word of a statement the gateway never
+   * runs ({@link #FORBIDDEN_FIRST_WORDS}), or {@code null}. Transactions and sessions belong to the gateway, so these
+   * are never run, with or without a person's approval.
+   */
+  static String sessionState(String piece, boolean mysql) {
+    return sessionState(piece, SqlSyntax.of(mysql));
+  }
+
+  static String sessionState(String piece, SqlSyntax syntax) {
+    boolean mysql = syntax == SqlSyntax.MYSQL;
+    SqlLexer.Scan scan = SqlLexer.scan(piece, syntax);
+    String code = scan.code();
+    if (CREATE_TEMPORARY.matcher(code).find()) {
+      return TEMPORARY_OBJECT;
+    }
+    String first = scan.firstKeyword();
+    // The parser reads some of these (LOCK TABLE, PURGE) as statements it lets through, others not at all.
+    if (FORBIDDEN_FIRST_WORDS.contains(first)) {
+      return first;
+    }
+    if (syntax == SqlSyntax.SQLSERVER) {
+      if (SQLSERVER_FORBIDDEN_FIRST_WORDS.contains(first)) {
+        return first;
+      }
+      if (SQLSERVER_SEQUENCE.matcher(code).find()) {
+        return "sequence advancement";
+      }
+      if (SQLSERVER_EXTERNAL.matcher(code).find()) {
+        return "external data access";
+      }
+      if (SQLSERVER_LOCAL_VARIABLE.matcher(code).find()) {
+        return VARIABLE_ASSIGNMENT;
+      }
+      if (SQLSERVER_SESSION_OBJECT.matcher(code).find()) {
+        return "server or executable object change";
+      }
+      if (SQLSERVER_SESSION_HINT.matcher(code).find()) {
+        return "session or exclusive-lock hint";
+      }
+      // JSqlParser omits OUTPUT INTO destinations from its table list. Refuse the clause until both its
+      // expressions and destination have complete scope checking and execution-result handling.
+      if (SQLSERVER_OUTPUT.matcher(code).find()) {
+        return "OUTPUT clause";
+      }
+      // The parser treats :: as a PostgreSQL cast and misses SQL Server CLR static method calls entirely.
+      if (code.contains("::")) {
+        return "CLR static member access";
+      }
+      for (SqlLexer.Segment segment : scan.segments()) {
+        String text = piece.substring(segment.start(), segment.end());
+        if ((segment.kind() == SqlLexer.Kind.CODE && SQLSERVER_TEMP_NAME.matcher(text).find())
+            || (segment.kind() == SqlLexer.Kind.QUOTED_IDENTIFIER && text.length() > 1 && text.charAt(1) == '#')) {
+          return TEMPORARY_OBJECT;
+        }
+      }
+    }
+    if (syntax == SqlSyntax.POSTGRES) {
+      if ((first.equals("SELECT") || first.equals("WITH") || first.equals("EXPLAIN"))
+          && SELECT_INTO_TEMPORARY.matcher(code).find()) {
+        return TEMPORARY_OBJECT;
+      }
+      if (POSTGRES_TEMPORARY_SCHEMA.matcher(identifierCode(scan)).find()) {
+        return TEMPORARY_OBJECT;
+      }
+    }
+    if (syntax == SqlSyntax.ORACLE) {
+      if (first.equals("CALL") || first.equals("EXECUTE") || first.equals("EXPLAIN")) {
+        return first;
+      }
+      if (code.indexOf('@') >= 0) {
+        return "database link";
+      }
+      // Packages can expose side effects even as parameterless expressions; quoted spellings are included.
+      String names = identifierCode(scan);
+      if (ORACLE_SEQUENCE.matcher(names).find()) {
+        return "sequence state";
+      }
+      if (ORACLE_PACKAGE.matcher(names).find()) {
+        return "Oracle package call";
+      }
+      if (ORACLE_INLINE_PLSQL.matcher(code).find()) {
+        return "inline PL/SQL";
+      }
+    }
+    if (syntax == SqlSyntax.SQLITE) {
+      if (SQLITE_FORBIDDEN_FIRST_WORDS.contains(first)) {
+        return first;
+      }
+      if (SQLITE_TEMPORARY_SCHEMA.matcher(sqliteNames(scan)).find()) {
+        return TEMPORARY_OBJECT;
+      }
+    }
+    if (mysql && MYSQL_ASSIGNMENT.matcher(code).find()) {
+      return VARIABLE_ASSIGNMENT;
+    }
+    return null;
+  }
+
+  /** The code and the names of a SQLite statement without their quotes or brackets; literals are one space. */
+  private static String sqliteNames(SqlLexer.Scan scan) {
+    StringBuilder text = new StringBuilder();
+    for (SqlLexer.Segment segment : scan.segments()) {
+      if (segment.kind() == SqlLexer.Kind.CODE) {
+        text.append(scan.sql(), segment.start(), segment.end());
+      } else if (segment.kind() == SqlLexer.Kind.QUOTED_IDENTIFIER && segment.end() - segment.start() >= 2) {
+        text.append(' ').append(scan.sql(), segment.start() + 1, segment.end() - 1).append(' ');
+      } else {
+        text.append(' ');
+      }
+    }
+    return text.toString();
+  }
+
+  private static String identifierCode(SqlLexer.Scan scan) {
+    StringBuilder text = new StringBuilder();
+    for (SqlLexer.Segment segment : scan.segments()) {
+      if (segment.kind() == SqlLexer.Kind.CODE || segment.kind() == SqlLexer.Kind.QUOTED_IDENTIFIER) {
+        text.append(scan.sql(), segment.start(), segment.end());
+      } else {
+        text.append(' ');
+      }
+    }
+    return text.toString().replace('"', ' ');
+  }
+
+  private static Analysis unparsed(List<StatementFacts> facts, String problem) {
+    return new Analysis(Kind.UNPARSED, facts, problem, false);
+  }
+
+  private static Analysis tooComplex(String problem) {
+    return new Analysis(Kind.UNPARSED, List.of(), problem, true);
+  }
+
+  // ── One statement ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * The facts of one statement.
+   *
+   * @param doubt why the statement was made UNPARSED although the parser read it, in words for the agent;
+   *              {@code null} when the facts are the parser's own
+   */
+  private record Checked(StatementFacts facts, String doubt) {}
+
+  private static Checked checked(Statement st, String piece, SqlSyntax syntax) {
+    Collector c = new Collector();
+    List<String> tables;
+    try {
+      tables = List.copyOf(c.getTables(st));
+    } catch (UnsupportedOperationException e) {
+      // CALL, SHOW TABLES, SET…: the parser can't list what they touch.
+      tables = null;
+    }
+    if (st instanceof ExplainStatement e && e.getTable() != null) {
+      // EXPLAIN <table> is a MySQL synonym for DESCRIBE <table>; the parser's table walk ignores getTable(), so
+      // without this the table it would read goes unchecked against the allowlist and selected databases.
+      tables = List.of(e.getTable().getFullyQualifiedName());
+    } else if (st instanceof ShowStatement) {
+      // SHOW exposes server- or catalog-wide metadata the parser can't bound to tables. Leaving the table set empty
+      // let it pass a restricted connection; a null set makes it fail the allowlist and database-selection checks.
+      tables = null;
+    }
+    Kind kind = kindOf(st, c, syntax);
+    boolean customConversion = syntax == SqlSyntax.SQLSERVER && c.castTypes.stream()
+        .anyMatch(t -> !SQLSERVER_CAST_TYPES.contains(SQLSERVER_TYPE_ARGUMENTS.matcher(t).replaceFirst("")
+            .strip().toLowerCase(Locale.ROOT)));
+    if (customConversion) {
+      kind = Kind.FORBIDDEN;
+    }
+    List<String> targets = targets(st, kind, tables);
+    String type = customConversion ? "custom type conversion" : c.assignsVariable ? VARIABLE_ASSIGNMENT : type(st);
+    if (kind == Kind.READ || tables == null) {
+      // A read runs without a person, and a statement whose tables the parser can't enumerate (CALL) is walked for
+      // functions nowhere else: scan the text so a denied function in either is refused, in positions the parser's
+      // walk doesn't reach.
+      c.functions.addAll(SqlCalls.calls(piece, syntax, c.notCalls));
+    }
+    StatementFacts facts = new StatementFacts(kind, type, tables, targets, List.copyOf(c.functions));
+    String doubt = kind.ordinal() <= Kind.DDL.ordinal() ? doubt(st, piece, syntax, kind, tables, c) : null;
+    return doubt == null ? new Checked(facts, null)
+        : new Checked(new StatementFacts(Kind.UNPARSED, type, tables, targets, facts.functions()), doubt);
+  }
+
+  /**
+   * Why a statement the parser read must not be trusted, or {@code null}: the gateway reads the text by the server's
+   * tokens too, and where the two don't agree it is not analyzed (fail closed).
+   *
+   * <ul>
+   *   <li>SQL Server: a read is exactly one query by T-SQL's tokens ({@link SqlServerBatch}); the parser may take
+   *       a reserved statement word for an alias and read the rest of a batch as part of the first statement.</li>
+   *   <li>The SELECT keywords in the code are as many as the SELECTs the walk over the parse tree visited. A subquery
+   *       in a position the walk doesn't enter would otherwise skip the allowlist and the database selection, as
+   *       a call in such a position would skip the function rules without {@link SqlCalls}.</li>
+   * </ul>
+   */
+  private static String doubt(Statement st, String piece, SqlSyntax syntax, Kind kind, List<String> tables,
+      Collector c) {
+    if (syntax == SqlSyntax.SQLSERVER && kind == Kind.READ) {
+      if (!(st instanceof Select)) {
+        return "SQL Server runs only a SELECT as a read.";
+      }
+      if (!SqlServerBatch.oneQuery(piece)) {
+        return "SQL Server needs no separator between statements, so it may read this as more than one.";
+      }
+    }
+    if (tables != null && queryBearing(st) && selectKeywords(piece, syntax) != c.selects.size()) {
+      return "The gateway couldn't match every SELECT in it with a query it analyzed.";
+    }
+    return null;
+  }
+
+  /**
+   * Statements whose SELECT keywords are all queries: others use the word for privileges, policies and rules.
+   *
+   * <p>The reads left out need no count: {@code SHOW}, {@code SHOW TABLES} and {@code SHOW COLUMNS} have no table list
+   * (the walk can't list them, or {@link #checked} drops it), so a subquery in their {@code WHERE} or {@code LIKE}
+   * fails a restricted allowlist and the database selection as a whole; {@code DESCRIBE} holds a table name and no
+   * expression. {@code VALUES} and {@code TABLE} are SELECTs to the parser.
+   */
+  private static boolean queryBearing(Statement st) {
+    return st instanceof Select || st instanceof Insert || st instanceof Update || st instanceof Delete
+        || st instanceof Merge || st instanceof Upsert || st instanceof ExplainStatement
+        || st instanceof CreateTable || st instanceof CreateView || st instanceof AlterView;
+  }
+
+  /** The SELECT keywords in the code of a statement, as the server's lexer reads it. */
+  static int selectKeywords(String statement, SqlSyntax syntax) {
+    int count = 0;
+    for (Matcher m = SELECT_KEYWORD.matcher(SqlLexer.scan(statement, syntax).code()); m.find(); ) {
+      count++;
+    }
+    return count;
+  }
+
+  static Kind kindOf(Statement st, Collector c, boolean mysql) {
+    return kindOf(st, c, SqlSyntax.of(mysql));
+  }
+
+  static Kind kindOf(Statement st, Collector c, SqlSyntax syntax) {
+    return switch (st) {
+      case Values v -> Kind.READ;
+      case TableStatement t -> Kind.READ;
+      case Select s -> {
+        if (c.mysqlInto || c.assignsVariable) {
+          // INTO OUTFILE / DUMPFILE writes a file on the server; @v := … outlives the call in the pooled session.
+          yield Kind.FORBIDDEN;
+        }
+        if (c.into) {
+          yield Kind.DDL;                 // SELECT … INTO creates a table
+        }
+        boolean locks = c.lock || s.getForMode() != null || s.getForUpdate() != null;
+        yield c.dml > 0 || locks ? Kind.DML : Kind.READ;   // a CTE with DELETE, FOR UPDATE / FOR SHARE
+      }
+      case ExplainStatement e -> e.getOption(ExplainStatement.OptionType.ANALYZE) == null || e.getStatement() == null
+          ? Kind.READ : analyzedKind(e.getStatement(), syntax);
+      case ShowStatement s -> Kind.READ;
+      case ShowTablesStatement s -> Kind.READ;
+      case ShowColumnsStatement s -> Kind.READ;
+      case DescribeStatement d -> Kind.READ;
+      case Execute x when x.getExecType() == Execute.ExecType.EXECUTE -> Kind.FORBIDDEN;   // PG EXECUTE of a prepared
+      case Insert i -> Kind.DML;
+      case Update u -> Kind.DML;
+      case Delete d -> Kind.DML;
+      case Upsert u -> Kind.DML;
+      case Merge m -> Kind.DML;
+      case Execute x -> Kind.DML;                                                         // CALL p()
+      case Commit x -> Kind.FORBIDDEN;
+      case RollbackStatement x -> Kind.FORBIDDEN;
+      case SavepointStatement x -> Kind.FORBIDDEN;
+      case SetStatement x -> Kind.FORBIDDEN;
+      case ResetStatement x -> Kind.FORBIDDEN;
+      case UseStatement x -> Kind.FORBIDDEN;
+      case AlterSystemStatement x -> Kind.FORBIDDEN;
+      case AlterSession x -> Kind.FORBIDDEN;
+      case net.sf.jsqlparser.statement.create.database.CreateDatabase x -> Kind.FORBIDDEN;
+      case Drop d when "DATABASE".equalsIgnoreCase(d.getType()) -> Kind.FORBIDDEN;
+      case CreateSchema x -> Kind.DDL;
+      case UnsupportedStatement u -> Kind.UNPARSED;   // SHOW CREATE TABLE, SHOW GRANTS…: parsed without an error
+      case net.sf.jsqlparser.statement.Block b -> Kind.UNPARSED;
+      default -> Kind.DDL;                            // CREATE, ALTER, DROP, TRUNCATE, GRANT, COMMENT, REFRESH…
+    };
+  }
+
+  /** {@code EXPLAIN ANALYZE} runs its statement: it is what the statement is. */
+  private static Kind analyzedKind(Statement inner, SqlSyntax syntax) {
+    Collector c = new Collector();
+    try {
+      c.getTables(inner);
+    } catch (UnsupportedOperationException e) {
+      // Only the kind matters here.
+    }
+    return kindOf(inner, c, syntax);
+  }
+
+  /** The tables a DML or DDL statement changes: its own target, or every table for statements the parser can't split. */
+  private static List<String> targets(Statement st, Kind kind, List<String> tables) {
+    if (kind == Kind.READ || tables == null) {
+      return kind == Kind.READ ? List.of() : null;
+    }
+    String target = switch (st) {
+      case Update u -> u.getTable() == null ? null : u.getTable().getFullyQualifiedName();
+      case Delete d -> d.getTable() == null ? null : d.getTable().getFullyQualifiedName();
+      case Insert i -> i.getTable() == null ? null : i.getTable().getFullyQualifiedName();
+      case Upsert u -> u.getTable() == null ? null : u.getTable().getFullyQualifiedName();
+      case Merge m -> m.getTable() == null ? null : m.getTable().getFullyQualifiedName();
+      default -> null;
+    };
+    return target == null ? tables : List.of(target);
+  }
+
+  private static String type(Statement st) {
+    return switch (st) {
+      case Values v -> "VALUES";
+      case TableStatement t -> "TABLE";
+      case Select s -> "SELECT";
+      case ExplainStatement e -> e.getOption(ExplainStatement.OptionType.ANALYZE) == null ? "EXPLAIN" : "EXPLAIN ANALYZE";
+      case ShowStatement s -> "SHOW";
+      case ShowTablesStatement s -> "SHOW TABLES";
+      case ShowColumnsStatement s -> "SHOW COLUMNS";
+      case DescribeStatement d -> "DESCRIBE";
+      case Insert i -> "INSERT";
+      case Update u -> "UPDATE";
+      case Delete d -> "DELETE";
+      case Upsert u -> "REPLACE";
+      case Merge m -> "MERGE";
+      case Execute x -> x.getExecType() == null ? "CALL" : x.getExecType().name();
+      case Drop d -> "DROP " + (d.getType() == null ? "" : d.getType().toUpperCase(Locale.ROOT)).strip();
+      case UnsupportedStatement u -> "this statement";
+      default -> words(st.getClass().getSimpleName());
+    };
+  }
+
+  /** {@code CreateTable} → {@code CREATE TABLE}, {@code Truncate} → {@code TRUNCATE}. */
+  private static String words(String simpleName) {
+    String name = simpleName.endsWith("Statement") ? simpleName.substring(0, simpleName.length() - 9) : simpleName;
+    StringBuilder out = new StringBuilder();
+    for (int i = 0; i < name.length(); i++) {
+      char ch = name.charAt(i);
+      if (i > 0 && Character.isUpperCase(ch)) {
+        out.append(' ');
+      }
+      out.append(Character.toUpperCase(ch));
+    }
+    return out.toString();
+  }
+
+  /**
+   * One walk over a statement: tables through {@link TablesNamesFinder#getTables} (which leaves out the names of CTEs),
+   * function calls wherever they are, and the flags that raise a SELECT: a lock clause or {@code INTO} on any level, a
+   * data-changing statement inside it (a CTE with {@code DELETE … RETURNING}).
+   *
+   * <p>{@link TablesNamesFinder} stops short of some expressions (a window's {@code PARTITION BY}, an aggregate's
+   * {@code ORDER BY}, {@code KEEP}, {@code GROUP_CONCAT}, JSON operators, {@code AT TIME ZONE}, subscripts, the
+   * operands of JSON aggregates, the escape of {@code LIKE}, the {@code TOP} expression); the overrides below walk
+   * them. {@link SqlCalls} covers what is left for functions, and {@link #selects} for subqueries: a SELECT in the
+   * text that the walk never reached makes the statement not analyzed.
+   */
+  static final class Collector extends TablesNamesFinder<Void> {
+    final Set<FunctionRef> functions = new LinkedHashSet<>();
+    final Set<String> castTypes = new LinkedHashSet<>();
+    /** Names the parser placed before a parenthesis that isn't a call: column lists of aliases and CTEs, types. */
+    final Map<String, Integer> notCalls = new HashMap<>();
+    /** The SELECTs the walk visited, each once (it reaches a WITH list from the statement and from its SELECT). */
+    final Set<Object> selects = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** The walk reaches some nodes twice (a WITH list from the statement and from its SELECT): count each once. */
+    private final Set<Object> counted = Collections.newSetFromMap(new IdentityHashMap<>());
+    boolean lock;
+    boolean into;
+    boolean mysqlInto;
+    boolean assignsVariable;
+    int dml;
+
+    private void notCall(Object node, String name) {
+      if (name != null && !name.isBlank() && counted.add(node)) {
+        notCalls.merge(SqlCalls.key(List.of(name.strip())), 1, Integer::sum);
+      }
+    }
+
+    private void columnList(Alias alias) {
+      if (alias != null && alias.getAliasColumns() != null && !alias.getAliasColumns().isEmpty()) {
+        notCall(alias, alias.getName());
+      }
+    }
+
+    /** {@code character varying(10)}: the word before the parenthesis is the type's last one. */
+    private void typeName(ColDataType type) {
+      if (type != null && type.getDataType() != null && counted.add(type)) {
+        String name = type.getDataType().strip();
+        // Only a type that carries a length or precision writes a "name(" token the scanner could mistake for a
+        // call and so must cancel. A bare type (CAST(NULL AS fn), NULL::fn) writes none, so counting it here let a
+        // cast of a function's name hide a real call of that function in a position the parser's walk skips.
+        List<String> arguments = type.getArgumentsStringList();
+        if (!((arguments != null && !arguments.isEmpty()) || name.indexOf('(') >= 0)) {
+          return;
+        }
+        notCalls.merge(SqlCalls.key(List.of(name.substring(name.lastIndexOf(' ') + 1).split("\\."))), 1,
+            Integer::sum);
+      }
+    }
+
+    private <S> void walk(Expression e, S context) {
+      if (e != null) {
+        e.accept(this, context);
+      }
+    }
+
+    private <S> void walkEach(List<? extends Expression> list, S context) {
+      if (list != null) {
+        list.forEach(e -> walk(e, context));
+      }
+    }
+
+    private <S> void orderBy(List<OrderByElement> elements, S context) {
+      if (elements != null) {
+        elements.forEach(e -> walk(e.getExpression(), context));
+      }
+    }
+
+    /** A key or value that JSqlParser keeps as an object: an expression, or text it only prints. */
+    private <S> void walkOperand(Object operand, S context) {
+      if (operand instanceof Expression e) {
+        walk(e, context);
+      }
+    }
+
+    @Override
+    public <S> Void visit(CastExpression cast, S context) {
+      if (cast.getColDataType() != null && cast.getColDataType().getDataType() != null) {
+        castTypes.add(cast.getColDataType().getDataType());
+      }
+      typeName(cast.getColDataType());
+      return super.visit(cast, context);
+    }
+
+    @Override
+    public <S> Void visit(TranscodingFunction convert, S context) {
+      if (convert.getColDataType() != null && convert.getColDataType().getDataType() != null) {
+        castTypes.add(convert.getColDataType().getDataType());
+      }
+      typeName(convert.getColDataType());
+      return super.visit(convert, context);
+    }
+
+    @Override
+    public <S> Void visit(VariableAssignment assignment, S context) {
+      assignsVariable = true;
+      return super.visit(assignment, context);
+    }
+
+    @Override
+    public <S> Void visit(Function f, S context) {
+      if (f.getMultipartName() != null && !f.getMultipartName().isEmpty()) {
+        functions.add(new FunctionRef(List.copyOf(f.getMultipartName())));
+      }
+      super.visit(f, context);
+      walk(f.getNamedParameters(), context);
+      orderBy(f.getOrderByElements(), context);
+      walk(f.getKeep(), context);
+      if (f.getKeywordArguments() != null) {
+        f.getKeywordArguments().forEach(k -> walk(k.getExpression(), context));
+      }
+      if (f.getHavingClause() != null) {
+        walk(f.getHavingClause().getExpression(), context);
+      }
+      return null;
+    }
+
+    @Override
+    public <S> Void visit(AnalyticExpression a, S context) {
+      if (a.getName() != null) {
+        functions.add(new FunctionRef(List.of(a.getName())));
+      }
+      super.visit(a, context);
+      if (a.getWindowDefinition() != null) {
+        walkEach(a.getWindowDefinition().getAllExpressions(), context);
+      }
+      if (a.getHavingClause() != null) {
+        walk(a.getHavingClause().getExpression(), context);
+      }
+      return null;
+    }
+
+    @Override
+    public <S> Void visit(KeepExpression keep, S context) {
+      orderBy(keep.getOrderByElements(), context);
+      return super.visit(keep, context);
+    }
+
+    @Override
+    public <S> Void visit(MySQLGroupConcat concat, S context) {
+      walk(concat.getExpressionList(), context);
+      orderBy(concat.getOrderByElements(), context);
+      return super.visit(concat, context);
+    }
+
+    @Override
+    public <S> Void visit(FullTextSearch search, S context) {
+      walk(search.getAgainstValue(), context);
+      return super.visit(search, context);
+    }
+
+    @Override
+    public <S> Void visit(LikeExpression like, S context) {
+      walk(like.getEscape(), context);
+      return super.visit(like, context);
+    }
+
+    @Override
+    public <S> Void visit(JsonAggregateFunction json, S context) {
+      walkOperand(json.getKey(), context);
+      walkOperand(json.getValue(), context);
+      orderBy(json.getExpressionOrderByElements(), context);
+      walkEach(json.getPartitionExpressionList(), context);
+      orderBy(json.getOrderByElements(), context);
+      return super.visit(json, context);
+    }
+
+    @Override
+    public <S> Void visit(JsonExpression json, S context) {
+      walkEach(json.getIdents(), context);
+      return super.visit(json, context);
+    }
+
+    @Override
+    public <S> Void visit(TimezoneExpression timezone, S context) {
+      walkEach(timezone.getTimezoneExpressions(), context);
+      return super.visit(timezone, context);
+    }
+
+    @Override
+    public <S> Void visit(Column column, S context) {
+      // A subscript of a column, col[expr]: TablesNamesFinder reads the column's table only.
+      walk(column.getArrayConstructor(), context);
+      return super.visit(column, context);
+    }
+
+    @Override
+    public <S> Void visit(ArrayExpression array, S context) {
+      // TablesNamesFinder skips the index of a plain subscript, a[i].
+      walk(array.getObjExpression(), context);
+      walk(array.getIndexExpression(), context);
+      walk(array.getStartIndexExpression(), context);
+      walk(array.getStopIndexExpression(), context);
+      return null;
+    }
+
+    @Override
+    public <S> Void visit(IsUnknownExpression unknown, S context) {
+      walk(unknown.getLeftExpression(), context);
+      return super.visit(unknown, context);
+    }
+
+    @Override
+    public <S> Void visit(TableFunction tf, S context) {
+      if (tf.getFunction() != null && tf.getFunction().getMultipartName() != null) {
+        functions.add(new FunctionRef(List.copyOf(tf.getFunction().getMultipartName())));
+      }
+      columnList(tf.getAlias());
+      return super.visit(tf, context);
+    }
+
+    @Override
+    public <S> Void visit(Table table, S context) {
+      columnList(table.getAlias());
+      return super.visit(table, context);
+    }
+
+    @Override
+    public <S> Void visit(ParenthesedSelect select, S context) {
+      columnList(select.getAlias());
+      return super.visit(select, context);
+    }
+
+    @Override
+    public <S> Void visit(LateralSubSelect select, S context) {
+      columnList(select.getAlias());
+      return super.visit(select, context);
+    }
+
+    @Override
+    public <S> Void visit(ParenthesedFromItem item, S context) {
+      columnList(item.getAlias());
+      return super.visit(item, context);
+    }
+
+    @Override
+    public <S> Void visit(WithItem<?> with, S context) {
+      if (with.getAlias() != null && with.getWithItemList() != null && !with.getWithItemList().isEmpty()) {
+        notCall(with, with.getAlias().getName());
+      }
+      return super.visit(with, context);
+    }
+
+    @Override
+    public <S> Void visit(PlainSelect ps, S context) {
+      selects.add(ps);
+      lock |= ps.getForMode() != null || ps.getForUpdate() != null;
+      into |= ps.getIntoTables() != null && !ps.getIntoTables().isEmpty();
+      mysqlInto |= ps.getMySqlSelectIntoClause() != null;
+      if (ps.getTop() != null) {
+        walk(ps.getTop().getExpression(), context);
+      }
+      super.visit(ps, context);
+      if (ps.getWindowDefinitions() != null) {
+        ps.getWindowDefinitions().forEach(w -> walkEach(w.getAllExpressions(), context));
+      }
+      return null;
+    }
+
+    @Override
+    public <S> Void visit(Delete delete, S context) {
+      dml++;
+      return super.visit(delete, context);
+    }
+
+    @Override
+    public <S> Void visit(Update update, S context) {
+      dml++;
+      return super.visit(update, context);
+    }
+
+    @Override
+    public <S> Void visit(Insert insert, S context) {
+      dml++;
+      return super.visit(insert, context);
+    }
+  }
+}

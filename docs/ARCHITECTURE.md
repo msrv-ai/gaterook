@@ -63,7 +63,7 @@ flowchart LR
 
 ### 2.2 Core modules
 
-The Spring Modulith root is `ai.msrv.gaterook.core`; `platform` is shared. Connector libraries and the SPI are outside that root. Each core module declares allowed dependencies in its `package-info.java`. Public module APIs live at the package root; implementation details live under `internal`. [ModularityTests](../core/src/test/java/ai/msrv/gaterook/core/ModularityTests.java) enforce module and sensitive execution boundaries.
+The Spring Modulith root is `com.gaterook.core`; `platform` is shared. Connector libraries and the SPI are outside that root. Each core module declares allowed dependencies in its `package-info.java`. Public module APIs live at the package root; implementation details live under `internal`. [ModularityTests](../core/src/test/java/com/gaterook/core/ModularityTests.java) enforce module and sensitive execution boundaries.
 
 | Module | Responsibility |
 | --- | --- |
@@ -103,7 +103,7 @@ Built-in registration uses explicit beans; enable/disable state is stored in `co
 
 ## 3. Connector SPI
 
-The source of truth is [connector-api](../connector-api/src/main/java/ai/msrv/gaterook/connector/) and the [SPI reference](connector-spi.md). A connector exposes its manifest, schemas, tools, configuration test, classification, action description/preparation, execution, and optional template/resource capabilities.
+The source of truth is [connector-api](../connector-api/src/main/java/com/gaterook/connector/) and the [SPI reference](connector-spi.md). A connector exposes its manifest, schemas, tools, configuration test, classification, action description/preparation, execution, and optional template/resource capabilities.
 
 - **Classification is fast and deterministic.** It receives configuration and policy, not secret values, and must not perform network I/O. Failures deny the call.
 - **Preparation is bounded and side-effect-free.** It can reject a request, report no change, or produce a canonical action and approved payload. SQL preparation uses non-executing query plans and rollback (READ ONLY where the server plans a change in one; MySQL and MariaDB refuse that, and MariaDB folds a deterministic function into a constant while it plans), and it plans only statements whose functions are built in or allowed by the connection; Kubernetes preparation uses server dry-run; HTTP/SSH preparation does not send the requested mutation.
@@ -257,7 +257,7 @@ The model learns where the other tools are wherever it looks. `find_tools`'s des
 
 The renderer requests `app://gw/api/*`. Electron main proxies these requests to loopback after removing browser headers and signing the method and exact request target. The HMAC input includes `method|path[?query]|timestamp|nonce`; timestamps have a narrow acceptance window and nonces are single-use. Main verifies the core instance identity in responses. The renderer never receives the launch secret.
 
-Controllers under [core/admin](../core/src/main/java/ai/msrv/gaterook/core/admin/) define the current DTOs and routes. Configuration changes use optimistic versions and schema errors identify the invalid field. Secret response DTOs expose metadata, never stored values. Duplication does not copy secrets. General file operations use constrained tokens or known resource IDs rather than arbitrary renderer-supplied core filesystem paths. The SSH private-key picker is a narrow configuration exception: a dedicated desktop IPC operation opens a native file dialog and returns only the selected absolute path to the form. It takes no renderer-supplied path and does not read or upload file contents; the SSH connector reads the configured key locally after host-key verification.
+Controllers under [core/admin](../core/src/main/java/com/gaterook/core/admin/) define the current DTOs and routes. Configuration changes use optimistic versions and schema errors identify the invalid field. Secret response DTOs expose metadata, never stored values. Duplication does not copy secrets. General file operations use constrained tokens or known resource IDs rather than arbitrary renderer-supplied core filesystem paths. The SSH private-key picker is a narrow configuration exception: a dedicated desktop IPC operation opens a native file dialog and returns only the selected absolute path to the form. It takes no renderer-supplied path and does not read or upload file contents; the SSH connector reads the configured key locally after host-key verification.
 
 Vault/OpenBao stores recommend HTTPS. Creating an HTTP store in the UI requires a warning confirmation naming the address and explaining that credentials and secrets travel unencrypted; cancellation sends no create or test request. Confirmation persists `config.allowPlainHttp: true` on that store. The core rejects non-loopback HTTP without this opt-in, while retaining compatibility with existing local HTTP stores. The opt-in does not relax address restrictions or enable redirects. Each request judges what the store's name resolves to, with the core's own ports refused. The CLI-token sign-in reads only `~/.vault-token`: a regular file, not followed through a link, at most 16 KB, one token.
 

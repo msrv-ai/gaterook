@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.cosmosdb.boot.CosmosDbConnectorsAutoConfiguration
+com.gaterook.connectors.cosmosdb.boot.CosmosDbConnectorsAutoConfiguration
