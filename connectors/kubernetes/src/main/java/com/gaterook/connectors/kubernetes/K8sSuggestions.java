@@ -233,6 +233,10 @@ final class K8sSuggestions {
     } catch (IOException | RuntimeException e) {
       // No ~/.kube folder: only what KUBECONFIG names.
     }
+    if (typed != null) {
+      // The file typed in the form is offered too, wherever it is, so that it shows as the one chosen.
+      found.add(typed);
+    }
     List<Option> out = new ArrayList<>();
     for (Path p : found) {
       if (out.size() >= MAX_FILES) {
