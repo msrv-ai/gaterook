@@ -112,6 +112,15 @@ class ConnectorRegistryDeliveredTypesTest {
     return ToolDefinition.builder(name).title(name).description(description).inputSchema(input).build();
   }
 
+  /** A tool that takes one more argument than {@link #tool}: another contract under the same name. */
+  private static ToolDefinition toolWithArgument(String name, String description, String argument) {
+    ObjectNode input = JSON.createObjectNode().put("type", "object");
+    ObjectNode properties = input.putObject("properties");
+    properties.putObject("connection").put("type", "string");
+    properties.putObject(argument).put("type", "string").put("description", "One more argument.");
+    return ToolDefinition.builder(name).title(name).description(description).inputSchema(input).build();
+  }
+
   private static Connector connector(String id, ConnectorManifest.Kind kind, ToolDefinition... tools) {
     ConnectorManifest m = ConnectorManifest.builder(id, "1.0.0", kind).name(id).tools(List.of(tools)).build();
     return new Connector() {
@@ -265,12 +274,45 @@ class ConnectorRegistryDeliveredTypesTest {
     assertThat(registry(List.of(postgres), new Source().module("sql-oracle", same)).type("oracle"))
         .as("an equal tool merges with the compiled-in one on an endpoint").isPresent();
 
-    Connector other = connector("oracle", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs PL/SQL too."));
+    Connector other = connector("oracle", ConnectorManifest.Kind.BUILT_IN,
+        toolWithArgument("sql_query", "Runs SQL.", "hint"));
     assertThat(registry(List.of(postgres), new Source().module("sql-oracle", other)).type("oracle"))
         .as("a tool that differs from the compiled-in one of its name can't share an endpoint with it").isEmpty();
 
     Connector core = connector("oracle", ConnectorManifest.Kind.BUILT_IN, tool("approval_status", "Pretends."));
     assertThat(registry(List.of(postgres), new Source().module("sql-oracle", core)).type("oracle")).isEmpty();
+  }
+
+  @Test
+  void aToolAModuleSharesWithACompiledInTypeIsTheFamilysWhateverBuildWordedIt() {
+    ToolDefinition family = tool("sql_query", "Runs SQL.");
+    Connector postgres = connector("postgres", ConnectorManifest.Kind.BUILT_IN, family);
+    // The module was built on another day: the same tool, worded as that build worded it, and one tool of its own.
+    ToolDefinition worded = tool("sql_query", "Ran SQL, as an earlier build said it.");
+    ToolDefinition own = tool("ora_explain", "Explains a plan.");
+    Connector oracle = connector("oracle", ConnectorManifest.Kind.BUILT_IN, worded, own);
+    Connector sqlServer = connector("sqlserver", ConnectorManifest.Kind.BUILT_IN,
+        tool("sql_query", "Runs T-SQL, as yet another build said it."));
+    ConnectorRegistry registry = registry(List.of(postgres), new Source().module("sql-oracle", oracle)
+        .module("sql-sqlserver", sqlServer));
+
+    assertThat(registry.tool("oracle", "sql_query")).as("registered with the family's definition").contains(family);
+    assertThat(registry.tool("sqlserver", "sql_query")).as("two modules of one family agree through it")
+        .contains(family);
+    assertThat(registry.tool("oracle", "ora_explain")).contains(own);
+    assertThat(registry.published("oracle", List.of(worded, own))).as("and so are the tools of its endpoints")
+        .containsExactly(family, own);
+    assertThat(registry.published("postgres", List.of(worded))).as("a compiled-in type's tools are its own")
+        .containsExactly(worded);
+
+    assertThat(ConnectorRegistry.sameContract(family, worded)).isTrue();
+    assertThat(ConnectorRegistry.sameTool(family, worded)).isFalse();
+    assertThat(ConnectorRegistry.sameContract(family, toolWithArgument("sql_query", "Runs SQL.", "hint")))
+        .as("another argument is another contract").isFalse();
+    ToolDefinition change = ToolDefinition.builder("sql_query").title("sql_query").description("Runs SQL.")
+        .inputSchema(family.inputSchema()).nature(ToolDefinition.Nature.MUTATION)
+        .defaultMode(ToolDefinition.Mode.APPROVAL, ToolDefinition.Mode.APPROVAL).build();
+    assertThat(ConnectorRegistry.sameContract(family, change)).as("and so is another nature").isFalse();
   }
 
   @Test
@@ -327,15 +369,20 @@ class ConnectorRegistryDeliveredTypesTest {
   void aTypeAnEarlierBuildCompiledInStaysRegisteredFromItsRowUntilItsModuleArrives() {
     Connector postgres = connector("postgres", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."));
     Connector graph = connector("graph", ConnectorManifest.Kind.BUILT_IN, tool("graph_query", "Reads a graph."));
+    // A dialect of the SQL family that the build before compiled in, with that build's wording of the shared tool.
+    Connector oracle = connector("oracle", ConnectorManifest.Kind.BUILT_IN,
+        tool("sql_query", "Ran SQL in the build before."));
     Arrivals arrivals = new Arrivals();
-    arrivals.keeps = Set.of("graph");
+    arrivals.keeps = Set.of("graph", "oracle");
     Source source = new Source().plugin(connector("graph-tools", ConnectorManifest.Kind.PLUGIN,
         tool("graph_query", "Takes the name.")));
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    ConnectorRegistry registry = registry(List.of(postgres), source, List.of(row(postgres), row(graph)), arrivals,
-        publisher);
+    ConnectorRegistry registry = registry(List.of(postgres), source, List.of(row(postgres), row(graph), row(oracle)),
+        arrivals, publisher);
 
-    assertThat(registry.awaitedTypes()).containsExactly("graph");
+    assertThat(registry.awaitedTypes()).containsExactlyInAnyOrder("graph", "oracle");
+    assertThat(registry.tool("oracle", "sql_query")).map(ToolDefinition::description)
+        .as("a tool it shares with a compiled-in type is worded as this build words it").contains("Runs SQL.");
     assertThat(registry.type("graph")).map(t -> t.manifest().kind()).contains(ConnectorManifest.Kind.BUILT_IN);
     assertThat(registry.usable("graph")).as("its switch is the row's").isTrue();
     assertThat(registry.types()).extracting(t -> t.manifest().id()).contains("graph", "postgres");
@@ -356,7 +403,7 @@ class ConnectorRegistryDeliveredTypesTest {
     // Its module arrives.
     source.module("graph-module", graph);
     registry.synchronize();
-    assertThat(registry.awaitedTypes()).isEmpty();
+    assertThat(registry.awaitedTypes()).as("the other one is still on its way").containsExactly("oracle");
     assertThat(registry.connectorFor(of("graph"))).containsSame(graph);
     assertThat(registry.type("graph")).isPresent();
     verify(publisher).publishEvent(new ConnectorTypeChanged("graph"));
@@ -374,8 +421,9 @@ class ConnectorRegistryDeliveredTypesTest {
         row(connector("tampered", ConnectorManifest.Kind.BUILT_IN, tool("tampered_read", "Reads."))),
         // A plugin's type that is gone: never GateRook's own.
         row(connector("jira", ConnectorManifest.Kind.PLUGIN, tool("jira_search", "Searches."))),
-        // Its shared tool differs from the one this build compiles in: the two couldn't share an endpoint.
-        row(connector("oracle", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Ran SQL in the build before."))));
+        // Its shared tool takes other arguments than the one this build compiles in: the two couldn't share an
+        // endpoint.
+        row(connector("oracle", ConnectorManifest.Kind.BUILT_IN, toolWithArgument("sql_query", "Runs SQL.", "hint"))));
     ConnectorRegistry registry = registry(List.of(postgres), new Source(), earlier, arrivals,
         mock(ApplicationEventPublisher.class));
 

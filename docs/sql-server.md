@@ -53,9 +53,15 @@ a connection. With a restricted table allowlist and a different default schema, 
 avoid SQL Server's fallback lookup in `dbo`. Identifier comparisons in GateRook's allowlists are exact, even when the
 server uses a case-insensitive collation.
 
+## Delivery
+
+SQL Server is a dialect of the SQL connector and its own unit of delivery: a [connector module](connector-delivery.md#connector-modules) that this release still compiles in ([the bridge](connector-delivery.md#the-bridge-between-two-releases)). The release after downloads it when a connection needs it, about 9 MB, and runs it in a separate Java process. For a person who has a SQL Server connection, this release installs the module ahead.
+
 ## Verify with a disposable database
 
 For local verification, use the opt-in [SQL Server test service](../test-services/README.md#sql-server).
+`SqlServerModuleCoreProcessIT` runs the connector as its module against that service, in a core that doesn't compile
+SQL Server in (`-Pservices,sqlserver-it -Dgateway.withoutBridge`).
 JVM checks and database integration tests do not establish native-image or installer compatibility.
 
 Microsoft documents the [JDBC read-only limitation](https://learn.microsoft.com/en-us/sql/connect/jdbc/reference/setreadonly-method-sqlserverconnection?view=sql-server-ver17),

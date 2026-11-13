@@ -162,7 +162,9 @@ public class ToolPairs {
     }
     EndpointView view = new EndpointView(slug, env, List.copyOf(configs), Collections.unmodifiableMap(limits),
         List.copyOf(contributions));
-    List<ToolDefinition> tools = connector.map(c -> c.tools(view)).orElse(manifest.tools());
+    // A tool that a module's type shares with a compiled-in one is the family's, whatever build worded it.
+    List<ToolDefinition> tools = registry.published(manifest.id(),
+        connector.map(c -> c.tools(view)).orElse(manifest.tools()));
     Map<String, List<Offered>> out = new LinkedHashMap<>();
     for (Member m : group) {
       ConnectionConfig cfg = m.config();

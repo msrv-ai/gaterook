@@ -105,6 +105,8 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    * ({@link MissingTypes#standIn}).
    */
   private volatile Map<String, Connector> awaited = Map.of();
+  /** The tools of the compiled-in types by name: what a tool that a delivered type shares with them is. */
+  private final Map<String, ToolDefinition> familyTools;
   /** The names and families of the compiled-in tools and the core's own. */
   private final Set<String> reserved;
   private final Set<String> reservedPrefixes;
@@ -192,6 +194,9 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     this.writeTx = new TransactionTemplate(transactions);
     this.readTx = new TransactionTemplate(transactions);
     this.readTx.setReadOnly(true);
+    Map<String, ToolDefinition> family = new HashMap<>();
+    byId.values().forEach(c -> c.manifest().tools().forEach(tool -> family.putIfAbsent(tool.name(), tool)));
+    this.familyTools = Map.copyOf(family);
     this.reserved = reservedNames(byId.values().stream().map(Connector::manifest).toList());
     this.reservedPrefixes = reservedPrefixes(byId.values().stream().map(Connector::manifest).toList());
   }
@@ -259,7 +264,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
           log.error("Connector type {} is not registered: {}", m.id(), problem.get());
           continue;
         }
-        fromSources.put(m.id(), m);
+        fromSources.put(m.id(), inFamily(m));
         source.packageOf(m.id()).ifPresent(p -> packages.put(m.id(), p));
         if (connectors.containsKey(m.id())) {
           ownConnectors.put(m.id(), connectors.get(m.id()));
@@ -355,10 +360,12 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
           log.warn("Connector type {} isn't kept until its connector module arrives: {}", id, problem.get());
           continue;
         }
-        Optional<Connector> standIn = handler.standIn(known);
+        // Its shared tools as this build words them: the row has an earlier build's wording.
+        ConnectorManifest current = inFamily(known);
+        Optional<Connector> standIn = handler.standIn(current);
         if (standIn.isPresent()) {
           out.put(id, standIn.get());
-          taken.put(id, known);
+          taken.put(id, current);
         }
       } catch (RuntimeException e) {
         log.warn("Connector type {} isn't kept until its connector module arrives: {}", id, e.toString());
@@ -806,8 +813,6 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     if (earlier.containsKey(m.id())) {
       return Optional.of("another connector already uses this id");
     }
-    List<ConnectorManifest> others = new ArrayList<>(builtIn.values().stream().map(Connector::manifest).toList());
-    others.addAll(earlier.values());
     Set<String> own = new TreeSet<>();
     for (ToolDefinition t : m.tools()) {
       if (!TOOL_NAME.matcher(t.name()).matches()) {
@@ -819,15 +824,57 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       if (!own.add(t.name())) {
         return Optional.of("tool " + t.name() + " is declared twice");
       }
-      for (ConnectorManifest other : others) {
+      // A tool of a family that a compiled-in type has too may be worded as another build worded it: the family's
+      // definition is the compiled-in one (inFamily). Everything a call depends on must be the same.
+      ToolDefinition family = familyTools.get(t.name());
+      if (family != null && !sameContract(family, t)) {
+        String owner = builtIn.values().stream().map(Connector::manifest)
+            .filter(o -> o.tools().stream().anyMatch(x -> x.name().equals(t.name()))).map(ConnectorManifest::id)
+            .findFirst().orElse("a compiled-in type");
+        return Optional.of("tool " + t.name() + " differs from the one of " + owner
+            + ": same-named tools must be equal to share an endpoint");
+      }
+      ToolDefinition settled = family != null ? family : t;
+      for (ConnectorManifest other : earlier.values()) {
         Optional<ToolDefinition> same = other.tools().stream().filter(o -> o.name().equals(t.name())).findFirst();
-        if (same.isPresent() && !sameTool(same.get(), t)) {
+        if (same.isPresent() && !sameTool(same.get(), settled)) {
           return Optional.of("tool " + t.name() + " differs from the one of " + other.id()
               + ": same-named tools must be equal to share an endpoint");
         }
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * {@code m} with the tools it shares with a compiled-in type as that type defines them. A connector module is
+   * built on its own day: a tool of a family ({@code sql_query}, which PostgreSQL has in the core and Oracle Database
+   * in a module) may be worded there as another build worded it. On an endpoint the two are one tool, so the family
+   * has one definition, the compiled-in one. {@link #firstPartyProblem} lets only a difference of wording through.
+   */
+  private ConnectorManifest inFamily(ConnectorManifest m) {
+    List<ToolDefinition> tools = inFamily(m.tools());
+    return tools.equals(m.tools()) ? m : new ConnectorManifest(m.id(), m.version(), m.kind(), m.name(), m.icon(),
+        m.group(), m.description(), m.configSchema(), m.policySchema(), tools, m.access(), m.dynamicTools(),
+        m.connectorApi());
+  }
+
+  private List<ToolDefinition> inFamily(List<ToolDefinition> tools) {
+    List<ToolDefinition> out = new ArrayList<>(tools.size());
+    for (ToolDefinition t : tools) {
+      ToolDefinition family = familyTools.get(t.name());
+      out.add(family != null && !sameTool(family, t) && sameContract(family, t) ? family : t);
+    }
+    return out;
+  }
+
+  /**
+   * The tools a connector gives for an endpoint ({@code Connector.tools}) as they are published: for a type a source
+   * delivers, a tool it shares with a compiled-in type is the family's ({@link #inFamily}), so that the two publish
+   * as one tool whatever build worded the module's.
+   */
+  public List<ToolDefinition> published(String typeId, List<ToolDefinition> tools) {
+    return typeId == null || builtIn.containsKey(typeId) || familyTools.isEmpty() ? tools : inFamily(tools);
   }
 
   private Optional<String> sourceTypeProblem(ConnectorManifest m, Map<String, ConnectorManifest> earlier) {
@@ -889,6 +936,49 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
         && a.nature() == b.nature() && a.defaultMode() == b.defaultMode()
         && a.prodDefaultMode() == b.prodDefaultMode() && a.resultShape() == b.resultShape()
         && a.risk().equals(b.risk());
+  }
+
+  /**
+   * Equal in everything a call depends on: the name, the input and output schemas apart from their wording, the
+   * annotations, the nature, the modes, the result's shape and the risk. Titles, descriptions and examples may
+   * differ, as between two builds of the same connector.
+   */
+  public static boolean sameContract(ToolDefinition a, ToolDefinition b) {
+    return a.name().equals(b.name())
+        && java.util.Objects.equals(withoutWording(withoutConnectionEnum(a.inputSchema())),
+            withoutWording(withoutConnectionEnum(b.inputSchema())))
+        && java.util.Objects.equals(withoutWording(a.outputSchema()), withoutWording(b.outputSchema()))
+        && a.annotations().equals(b.annotations()) && a.nature() == b.nature()
+        && a.defaultMode() == b.defaultMode() && a.prodDefaultMode() == b.prodDefaultMode()
+        && a.resultShape() == b.resultShape() && a.risk().equals(b.risk());
+  }
+
+  private static final Set<String> WORDING = Set.of("title", "description", "examples", "$comment");
+
+  /** A copy of a JSON Schema without the keywords that only describe: they never decide what is valid. */
+  private static JsonNode withoutWording(JsonNode schema) {
+    if (schema == null) {
+      return null;
+    }
+    if (schema.isObject()) {
+      ObjectNode out = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+      schema.properties().forEach(e -> {
+        // Under "properties" the names are the tool's arguments, whatever they are called.
+        if ("properties".equals(e.getKey()) && e.getValue().isObject()) {
+          ObjectNode properties = out.putObject("properties");
+          e.getValue().properties().forEach(p -> properties.set(p.getKey(), withoutWording(p.getValue())));
+        } else if (!WORDING.contains(e.getKey())) {
+          out.set(e.getKey(), withoutWording(e.getValue()));
+        }
+      });
+      return out;
+    }
+    if (schema.isArray()) {
+      tools.jackson.databind.node.ArrayNode out = tools.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
+      schema.forEach(item -> out.add(withoutWording(item)));
+      return out;
+    }
+    return schema;
   }
 
   private static JsonNode withoutConnectionEnum(JsonNode schema) {

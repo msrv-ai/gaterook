@@ -22,6 +22,10 @@ The default schema is the authenticated user's schema. Set **Default schema** to
 
 Use a restricted database user and trusted schemas and views. The connector blocks explicit unknown function calls, procedural PL/SQL and database links. A read-only transaction does not prevent an Oracle autonomous routine from producing side effects, including when a view or an implicit function reference invokes it. Restrict database grants accordingly.
 
+## Delivery
+
+Oracle Database is a dialect of the SQL connector and its own unit of delivery: a [connector module](connector-delivery.md#connector-modules) that this release still compiles in ([the bridge](connector-delivery.md#the-bridge-between-two-releases)). The release after downloads it when a connection needs it, about 17 MB, and runs it in a separate Java process. For a person who has an Oracle Database connection, this release installs the module ahead.
+
 ## Integration tests
 
 The Docker test suite includes a disposable Oracle service and creates the test user automatically:
@@ -30,6 +34,13 @@ The Docker test suite includes a disposable Oracle service and creates the test 
 scripts/test-services.sh up oracle
 scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservices \
   -Dit.test=OracleIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The module is tested through an assembled core against the same service. `OracleBridgeCoreProcessIT` checks that this release installs it ahead and goes on serving Oracle itself. `OracleModuleCoreProcessIT` runs the module in a core that doesn't compile Oracle in, which is built with `-Dgateway.withoutBridge`:
+
+```bash
+scripts/test-services.sh run mvn -B -ntp -pl app,modules/sql-oracle -am verify -Pservices -Dgateway.withoutBridge \
+  -Dit.test=OracleModuleCoreProcessIT -Dfailsafe.failIfNoSpecifiedTests=false
 ```
 
 `OracleIT` reads the shared `test-services/.env` with `-Pservices` or `GW_TEST_SERVICES`. It also runs when

@@ -276,6 +276,11 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     if (!channel.configured() || !inUse(known.id())) {
       return Optional.empty();
     }
+    if (!lock.locked() && installedWithType(known.id()).isPresent()) {
+      // Its module is installed (ahead, while the build before still compiled the type in): the type registers from
+      // the module's row when the core is ready, and nothing is awaited.
+      return Optional.empty();
+    }
     String typeId = known.id();
     return Optional.of(new AwaitedConnector(known, new AwaitedConnector.Arrival() {
       @Override
@@ -328,6 +333,37 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     String problem = channel.cached().problem();
     return connector + " isn't installed yet, and GateRook couldn't find it to download"
         + (problem == null ? "." : ": " + problem);
+  }
+
+  /**
+   * The bridge (docs/connector-delivery.md): a module the channel lists for a connector type that this build still
+   * compiles in is installed ahead when a connection uses the type, so that the release that no longer compiles the
+   * type in finds its module in place and its connections go on without a pause. Nothing uses the module meanwhile:
+   * the compiled-in connector serves the type. It runs with the checks for updates, never at the start.
+   *
+   * @return the modules whose installation started
+   */
+  private List<String> installAhead() {
+    List<String> started = new ArrayList<>();
+    for (ModuleChannel.Entry entry : channel.modules()) {
+      if (store.find(entry.id()).isPresent() || failedRecently(entry.id(), UPDATE_RETRY)) {
+        continue;
+      }
+      List<String> ahead = entry.types().stream().map(ModuleChannel.TypeInfo::id)
+          .filter(type -> registry.compiledIn(type) && inUse(type)).toList();
+      if (ahead.isEmpty()) {
+        continue;
+      }
+      try {
+        start(entry, null);
+        started.add(entry.id());
+        log.info("Connections use {}, which a later release gets as the connector module {}: installing it ahead",
+            ahead, entry.id());
+      } catch (RuntimeException e) {
+        log.info("Connector module {} couldn't be installed ahead: {}", entry.id(), e.getMessage());
+      }
+    }
+    return started;
   }
 
   /** Asks for the module of every awaited type, in the background. */
@@ -758,6 +794,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
         log.info("Connector module {} couldn't be updated: {}", row.getId(), e.getMessage());
       }
     }
+    started.addAll(installAhead());
     return List.copyOf(started);
   }
 
@@ -1057,7 +1094,25 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
   /** The installed module of that id, or the installed one that adds the connector type of that id. */
   private Optional<PluginEntity> installedFor(String typeOrModuleId) {
     String moduleId = source.moduleOf(typeOrModuleId).orElse(typeOrModuleId);
-    return store.find(moduleId).filter(PluginEntity::isModule);
+    return store.find(moduleId).filter(PluginEntity::isModule).or(() -> installedWithType(typeOrModuleId));
+  }
+
+  /**
+   * The installed module whose row says it adds the connector type, registered or not: a module's types register
+   * when the core is ready, and a module that was installed ahead for a type the build compiled in never registered
+   * that type at all.
+   */
+  private Optional<PluginEntity> installedWithType(String typeId) {
+    for (PluginEntity row : modules()) {
+      try {
+        if (store.moduleManifest(row).types().stream().anyMatch(type -> type.id().equals(typeId))) {
+          return Optional.of(row);
+        }
+      } catch (RuntimeException e) {
+        log.debug("Connector module {} can't be read: {}", row.getId(), e.toString());
+      }
+    }
+    return Optional.empty();
   }
 
   /** The channel's module of that id or for that type, checking the channel first when the last check is old. */
