@@ -47,11 +47,11 @@ function appJar(t) {
   const file = join(root, 'app.jar');
   writeFileSync(file, storedZip({
     'BOOT-INF/classes/application.yml': 'x',
-    'BOOT-INF/lib/core-1.0.0.jar': storedZip({ 'ai/msrv/gaterook/core/Gateway.class': 'c', 'db/migration/V1.sql': 's' }),
-    'BOOT-INF/lib/connectors-support-1.0.0.jar': storedZip({ 'ai/msrv/gaterook/connectors/support/Glob.class': 'c' }),
-    'BOOT-INF/lib/connectors-logs-1.0.0.jar': storedZip({ 'ai/msrv/gaterook/connectors/logs/LogsConnector.class': 'c' }),
-    'BOOT-INF/lib/connectors-azure-1.0.0.jar': storedZip({ 'ai/msrv/gaterook/connectors/azure/AzureConnector.class': 'c' }),
-    'BOOT-INF/lib/connectors-sql-1.0.0.jar': storedZip({ 'ai/msrv/gaterook/connectors/sql/SqlConnector.class': 'c' }),
+    'BOOT-INF/lib/core-1.0.0.jar': storedZip({ 'com/gaterook/core/Gateway.class': 'c', 'db/migration/V1.sql': 's' }),
+    'BOOT-INF/lib/connectors-support-1.0.0.jar': storedZip({ 'com/gaterook/connectors/support/Glob.class': 'c' }),
+    'BOOT-INF/lib/connectors-logs-1.0.0.jar': storedZip({ 'com/gaterook/connectors/logs/LogsConnector.class': 'c' }),
+    'BOOT-INF/lib/connectors-azure-1.0.0.jar': storedZip({ 'com/gaterook/connectors/azure/AzureConnector.class': 'c' }),
+    'BOOT-INF/lib/connectors-sql-1.0.0.jar': storedZip({ 'com/gaterook/connectors/sql/SqlConnector.class': 'c' }),
     'BOOT-INF/lib/driver-2.1.jar': storedZip({ 'org/driver/Driver.class': 'c', 'org/driver/Driver$Inner.class': 'c',
       'META-INF/versions/21/org/driver/Fast.class': 'c' }),
     'BOOT-INF/lib/logs-client-3.0.jar': storedZip({ 'com/cloud/logs/Client.class': 'c' }),
@@ -73,7 +73,7 @@ test('the classes of the jars inside app.jar are indexed, multi-release classes 
   const index = classIndex(appJar(t));
   assert.equal(index.classes.get('org.driver.Driver'), 'driver-2.1.jar');
   assert.equal(index.classes.get('org.driver.Fast'), 'driver-2.1.jar');
-  assert.equal(index.classes.get('ai.msrv.gaterook.core.Gateway'), 'core-1.0.0.jar');
+  assert.equal(index.classes.get('com.gaterook.core.Gateway'), 'core-1.0.0.jar');
   assert.deepEqual([...index.packages.get('org.driver')], ['driver-2.1.jar']);
   assert.equal(index.jars.size, 9);
 });
@@ -83,9 +83,9 @@ test('a class is traced to its jar through inner classes, lambdas and generated 
   assert.equal(originOfClass('org.driver.Driver$Inner$Deeper', index), 'driver-2.1.jar');
   assert.equal(originOfClass('org.driver.Driver$$Lambda.0x0001', index), 'driver-2.1.jar');
   assert.equal(originOfClass('org.driver.Generated__Hints', index), 'driver-2.1.jar');
-  assert.equal(originOfClass('ai.msrv.gaterook.connectors.sql.boot.SqlConfig__BeanDefinitions', index), 'module:sql');
-  assert.equal(originOfClass('ai.msrv.gaterook.connectors.cloudauth.Generated', index), 'module:cloud-auth');
-  assert.equal(originOfClass('ai.msrv.gaterook.core.GatewayApplication__Init', index), 'module:core');
+  assert.equal(originOfClass('com.gaterook.connectors.sql.boot.SqlConfig__BeanDefinitions', index), 'module:sql');
+  assert.equal(originOfClass('com.gaterook.connectors.cloudauth.Generated', index), 'module:cloud-auth');
+  assert.equal(originOfClass('com.gaterook.core.GatewayApplication__Init', index), 'module:core');
   assert.equal(originOfClass('java.util.HashMap', index), RUNTIME);
   assert.equal(originOfClass('jdk.proxy4.$Proxy12', index), PROXIES);
   assert.equal(originOfClass('com.unknown.Thing', index), '(other: com)');
@@ -96,7 +96,7 @@ test('Maven dependency lists become jar names, with classifiers and scopes', () 
 The following files have been resolved:
    org.driver:driver:jar:2.1 -- module org.driver
    io.netty:netty-transport-native:jar:osx-aarch_64:4.2.19.Final:runtime
-   ai.msrv.gaterook:connector-api:jar:1.0.0:compile -- module connector.api (auto)
+   com.gaterook:connector-api:jar:1.0.0:compile -- module connector.api (auto)
    org.example:bom:pom:1.0
 `);
   assert.deepEqual([...jars], ['driver-2.1.jar', 'netty-transport-native-4.2.19.Final-osx-aarch_64.jar',
@@ -124,8 +124,8 @@ test('code is attributed to the core, the runtime and the connector that brings 
     { name: 'org.driver.Driver.connect(String) Connection', size: 600 },
     { name: 'io.netty.Channel.write(Object) void', size: 200 },
     { name: 'com.cloud.logs.Client.get() String', size: 100 },
-    { name: 'ai.msrv.gaterook.connectors.sql.boot.SqlConfig__BeanDefinitions.get() Object', size: 50 },
-    { name: 'ai.msrv.gaterook.core.Gateway.main(String[]) void', size: 300 },
+    { name: 'com.gaterook.connectors.sql.boot.SqlConfig__BeanDefinitions.get() Object', size: 50 },
+    { name: 'com.gaterook.core.Gateway.main(String[]) void', size: 300 },
     { name: 'java.lang.String.length() int', size: 700 },
     { name: 'jdk.proxy4.$Proxy1.value() String', size: 50 },
   ] } };

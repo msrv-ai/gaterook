@@ -1,0 +1,373 @@
+package com.gaterook.connectors.support.mcp;
+
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.Connector;
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.SecretResolver;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import tools.jackson.databind.JsonNode;
+
+/**
+ * External MCP servers as the core sees them (ARCHITECTURE.md §7.5, step C10): the processes and HTTP sessions behind
+ * connections of type {@code mcp-server}, run by the {@code connectors/mcp-server} module, and the snapshots of their
+ * tools, kept by the core's {@code mcpservers} module. The core never sees the module's classes: it finds this bean,
+ * attaches itself as the {@link Host} and asks for one {@link Connector} per connection.
+ *
+ * <p>What the core stores is the person's review: a snapshot of the tools as they were listed, each with its
+ * {@code exposed} name (the connection's prefix and the upstream name), its definition and a hash of what the server
+ * declared. Agents get {@code tools/list} from the snapshot, never from the server; a server that lists something else
+ * after a restart hands the core a new {@link Handshake}, and the core decides what that changes on the endpoints
+ * (new tools Off, a changed one loses its Read only confirmation, a gone one leaves the endpoints).
+ *
+ * <p>Snapshot entries are JSON objects of this module's making; the core relies on these keys only:
+ * {@code exposed}, {@code original}, {@code definitionHash} (SHA-256 of what the server declared for the tool) and
+ * {@code annotations} (as declared, or absent).
+ */
+public interface McpServerRuntime extends AutoCloseable {
+
+  /** The core attaches once, before it asks for anything else. */
+  void attach(Host host);
+
+  /**
+   * The connector of one stored connection, serving the tools of {@code snapshot}. Cheap and starts nothing: the
+   * process starts on the first call that needs it (or right away when the server is set to start with the core).
+   */
+  Connector connector(ConnectionConfig cfg, Snapshot snapshot);
+
+  /** What would run for {@code cfg}, without running it: the command as resolved, Node, variables, sandbox. */
+  Review review(ConnectionConfig cfg);
+
+  /**
+   * Starts a throw-away process (or HTTP session) for a config that isn't saved yet, lists its tools and stops it:
+   * Review and start, and Test connection of a draft.
+   *
+   * @throws ConnectorException when it doesn't start, doesn't answer {@code initialize} in time, or speaks a protocol
+   *                            this client doesn't; the message says what happened and what to do
+   */
+  default Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) throws ConnectorException {
+    return probe(cfg, secrets, ctx, null);
+  }
+
+  /**
+   * {@link #probe} of an HTTP server the person just signed in to: every request of the throw-away session carries
+   * that sign-in ({@code null}: none).
+   */
+  Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Authorization authorization)
+      throws ConnectorException;
+
+  /**
+   * Starts the server of a stored connection, or lists its tools again when it runs; {@code restart} stops a running
+   * process first. The host hears the handshake as it does for every start.
+   */
+  Handshake start(ConnectionConfig cfg, Snapshot snapshot, SecretResolver secrets, ExecContext ctx, boolean restart)
+      throws ConnectorException;
+
+  /**
+   * Starts the server of a stored connection the way a call would (a server set to start with the core, after the
+   * core started or after a backoff): refused while it backs off or failed, and nothing happens when it runs.
+   */
+  void warm(ConnectionConfig cfg, Snapshot snapshot, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException;
+
+  /** Stops the process (or session) of a connection and its whole process tree; idempotent. */
+  void stop(String connectionId);
+
+  /** The process of a connection right now, or empty when it never ran in this core. */
+  Optional<ProcessView> process(String connectionId);
+
+  /**
+   * Installs a pinned npm package of a catalog entry into the server's work folder ({@code npm ci --ignore-scripts}
+   * from the entry's lockfile) and checks its integrity against the entry: the command to run it and what the start
+   * checks every time.
+   */
+  NpmInstall install(String serverName, NpmPackage pkg, Duration timeout) throws ConnectorException;
+
+  /**
+   * Moves what the runtime keeps under a stored server's name when its connection is renamed: the work folder
+   * {@code mcp/<from>} (its installed package, {@code HOME} and temporary folder) and the log
+   * {@code logs/mcp/<from>.log} become {@code mcp/<to>} and {@code logs/mcp/<to>.log}. The server stops first, as a
+   * Stop stops it, and no session of it starts until the move is committed or rolled back. A folder or log already
+   * named {@code to}, left by a server deleted earlier, is set aside, deleted on commit and put back on rollback.
+   *
+   * @throws ConnectorException when the server doesn't stop in time or a file can't be moved; nothing stays moved then
+   */
+  Relocation relocate(String connectionId, String from, String to) throws ConnectorException;
+
+  /** Stops every process (core shutdown). */
+  @Override
+  void close();
+
+  /** A rename's move of a server's folder and log, held until the core knows whether the rename was saved. */
+  interface Relocation {
+
+    /** The rename was saved: what {@code to} held before is deleted, and the server may start again. */
+    void commit();
+
+    /** The rename wasn't saved: everything moves back, and the server may start again. */
+    void rollback();
+  }
+
+  /** What the core did with its bridge launcher before the runtime asks whether its sandbox works. */
+  enum Bridge {
+    /**
+     * The core wrote this build's launcher for this run (or tried to): a launcher that isn't there, or whose probe
+     * fails, is no answer then, and nothing starts until a later look at the sandbox gets one.
+     */
+    WRITTEN,
+    /** This build has no bridge: servers run without a sandbox, as the person's user, and the review says so. */
+    NONE,
+    /**
+     * The host keeps no launcher (a test): the runtime asks what is there, and no launcher there means no sandbox.
+     */
+    AS_FOUND
+  }
+
+  /** What the core gives the runtime. */
+  interface Host {
+
+    /** The gateway's home ({@code ~/.gaterook}): work folders {@code mcp/<name>}, logs {@code logs/mcp/}. */
+    Path home();
+
+    /**
+     * Called once, before the runtime first asks whether its sandbox works: the core writes its bridge launcher in
+     * {@link #home()} ({@code bin/gw-bridge}; on Windows {@code bin/gw-bridge.cmd} and {@code bin/gw-bridge.argv}) for
+     * this run now if it hasn't yet, so that the answer, and every start, is about this build's bridge, never about a
+     * launcher an earlier install left there or one not written yet. The default writes nothing
+     * ({@link Bridge#AS_FOUND}).
+     */
+    default Bridge prepareBridge() {
+      return Bridge.AS_FOUND;
+    }
+
+    /**
+     * The core's own listeners now (its local API, the tunnel's listener, the port its web server bound): the TCP
+     * ports a sandboxed server's sockets, and its {@code npm ci}'s, may neither connect to nor bind. Asked at each
+     * start, so a port bound after the runtime attached counts; empty closes none.
+     */
+    default Set<Integer> corePorts() {
+      return Set.of();
+    }
+
+    /** Why no tool of an MCP server may be called {@code toolName} (a built-in or core name), or empty. */
+    Optional<String> reservedProblem(String toolName);
+
+    /** A server started (or listed its tools again): what it said about itself and the tools it lists now. */
+    void handshake(String connectionId, Handshake handshake);
+
+    /** The process of a connection changed state (SSE {@code mcp-server.state}). */
+    void state(String connectionId, ProcessView process);
+
+    /**
+     * A server set to start with the core is down and its backoff is over: the core starts it again with its secrets
+     * ({@link #start}). Called on the runtime's own thread; the host must not block it for long.
+     */
+    void wanted(String connectionId);
+
+    /**
+     * A running server said its resources ({@code resources}) or prompts ({@code prompts}) changed. Called on the
+     * runtime's own thread; the host must not block it for long.
+     */
+    default void listChanged(String connectionId, String what) {}
+
+    /** A resource a client subscribed to was updated; {@code uri} as endpoints publish it. */
+    default void resourceUpdated(String connectionId, String uri) {}
+
+    /**
+     * The OAuth sign-in of a stored HTTP server whose config asks for one ({@code auth.type: "oauth"}), asked for when
+     * a session opens: empty when the core keeps none for it, and then the session's requests go without one.
+     */
+    default Optional<Authorization> authorization(String connectionId) {
+      return Optional.empty();
+    }
+  }
+
+  /**
+   * The OAuth sign-in of a server over HTTP (ARCHITECTURE.md §7.5), kept by the core: the person signed in in their
+   * browser, the core holds the tokens encrypted and renews them. The transport asks it for the {@code Authorization}
+   * header of every request and tells it when the server refused that header; the tokens never reach a log, an answer
+   * or the agent.
+   */
+  interface Authorization {
+
+    /**
+     * The value of the {@code Authorization} header for the next request ({@code Bearer …}), renewed first when the
+     * token is about to expire.
+     *
+     * @throws SignInRequired     when there is no usable sign-in: the person has to sign in again first
+     * @throws ConnectorException when the renewal couldn't reach the authorization server (nothing was decided)
+     */
+    String header() throws SignInRequired, ConnectorException;
+
+    /**
+     * The server refused {@code header}: HTTP 401, or 403 with {@code insufficient_scope}. A token that expired early
+     * is renewed, and the transport sends the refused request once more with the new one; a second 401 for that
+     * request ends it without asking again.
+     *
+     * @param challenge the server's {@code WWW-Authenticate} header, or {@code null}
+     * @return the header to send the refused request again with
+     * @throws SignInRequired when renewing can't help (no refresh token, a revoked sign-in, more permissions needed)
+     */
+    String refused(String header, String challenge, int status) throws SignInRequired, ConnectorException;
+
+    /** The token values in use now, for masking: an answer that quotes one never reaches the agent with it. */
+    List<String> secrets();
+  }
+
+  /**
+   * The person has to sign in to the server (again) before it takes requests: never signed in, the sign-in was
+   * revoked or expired, or the server wants more permissions. The message says which and where to sign in; it holds
+   * no token.
+   */
+  final class SignInRequired extends Exception {
+
+    private static final long serialVersionUID = 1L;
+
+    public SignInRequired(String message) {
+      super(message, null, false, false);
+    }
+
+    /** The sign-in a failure comes down to, or {@code null} when it has another cause. */
+    public static SignInRequired in(Throwable failure) {
+      for (Throwable t = failure; t != null; t = t.getCause()) {
+        if (t instanceof SignInRequired s) {
+          return s;
+        }
+        if (t.getCause() == t) {
+          break;
+        }
+      }
+      return null;
+    }
+  }
+
+  /**
+   * The reviewed state of one server, as the core stores it.
+   *
+   * @param toolPrefix      the prefix of its tools ({@code github_}), fixed when the server was added
+   * @param serverVersion   {@code serverInfo.version} at the last handshake: Read only confirmations bind to it
+   * @param protocolVersion the revision both agreed on ({@code 2024-11-05})
+   * @param tools           one JSON object per tool (keys: see the type's description)
+   * @param npmIntegrity    the integrity a catalog server's package must have on every start, or {@code null}
+   */
+  record Snapshot(String toolPrefix, String serverVersion, String protocolVersion, List<JsonNode> tools,
+      String npmIntegrity) {
+
+    public Snapshot {
+      Objects.requireNonNull(toolPrefix, "toolPrefix");
+      tools = tools == null ? List.of() : List.copyOf(tools);
+    }
+  }
+
+  /**
+   * One start of a server.
+   *
+   * @param serverInfo      {@code {name, title, version}} as the server sent them (cleaned of control characters)
+   * @param instructions    the server's instructions, for the review only: agents never get them
+   * @param tools           the snapshot entries of the tools it lists now, in its order
+   * @param rejected        tools that can't be published, and why (a reserved name, a schema over 64 KB)
+   * @param startMillis     from spawn (or connect) to the end of {@code tools/list}
+   * @param notes           what the test shows ("26 tools, 0 declare annotations", "Not pinned")
+   */
+  record Handshake(JsonNode serverInfo, String protocolVersion, String instructions, List<JsonNode> tools,
+      List<Rejected> rejected, long startMillis, List<String> notes) {
+
+    public Handshake {
+      tools = tools == null ? List.of() : List.copyOf(tools);
+      rejected = rejected == null ? List.of() : List.copyOf(rejected);
+      notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    public String serverVersion() {
+      return serverInfo == null ? null : serverInfo.path("version").asString(null);
+    }
+  }
+
+  /** A tool the server lists that the gateway doesn't publish. */
+  record Rejected(String name, String reason) {}
+
+  /**
+   * What will run.
+   *
+   * @param argv            the command as it starts (for a catalog server {@code node …/dist/index.js}, never npx)
+   * @param resolvedCommand the absolute path of {@code argv[0]} found on the PATH the gateway gives the process
+   * @param node            {@code Node v24.22.1} when the command is Node, npm or npx; {@code null} otherwise
+   * @param variables       names of the variables (stdio) or headers (HTTP) whose values come from secrets
+   * @param notPinned       an npm package without an exact version: npx can fetch new code on every start
+   * @param sandbox         {@code landlock}, {@code sandbox-exec}, {@code low-integrity} or {@code appcontainer}, or
+   *                        {@code null} where the system has none, or while it couldn't be checked (a warning says so,
+   *                        and the server doesn't start until it can be)
+   * @param warnings        what the person should know before starting it
+   */
+  record Review(String transport, List<String> argv, String resolvedCommand, String node, String url,
+      List<String> variables, List<String> inherited, boolean notPinned, String sandbox, String workDir,
+      String log, List<String> warnings) {
+
+    public Review {
+      argv = argv == null ? List.of() : List.copyOf(argv);
+      variables = variables == null ? List.of() : List.copyOf(variables);
+      inherited = inherited == null ? List.of() : List.copyOf(inherited);
+      warnings = warnings == null ? List.of() : List.copyOf(warnings);
+    }
+  }
+
+  /** States of a server's process, as {@code ConnectorProcessStatus} names them. */
+  enum State { STARTING, RUNNING, DRAINING, STOPPED, CRASHED, BACKOFF, FAILED }
+
+  /**
+   * A process (stdio) or a session (HTTP) right now.
+   *
+   * @param pid    the root process while one runs, else {@code null}
+   * @param detail one line for the UI ("Exited with code 3 · restarts in 4 s", "Idle for 15 min")
+   */
+  record ProcessView(State state, Long pid, Integer rssMb, Instant since, String detail) {
+
+    public ProcessView {
+      Objects.requireNonNull(state, "state");
+    }
+  }
+
+  /**
+   * A pinned npm package of a catalog entry.
+   *
+   * @param integrity the {@code sha512-…} integrity the catalog signed for {@code name@version}
+   * @param lockfile  the catalog's {@code package-lock.json} bytes ({@code npm ci} installs exactly it)
+   * @param bin       the name of the package's executable ({@code mcp-server-github})
+   * @param nodeRange the Node versions it needs ({@code >=18}), or {@code null}
+   */
+  record NpmPackage(String name, String version, String integrity, byte[] lockfile, String bin, String nodeRange,
+      boolean ignoreScripts) {
+
+    public NpmPackage {
+      Objects.requireNonNull(name, "name");
+      Objects.requireNonNull(version, "version");
+      Objects.requireNonNull(integrity, "integrity");
+      Objects.requireNonNull(lockfile, "lockfile");
+      Objects.requireNonNull(bin, "bin");
+      lockfile = lockfile.clone();
+    }
+
+    @Override
+    public byte[] lockfile() {
+      return lockfile.clone();
+    }
+  }
+
+  /**
+   * An installed package.
+   *
+   * @param command the argv to start it from the server's work folder ({@code node node_modules/…/dist/index.js})
+   */
+  record NpmInstall(List<String> command, String integrity, String node, long millis) {
+
+    public NpmInstall {
+      command = List.copyOf(command);
+    }
+  }
+}

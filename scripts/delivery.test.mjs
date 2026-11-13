@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { appAssembly, checkDelivery, readDelivery, typesByDelivery } from './delivery.mjs';
 
-const dependency = (name, scope = '') => `<dependency><groupId>ai.msrv.gaterook</groupId>
+const dependency = (name, scope = '') => `<dependency><groupId>com.gaterook</groupId>
   <artifactId>connectors-${name}</artifactId>${scope ? `<scope>${scope}</scope>` : ''}</dependency>`;
 
 /** A checkout with the connectors `alpha` (bundled) and `beta` (module), as the given overrides change it. */
@@ -23,7 +23,7 @@ function fixture(t, { map, always = ['alpha'], profile = ['beta'], bridge = [],
     <!-- <module>connectors/ghost</module> -->
     ${modules.map((m) => `<module>connectors/${m}</module>`).join('\n')}</modules></project>`);
   writeFileSync(join(root, 'app', 'pom.xml'), `<project><dependencies>
-    <dependency><groupId>ai.msrv.gaterook</groupId><artifactId>core</artifactId></dependency>
+    <dependency><groupId>com.gaterook</groupId><artifactId>core</artifactId></dependency>
     ${always.map((n) => dependency(n)).join('\n')}
     ${dependency('gamma', 'test')}
     </dependencies><profiles>

@@ -88,7 +88,7 @@ test('this checkout: the connector API artifact has the version of the API it ho
   // Connector modules, also those built outside this checkout, compile against connector-api:<ApiVersion.CURRENT>.
   const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
   const api = /String CURRENT = "([^"]+)"/
-    .exec(read('connector-api/src/main/java/ai/msrv/gaterook/connector/api/ApiVersion.java'))?.[1];
+    .exec(read('connector-api/src/main/java/com/gaterook/connector/api/ApiVersion.java'))?.[1];
   assert.match(api ?? '', /^\d+\.\d+\.\d+$/);
   assert.equal(/<connector-api\.version>([^<]+)<\/connector-api\.version>/.exec(read('pom.xml'))?.[1], api);
   assert.equal(/<artifactId>connector-api<\/artifactId>\s*(?:<!--[\s\S]*?-->\s*)?<version>([^<]+)<\/version>/

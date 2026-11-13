@@ -3,7 +3,7 @@ import { JsonObject } from '../../core/api/types';
 
 /**
  * Connect a store (kit `#dlg-connect-aws`; S1 `POST /api/secret-stores` with the forms of
- * `ai/msrv/gaterook/core/secrets/store/{vault,gcp-sm,aws-sm,azure-kv}.schema.json`): the non-secret fields of every kind
+ * `com/gaterook/core/secrets/store/{vault,gcp-sm,aws-sm,azure-kv}.schema.json`): the non-secret fields of every kind
  * in one model (the dialog shows the kind's), their rules in the core's words, and the request. Sign-in values (AWS
  * secret access key, AppRole secret ID, Vault token, service account key, Azure client secret or certificate) are
  * never in the model: the dialog reads them from their fields once, when it sends.

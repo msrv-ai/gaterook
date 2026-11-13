@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.gcp.boot.GcpConnectorsAutoConfiguration
+com.gaterook.connectors.gcp.boot.GcpConnectorsAutoConfiguration

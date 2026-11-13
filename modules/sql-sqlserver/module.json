@@ -1,14 +1,14 @@
 {
   "id": "sql-sqlserver",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "name": "SQL Server",
   "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Microsoft SQL Server: schemas, tables and queries. Writes wait for approval.",
-  "moduleClass": "ai.msrv.gaterook.connectors.sql.sqlserver.module.SqlServerModule",
+  "moduleClass": "com.gaterook.connectors.sql.sqlserver.module.SqlServerModule",
   "requires": {
     "gateway": ">=0.9.2 & <1.0.0",
-    "connectorApi": ">=1.2.0 & <2.0.0"
+    "connectorApi": ">=2.0.0 & <3.0.0"
   },
   "access": {
     "hosts": [],

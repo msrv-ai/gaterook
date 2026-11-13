@@ -1,13 +1,13 @@
 package gaterook.plugins.rabbitmq;
 
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.ConnectorException;
-import ai.msrv.gaterook.connector.api.Env;
-import ai.msrv.gaterook.connector.api.ExecContext;
-import ai.msrv.gaterook.connector.api.Limits;
-import ai.msrv.gaterook.connector.api.SecretResolver;
-import ai.msrv.gaterook.connector.api.SecretUnavailableException;
-import ai.msrv.gaterook.connector.api.ToolCall;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.Env;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.Limits;
+import com.gaterook.connector.api.SecretResolver;
+import com.gaterook.connector.api.SecretUnavailableException;
+import com.gaterook.connector.api.ToolCall;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.InputStream;

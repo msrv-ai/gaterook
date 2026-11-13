@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.mongodb.boot.MongoConnectorsAutoConfiguration
+com.gaterook.connectors.mongodb.boot.MongoConnectorsAutoConfiguration

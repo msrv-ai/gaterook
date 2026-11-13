@@ -14,7 +14,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -30,7 +30,7 @@
   <dependencies>
     <!-- The host serves both parent-first: a plugin never ships its own copy (the installer refuses one). -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
       <scope>provided</scope>
     </dependency>
@@ -62,7 +62,7 @@
     </dependency>
     <!-- The manifests must parse as the core and the host parse them, and match what the code serves. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-protocol</artifactId>
       <scope>test</scope>
     </dependency>

@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.dynamodb.boot.DynamoDbConnectorsAutoConfiguration
+com.gaterook.connectors.dynamodb.boot.DynamoDbConnectorsAutoConfiguration

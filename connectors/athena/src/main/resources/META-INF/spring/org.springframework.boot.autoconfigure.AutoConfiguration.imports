@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.athena.boot.AthenaConnectorsAutoConfiguration
+com.gaterook.connectors.athena.boot.AthenaConnectorsAutoConfiguration

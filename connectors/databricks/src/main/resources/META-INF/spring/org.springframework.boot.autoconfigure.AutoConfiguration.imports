@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.databricks.boot.DatabricksConnectorsAutoConfiguration
+com.gaterook.connectors.databricks.boot.DatabricksConnectorsAutoConfiguration

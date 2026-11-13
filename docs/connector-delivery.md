@@ -66,7 +66,7 @@ A module is built in one of two places. The modules of this repository package a
 
 A module is one JAR with an `mcp-gateway-plugin.json` of `manifestVersion` 2. The manifest names a `moduleClass` that implements `ConnectorModule` (connector API 1.2) and lists one or more connector types, each with its schemas, tools, template kinds, concurrency and capabilities. `ModuleManifests` writes it from the module's own connectors, so the manifest and the code can't disagree by hand. The host refuses a module whose code gives other connector types or other tool definitions than its manifest declares.
 
-A module may ship its own classes under `ai.msrv.gaterook.connectors.` and its driver stack. It may not ship the packages the host provides: the connector API, the plugin protocol, the host itself, Jackson, PF4J and SLF4J.
+A module may ship its own classes under `com.gaterook.connectors.` and its driver stack. It may not ship the packages the host provides: the connector API, the plugin protocol, the host itself, Jackson, PF4J and SLF4J.
 
 Each module of this repository has a folder under `modules/`:
 

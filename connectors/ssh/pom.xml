@@ -2,7 +2,7 @@
 <!--
   SSH (report 06, ARCHITECTURE.md A23): ssh_run (runbooks with typed parameters) and ssh_exec over Apache MINA SSHD,
   a pinned host key verifier, Vault SSH CA, a bastion, the runbook compiler and TemplateKind "ssh-runbook".
-  MINA comes as ai.msrv.gaterook:sshd-nofs (no FileSystemProvider for the native build); its optional originals are
+  MINA comes as com.gaterook:sshd-nofs (no FileSystemProvider for the native build); its optional originals are
   excluded here as well. Spring only in the .boot subpackage. Built by step C4.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -10,7 +10,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -21,11 +21,11 @@
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
     <dependency>
@@ -39,7 +39,7 @@
     </dependency>
     <!-- Shaded MINA; the originals must never reach this classpath (MNG-5899). -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>sshd-nofs</artifactId>
       <exclusions>
         <exclusion>

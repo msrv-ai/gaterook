@@ -14,7 +14,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -25,20 +25,20 @@
 
   <properties>
     <!-- The version of module.json; scripts/modules.mjs keeps the two equal. -->
-    <module.version>1.0.0</module.version>
+    <module.version>2.0.0</module.version>
     <maven.deploy.skip>true</maven.deploy.skip>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-cassandra</artifactId>
       <version>${project.version}</version>
     </dependency>
 
     <!-- Served by the module host, parent-first: never part of the package. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
       <scope>provided</scope>
     </dependency>
@@ -54,7 +54,7 @@
     </dependency>
     <!-- Build time only: ModuleManifests writes the manifest from the module's connectors. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-protocol</artifactId>
       <scope>provided</scope>
     </dependency>
@@ -81,7 +81,7 @@
             <goals><goal>run</goal></goals>
             <configuration>
               <target>
-                <java classname="ai.msrv.gaterook.plugin.protocol.ModuleManifests" fork="true" failonerror="true"
+                <java classname="com.gaterook.plugin.protocol.ModuleManifests" fork="true" failonerror="true"
                       classpathref="maven.compile.classpath">
                   <arg value="${project.basedir}/module.json"/>
                   <arg value="${project.build.outputDirectory}/mcp-gateway-plugin.json"/>
@@ -115,9 +115,9 @@
                 </filter>
                 <!-- The connector's registration as a Spring bean is the compiled-in delivery's. -->
                 <filter>
-                  <artifact>ai.msrv.gaterook:connectors-cassandra</artifact>
+                  <artifact>com.gaterook:connectors-cassandra</artifact>
                   <excludes>
-                    <exclude>ai/msrv/gaterook/connectors/cassandra/boot/**</exclude>
+                    <exclude>com/gaterook/connectors/cassandra/boot/**</exclude>
                     <exclude>META-INF/spring/**</exclude>
                     <exclude>META-INF/MANIFEST.MF</exclude>
                     <exclude>META-INF/maven/**</exclude>

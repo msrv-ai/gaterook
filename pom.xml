@@ -17,7 +17,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>ai.msrv.gaterook</groupId>
+  <groupId>com.gaterook</groupId>
   <artifactId>mcp-gateway</artifactId>
   <version>${revision}</version>
   <packaging>pom</packaging>
@@ -90,7 +90,7 @@
       The SPI is versioned on its own, and its artifact has the SPI's version (ApiVersion.CURRENT): plugins and
       connector modules declare requires.connectorApi against it and compile against this artifact.
     -->
-    <connector-api.version>1.2.0</connector-api.version>
+    <connector-api.version>2.0.0</connector-api.version>
 
     <!-- Overrides of versions the Spring Boot BOM manages (reports 05, 07, 09). -->
     <mongodb.version>5.13.0</mongodb.version>
@@ -175,192 +175,192 @@
     <dependencies>
       <!-- ── Our own modules ───────────────────────────────────────────────────────────────────────────── -->
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connector-api</artifactId>
         <version>${connector-api.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>plugin-protocol</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>sshd-nofs</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-support</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-cloud-auth</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-sql</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-sql-oracle</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-sql-sqlserver</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-mongodb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-redis</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-ssh</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-logs</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-kubernetes</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-gcp</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-aws</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-azure</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-dynamodb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-s3</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-bigquery</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-spanner</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-firebase</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-trino</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-redshift</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-snowflake</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-cloudflare</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-prometheus</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-influxdb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-search</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-databricks</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-athena</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-cosmosdb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-neo4j</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-cassandra</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-http</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-mcp-server</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>core</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>bridge-cli</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>plugin-host</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -466,7 +466,7 @@
       </dependency>
 
       <!-- ── Connectors: SSH (reports 06, 15 §4) ───────────────────────────────────────────────────────── -->
-      <!-- Only third-party/sshd-nofs may depend on these; everybody else uses ai.msrv.gaterook:sshd-nofs. -->
+      <!-- Only third-party/sshd-nofs may depend on these; everybody else uses com.gaterook:sshd-nofs. -->
       <dependency>
         <groupId>org.apache.sshd</groupId>
         <artifactId>sshd-core</artifactId>
@@ -832,13 +832,13 @@
             </configuration>
           </execution>
           <execution>
-            <!-- sshd-common registers a FileSystemProvider that breaks the native build: use ai.msrv.gaterook:sshd-nofs. -->
+            <!-- sshd-common registers a FileSystemProvider that breaks the native build: use com.gaterook:sshd-nofs. -->
             <id>ban-sshd</id>
             <goals><goal>enforce</goal></goals>
             <configuration>
               <rules>
                 <bannedDependencies>
-                  <message>Use ai.msrv.gaterook:sshd-nofs instead of org.apache.sshd (ARCHITECTURE.md A23, report 15 §4).</message>
+                  <message>Use com.gaterook:sshd-nofs instead of org.apache.sshd (ARCHITECTURE.md A23, report 15 §4).</message>
                   <excludes>
                     <exclude>org.apache.sshd:sshd-core</exclude>
                     <exclude>org.apache.sshd:sshd-common</exclude>

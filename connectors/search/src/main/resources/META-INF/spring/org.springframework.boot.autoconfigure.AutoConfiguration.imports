@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.search.boot.SearchConnectorsAutoConfiguration
+com.gaterook.connectors.search.boot.SearchConnectorsAutoConfiguration

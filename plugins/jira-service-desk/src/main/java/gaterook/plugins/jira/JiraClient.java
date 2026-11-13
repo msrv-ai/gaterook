@@ -1,9 +1,9 @@
 package gaterook.plugins.jira;
 
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.ConnectorException;
-import ai.msrv.gaterook.connector.api.ExecContext;
-import ai.msrv.gaterook.connector.api.SecretResolver;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ExecContext;
+import com.gaterook.connector.api.SecretResolver;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;

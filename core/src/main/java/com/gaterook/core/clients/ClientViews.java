@@ -1,0 +1,201 @@
+package com.gaterook.core.clients;
+
+import com.gaterook.core.endpoints.TokenService;
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * What the Clients screen shows and sends (ARCHITECTURE.md §6 clients, kit {@code client-card}). No record carries a
+ * token except {@link ManualAdded}: a manual app receives its new token once for the user to copy.
+ */
+public final class ClientViews {
+
+  private ClientViews() {}
+
+  /** The Clients page: when this computer was last scanned, and one card per client. */
+  public record Clients(Instant scannedAt, List<Card> clients) {}
+
+  /**
+   * One client card.
+   *
+   * @param status   {@code connected}, {@code detected}, {@code not-installed}, {@code needs-restart},
+   *                 {@code pending} for manual setup, or {@code error}
+   * @param configPath the managed user-level config file (absolute), or null for client-owned or unavailable setup;
+   *                   {@code configDisplay} is the same path with {@code ~}
+   * @param evidence what showed the client on this computer ({@code ~/.codex})
+   * @param methods  how the client can be connected; the first available one is the default
+   */
+  public record Card(String client, String name, String status, String statusText, String configPath,
+      String configDisplay, boolean detected, List<String> evidence, String version, List<String> warnings,
+      List<Method> methods, List<Link> links, boolean manual) {
+
+    public Card(String client, String name, String status, String statusText, String configPath,
+        String configDisplay, boolean detected, List<String> evidence, String version, List<String> warnings,
+        List<Method> methods, List<Link> links) {
+      this(client, name, status, statusText, configPath, configDisplay, detected, evidence, version, warnings,
+          methods, links, false);
+    }
+
+    /** Current browser access can coexist with an old managed config error, retained in the links. */
+    public Card withLinks(List<Link> updated) {
+      boolean connected = updated.stream().anyMatch(l -> l.status().equals("connected") && (!status.equals("error")
+          || l.provenBySignIn() && l.configPath() == null));
+      return new Card(client, name, connected ? "connected" : status, connected ? "Connected" : statusText,
+          configPath, configDisplay, detected, evidence, version, warnings, methods, List.copyOf(updated), manual);
+    }
+  }
+
+  /**
+   * One way to connect a client.
+   *
+   * @param id     {@code mcpb}, {@code config-bridge}, {@code helper}, {@code token} or {@code oauth}
+   * @param reason why it isn't offered for some endpoints ("not on prod endpoints"), or {@code null}
+   */
+  public record Method(String id, String label, boolean prodAllowed, String reason) {}
+
+  /**
+   * One managed config entry, or an observed OAuth sign-in with its grant id and no config path or entry name.
+   *
+   * @param status     {@code connected}, {@code pending}, {@code needs-restart}, {@code removed-outside},
+   *                   {@code needs-repair}, {@code revoked} or {@code error}
+   * @param grantLabel the trusted label of the client's access ({@code codex-laptop}); {@code tokenName} for a named token
+   * @param grantPrefix {@code gr_Cx7q…} or a manual app's token prefix: lists never show the value
+   * @param usedAt     when the client last got a token or used its token, {@code null} before that
+   * @param bridgeVersion the version the bridge of its grant reported with the last token request, or {@code null}
+   * @param bridgeUpdate the newer bridge Reinstall puts in a Claude Desktop extension (this app's version) when the
+   *                   extension still runs an older one; {@code null} when it is current or its version is unknown
+   */
+  public record Link(String id, String client, String endpoint, String env, String method, String entryName,
+      String configPath, String configDisplay, String grantPrefix, String grantLabel,
+      String tokenName, String status, String statusText, Instant createdAt, Instant usedAt, String mcpbPath,
+      Instant lastCallAt, String revision, String bridgeVersion, String bridgeUpdate) {
+
+    /**
+     * The same link with what the audit knows: its last call and the protocol revision it spoke. A call after Connect
+     * proves a non-OAuth client restarted. OAuth additionally needs a current sign-in, through {@link #withSignIn}.
+     */
+    public Link withCall(Instant at, String rev) {
+      boolean proves = !provenBySignIn() && at != null && !at.isBefore(createdAt) && status.equals("needs-restart");
+      return new Link(id, client, endpoint, env, method, entryName, configPath, configDisplay, grantPrefix, grantLabel,
+          tokenName, proves ? "connected" : status, proves ? "Connected" : statusText, createdAt, usedAt, mcpbPath, at,
+          rev, bridgeVersion, bridgeUpdate);
+    }
+
+    /** A current OAuth sign-in can establish connectivity before an audited tool call exists. */
+    public Link withSignIn(Instant at) {
+      if (!provenBySignIn() || at == null || at.isBefore(createdAt)) {
+        return this;
+      }
+      boolean proves = status.equals("needs-restart");
+      Instant latest = usedAt == null || at.isAfter(usedAt) ? at : usedAt;
+      return new Link(id, client, endpoint, env, method, entryName, configPath, configDisplay, grantPrefix, grantLabel,
+          tokenName, proves ? "connected" : status, proves ? "Connected" : statusText, createdAt, latest, mcpbPath,
+          lastCallAt, revision, bridgeVersion, bridgeUpdate);
+    }
+
+    /** The label calls of this link carry in the audit ({@code tool_call.token_label}). */
+    public String auditLabel() {
+      return grantLabel != null ? grantLabel : tokenName;
+    }
+
+    /**
+     * Whether this link's calls are told apart by the client's sign-in rather than by a label: a sign-in through the
+     * browser has no access of its own until the client signs in, so its calls are those of an OAuth grant of the
+     * client's family on its endpoint ({@code tool_call.client} of a call whose principal is an OAuth grant). The
+     * name a caller reports about itself ({@code clientInfo}) under a token proves nothing: any holder of a token of
+     * the endpoint could send it.
+     */
+    public boolean provenBySignIn() {
+      return auditLabel() == null && "oauth".equals(method);
+    }
+  }
+
+  /**
+   * "What will change": the files and the exact diffs, with nothing written yet.
+   *
+   * @param repair   the client already has an entry for this endpoint; Confirm writes it again
+   * @param link     an {@code Add to Cursor} link carrying only the endpoint URL, or {@code null}
+   * @param byHand   a Disconnect whose file GateRook can't change: the access ends anyway and the person removes the
+   *                 entry, or {@code null}
+   */
+  public record Preview(String previewId, String client, String endpoint, String env, String method, boolean repair,
+      List<FileChange> files, List<String> notes, List<String> warnings, String link, Instant expiresAt,
+      ByHand byHand) {}
+
+  /**
+   * An entry GateRook left in another application's file because it couldn't change the file (it doesn't parse, is
+   * too large, can't be written, changed after the preview, or sits where this edition doesn't write): the access it
+   * held is revoked all the same, and the person removes the entry there.
+   *
+   * @param file   the file as the person knows it ({@code ~/.codex/config.toml})
+   * @param entry  the entry's name in the file ({@code gaterook-dev})
+   * @param reason why GateRook left the file as it is
+   */
+  public record ByHand(String file, String entry, String reason) {}
+
+  /** A browser handoff carrying only the endpoint URL; the client owns its installation and sign-in. */
+  public record BrowserSignIn(String link) {}
+
+  /**
+   * One file a preview would write.
+   *
+   * @param kind       {@code config}, {@code mcpb} or {@code restore}
+   * @param backupPath where the copy goes before it is written ({@code <file>.bak-YYYY-MM-DD}), or {@code null}
+   * @param modeChange the permission change the write makes ("0644 → 0600 because it now holds a token"), or
+   *                   {@code null}
+   */
+  public record FileChange(String path, String display, String realPath, boolean exists, String kind, Diff diff,
+      String backupPath, String modeChange) {}
+
+  /** The diff of one file ({@code gw-diff}). */
+  public record Diff(int added, int removed, List<Hunk> hunks) {}
+
+  public record Hunk(String header, List<Line> lines) {}
+
+  /** {@code type}: {@code context}, {@code added} or {@code removed}. */
+  public record Line(String type, Integer oldNo, Integer newNo, String text) {}
+
+  /**
+   * What a Connect or a Reinstall did.
+   *
+   * @param mcpbPath the extension Electron opens in Claude Desktop, or {@code null}
+   */
+  public record Connected(Link link, String mcpbPath, List<String> notes) {}
+
+  /**
+   * What a Disconnect did. The access always ends; {@code byHand} is the entry left in the file when GateRook couldn't
+   * change it, or {@code null}.
+   */
+  public record Disconnected(String linkId, boolean entryRemoved, int rejectedApprovals, List<String> notes,
+      ByHand byHand) {}
+
+  /** The steps of Check (report 03 §5). {@code state}: {@code ok}, {@code warning}, {@code error} or {@code skipped}. */
+  public record Check(String linkId, String summary, List<Step> steps) {}
+
+  public record Step(String id, String title, String state, String text, Long ms) {}
+
+  /** One copy of a config file the app kept before writing it. */
+  public record Backup(String id, String file, Instant createdAt, long sizeBytes) {}
+
+  /** What a Restore wrote. */
+  public record Restored(String client, String path, String backupId) {}
+
+  /**
+   * What Remove bridge did: Claude Desktop's accesses revoked, extensions and entries removed, and the entries left in
+   * files GateRook couldn't change ({@code byHand}, for the person to remove).
+   */
+  public record BridgeRemoved(List<String> revoked, List<String> removedFiles, int rejectedApprovals,
+      List<String> notes, List<ByHand> byHand) {}
+
+  /** Manual setup (kit "Manual setup"): the endpoint URL and snippets with {@code ‹token›} in place of a token. */
+  public record Manual(String endpoint, String url, String transport, List<OtherEndpoint> others,
+      List<Snippet> snippets) {}
+
+  /** A manual app and its replacement or initial token, returned only by the operation that issues it. */
+  public record ManualAdded(Card client, Manual setup, TokenService.Issued token) {}
+
+  public record OtherEndpoint(String slug, String url) {}
+
+  /** {@code language}: {@code json}, {@code toml} or {@code sh}. */
+  public record Snippet(String id, String title, String language, String text) {}
+}

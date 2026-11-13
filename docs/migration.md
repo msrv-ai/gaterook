@@ -8,7 +8,7 @@ Internal AI work, implementation progress logs, local editor settings, installed
 
 ## Compatibility
 
-The application uses the Java package namespace `ai.msrv.gaterook`, the default data directory `~/.gaterook`, the `gaterook://` deep-link scheme, and the `gaterook-core` native executable. npm packages use `gaterook`, `gaterook-ui`, and the `@gaterook` scope. Configuration keys under `GW_*` and `gateway.*`, Maven artifact IDs, and plugin resource names retain their existing contracts.
+The application uses the Java package namespace `com.gaterook`, the default data directory `~/.gaterook`, the `gaterook://` deep-link scheme, and the `gaterook-core` native executable. npm packages use `gaterook`, `gaterook-ui`, and the `@gaterook` scope. Configuration keys under `GW_*` and `gateway.*`, Maven artifact IDs, and plugin resource names retain their existing contracts.
 
 As specified in [product decision 11](DECISIONS.md), the default home starts fresh: the application does not import, read, or modify `~/.mcp-gateway`. Existing client configurations are not rewritten automatically. The documented development launcher uses a repository-local home, independent of either default home.
 

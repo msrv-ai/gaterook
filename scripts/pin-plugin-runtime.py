@@ -60,7 +60,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     platform, metadata, archive = sys.argv[1:]
-    destination = Path(__file__).resolve().parent.parent / "core/src/main/resources/ai/msrv/gaterook/core/connectors/plugin-runtimes.json"
+    destination = Path(__file__).resolve().parent.parent / "core/src/main/resources/com/gaterook/core/connectors/plugin-runtimes.json"
     pins = json.loads(destination.read_text()) if destination.exists() else {}
     pins[platform] = pin_runtime(platform, metadata, archive)
     destination.write_text(json.dumps(pins, indent=2) + "\n")

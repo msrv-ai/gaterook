@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.snowflake.boot.SnowflakeConnectorsAutoConfiguration
+com.gaterook.connectors.snowflake.boot.SnowflakeConnectorsAutoConfiguration

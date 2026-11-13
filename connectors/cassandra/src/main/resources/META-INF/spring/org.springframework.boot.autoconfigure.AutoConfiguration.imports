@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.cassandra.boot.CassandraConnectorsAutoConfiguration
+com.gaterook.connectors.cassandra.boot.CassandraConnectorsAutoConfiguration

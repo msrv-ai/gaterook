@@ -11,7 +11,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
   </parent>
@@ -29,7 +29,7 @@
       transitive excluded adds the reactor edge without putting anything on the classpath.
     -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-host</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -43,7 +43,7 @@
     </dependency>
     <!-- Build order only: the plugin and fixture jars must be packaged before the tests find them by path. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-jira-service-desk</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -53,7 +53,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-test-fixtures</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -64,7 +64,7 @@
     </dependency>
     <!-- The catalog's plugins (K6): build order only, the jars are found by path like Jira's. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-rabbitmq</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -74,13 +74,13 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-protocol</artifactId>
       <scope>test</scope>
     </dependency>
     <!-- Ed25519 signing in the catalog test (same as the kit's publisher): no code here needs it at compile time. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
       <scope>test</scope>
     </dependency>
@@ -125,7 +125,7 @@
             <configuration>
               <artifactItems>
                 <artifactItem>
-                  <groupId>ai.msrv.gaterook</groupId>
+                  <groupId>com.gaterook</groupId>
                   <artifactId>plugin-host</artifactId>
                   <version>${project.version}</version>
                   <destFileName>plugin-host.jar</destFileName>

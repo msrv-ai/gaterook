@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
   </parent>
@@ -19,7 +19,7 @@
     Versioned on its own, = ApiVersion.CURRENT and connector-api.version of the root pom (scripts/modules.test.mjs
     keeps the three equal); plugins and connector modules declare requires.connectorApi against it.
   -->
-  <version>1.2.0</version>
+  <version>2.0.0</version>
   <name>GateRook · Connector API</name>
 
   <dependencies>

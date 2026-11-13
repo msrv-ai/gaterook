@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.firebase.boot.FirebaseConnectorsAutoConfiguration
+com.gaterook.connectors.firebase.boot.FirebaseConnectorsAutoConfiguration

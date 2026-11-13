@@ -4,7 +4,7 @@
   "result" : {
     "generation" : "firebase@1.2.0",
     "type" : "firestore",
-    "connectorApi" : "1.2.0",
+    "connectorApi" : "2.0.0",
     "loadMs" : 212,
     "tools" : [ {
       "name" : "firestore_get",

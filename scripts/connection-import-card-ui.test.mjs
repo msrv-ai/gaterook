@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
-const directory = new URL('../core/src/main/resources/ai/msrv/gaterook/core/mcp/apps/', import.meta.url);
+const directory = new URL('../core/src/main/resources/com/gaterook/core/mcp/apps/', import.meta.url);
 const html = await readFile(new URL('connection-import-card.html', directory), 'utf8');
 const source = await readFile(new URL('connection-import-card.js', directory), 'utf8');
 const { mountConnectionImportCard, readConnectionImportCard } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
