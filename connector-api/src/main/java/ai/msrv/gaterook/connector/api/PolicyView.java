@@ -22,8 +22,8 @@ public record PolicyView(Env env, String rulePrefix, JsonNode section, Limits li
   /**
    * In a list whose key's schema says {@code "x-empty": "connector-default"}: the core narrowed it from an empty list,
    * which allows the connector's default set. The connector then keeps only the listed names that an empty list
-   * allows too, so an endpoint or a tool override never reaches past that set (for example a namespace other than the
-   * connection's own, or a sensitive service).
+   * allows too, so an endpoint or a tool override never reaches past that set (for example a Kubernetes Secret, or a
+   * sensitive cloud service).
    */
   public static final String WITHIN_DEFAULT = "\u0000within-default";
 
