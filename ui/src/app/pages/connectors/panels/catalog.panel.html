@@ -90,12 +90,15 @@
         </div>
         <p class="gw-text-small gw-fg-muted gw-tabular" id="catalog-count" role="status">{{ countText() }}</p>
       </div>
-      @if (views()!.length) {
-        <!-- Without entries the empty card below offers it, once. -->
-        <div class="gw-toolbar__end">
+      <div class="gw-toolbar__end">
+        <!-- Both signed lists are checked at once, not when they are six hours old: what was just published shows up,
+             and a first start without the network gets its lists. -->
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-busy]="checking() ? 'true' : null" [attr.aria-disabled]="checking() ? 'true' : null" (click)="checking() || check.emit()">@if (checking()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>} Check now<span class="gw-sr-only"> for changes in the catalog</span></button>
+        @if (views()!.length) {
+          <!-- Without entries the empty card below offers it, once. -->
           <button class="gw-btn gw-btn--sm" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon gw-icon--sm"></svg> Install from file or URL</button>
-        </div>
-      }
+        }
+      </div>
     </div>
 
     <ul class="gw-grid gw-grid--3" id="catalog-grid" aria-label="Catalog" [hidden]="!shown().length">

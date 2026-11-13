@@ -35,7 +35,7 @@
   </div>
 
   <div gwInstalledPanel [views]="installed()" [slow]="slow()" [busyKey]="busyKey()" (action)="onInstalledAction($event)"></div>
-  <div gwCatalogPanel hidden [slow]="slow()" [busyKey]="busyKey()" (action)="onCatalogAction($event)"></div>
+  <div gwCatalogPanel hidden [slow]="slow()" [busyKey]="busyKey()" [checking]="checking()" (action)="onCatalogAction($event)" (check)="checkCatalog()"></div>
   <div gwTemplatesPanel hidden [slow]="slow()" (action)="onTemplateAction($event)"></div>
   <div gwMcpServersPanel hidden [slow]="slow()" (action)="onServerAction($event)"></div>
 </div>

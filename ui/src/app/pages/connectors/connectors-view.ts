@@ -3,9 +3,11 @@ import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api'
 import { ConnectorGroup, ConnectorModuleRef, ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup } from '../../core/api/endpoints.api';
 import { Template, TemplateKind } from '../../core/api/templates.api';
+import { ConnectorModules } from '../../core/api/modules.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
 import { ConnectorCardStatus, ConnectorCardView } from '../../kit/elements/connector-card/connector-card';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
+import { ToastOptions } from '../../kit/toast.service';
 
 /**
  * What the Connectors page shows, as pure functions of the core's answers (ARCHITECTURE.md §6 "connectors", §8.4):
@@ -468,6 +470,37 @@ export function moduleCatalogViews(groups: readonly ConnectorGroup[]): CatalogVi
     }
   }
   return views;
+}
+
+/** Everything the Catalog offers: GateRook's modules that aren't installed, then the signed catalog's entries. */
+export function catalogOffer(groups: readonly ConnectorGroup[] | null | undefined, index: CatalogIndex | null | undefined): CatalogView[] {
+  return [...moduleCatalogViews(groups ?? []), ...(index ? catalogViews(index) : [])];
+}
+
+/**
+ * The toast of the Catalog's Check now, from what both lists answered: why a list this build reads couldn't be
+ * reached, in the core's words; else what the Catalog offers now and didn't before the check; else that nothing is
+ * new. A list of modules without a channel and a catalog this build doesn't read (`source: 'none'`) didn't fail:
+ * there was nothing to check.
+ */
+export function listsCheckToast(
+  before: readonly CatalogView[],
+  after: readonly CatalogView[],
+  index: CatalogIndex,
+  modules: ConnectorModules,
+): ToastOptions {
+  const channel = modules.channel;
+  if (channel.configured && channel.offline) {
+    return { tone: 'warning', title: "GateRook's list of connectors couldn't be checked", body: channel.problem?.trim() || null };
+  }
+  if (index.offline && index.source !== 'none') {
+    return { tone: 'warning', title: "The catalog couldn't be checked", body: index.problem?.trim() || null };
+  }
+  const known = new Set(before.map((x) => x.key));
+  const added = after.filter((x) => !known.has(x.key)).map((x) => x.card.name);
+  return added.length
+    ? { tone: 'success', title: `${plural(added.length, 'new connector')} in the catalog`, body: joinAnd(added) }
+    : { tone: 'success', title: 'The catalog is up to date' };
 }
 
 // ── Templates ───────────────────────────────────────────────────────────────────────────────────────────────────
