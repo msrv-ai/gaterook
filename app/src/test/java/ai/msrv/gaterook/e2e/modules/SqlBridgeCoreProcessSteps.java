@@ -64,7 +64,7 @@ abstract class SqlBridgeCoreProcessSteps {
     module.api.json(module.api.admin("POST", "/api/modules/refresh", null), 200);
     JsonNode installed = module.api.awaitModule(dialect.moduleId(), "ready", Duration.ofSeconds(120));
     assertThat(installed.path("installed").asBoolean()).isTrue();
-    assertThat(module.channel.downloads()).isEqualTo(1);
+    fetchedOnce();
 
     JsonNode rows = module.api.call(2, "sql_query", arguments("db-dev", dialect.selectFortyTwo()));
     assertThat(rows.at("/result/isError").asBoolean(true)).as(rows.toString()).isFalse();
@@ -74,6 +74,16 @@ abstract class SqlBridgeCoreProcessSteps {
 
     // Asked again, nothing more is fetched.
     module.api.json(module.api.admin("POST", "/api/modules/refresh", null), 200);
-    assertThat(module.channel.downloads()).isEqualTo(1);
+    fetchedOnce();
+  }
+
+  /**
+   * The package was fetched from the test's own channel exactly once. Against the published list
+   * ({@link BuiltModule#OFFICIAL}) it comes from GitHub, which the test can't count.
+   */
+  private void fetchedOnce() {
+    if (!BuiltModule.OFFICIAL) {
+      assertThat(module.channel.downloads()).isEqualTo(1);
+    }
   }
 }

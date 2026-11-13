@@ -122,6 +122,12 @@ An entry lists one version of one module: the application and connector API vers
 
 Only the channel installs a module by itself. A person can install a module's package from a file as well, with a review ([a module from a file](#a-module-from-a-file)); the plugin catalog delivers no module. The tool names of every listed module are reserved: no new plugin, MCP server tool or template may publish one. A plugin that was installed before a module was listed keeps its tools until it is uninstalled; the module of its name installs only then.
 
+What is published can be checked against the application itself. With `-Dgateway.e2e.officialLists=true` the module tests of `app` have their core read GateRook's list on GitHub instead of a list of their own, and `PublishedModulesCoreProcessIT` runs: a core installs every released module from the list and must then hold exactly the packages that `modules/modules.lock.json` records, and a core that trusts another key must take nothing from the same address. These tests need the network and are never part of a build.
+
+```bash
+mvn -B -ntp -pl app -am verify -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=PublishedModulesCoreProcessIT -Dfailsafe.failIfNoSpecifiedTests=false -Dgateway.e2e.officialLists=true
+```
+
 ### Installing
 
 Nobody reviews or confirms a module that GateRook's list delivers. It installs when something needs one of its connector types:
