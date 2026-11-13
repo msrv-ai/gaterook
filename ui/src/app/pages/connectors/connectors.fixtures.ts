@@ -1,6 +1,7 @@
 import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api';
-import { ConnectorCatalog, ConnectorTypeDetail, InstalledConnector } from '../../core/api/connector-types.api';
+import { ConnectorCard, ConnectorCatalog, ConnectorTypeDetail, InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup } from '../../core/api/endpoints.api';
+import { ConnectorModules } from '../../core/api/modules.api';
 import { CatalogEntry, CatalogIndex, McpServerReview, PluginCheck, PluginUpdatePreview } from '../../core/api/plugins.api';
 import { SecretRow } from '../../core/api/secrets.api';
 import { Template } from '../../core/api/templates.api';
@@ -78,6 +79,47 @@ export function installedTypes(): InstalledConnector[] {
 }
 
 export const typesCatalog = (installed = installedTypes()): ConnectorCatalog => ({ groups: [], installed });
+
+/**
+ * A card of a connector type that one of GateRook's own modules adds and this core doesn't have yet, as
+ * `GET /api/connector-types` lists it among the groups: built-in, with the module that brings it.
+ */
+export function moduleCard(type: string, name: string, over: Partial<ConnectorCard> = {}, module: Partial<NonNullable<ConnectorCard['module']>> = {}): ConnectorCard {
+  return {
+    type,
+    variant: null,
+    name,
+    icon: 'database',
+    description: `${name} queries with row and time limits.`,
+    kind: 'built-in',
+    version: null,
+    signed: null,
+    tools: 4,
+    toolsFrom: null,
+    connections: 0,
+    available: true,
+    reason: null,
+    presetConfig: null,
+    module: { id: type, version: '1.1.0', state: 'available', step: null, sizeBytes: 33_685_915, installed: false, message: null, signed: true, ...module },
+    ...over,
+  };
+}
+
+/** The types with GateRook's listed modules that aren't installed: DuckDB (32 MB) and ClickHouse (56 KB). */
+export function typesWithListedModules(): ConnectorCatalog {
+  return {
+    installed: installedTypes(),
+    groups: [
+      { name: 'Databases', cards: [moduleCard('duckdb', 'DuckDB')] },
+      { name: 'Data warehouses', cards: [moduleCard('clickhouse', 'ClickHouse', { tools: 6 }, { version: '1.0.0', sizeBytes: 57_032 })] },
+    ],
+  };
+}
+
+/** `GET /api/modules`: the state of GateRook's signed list of modules; by default a build that reads none. */
+export function moduleList(channel: Partial<ConnectorModules['channel']> = {}): ConnectorModules {
+  return { channel: { configured: false, checkedAt: null, offline: true, problem: null, ...channel }, modules: [] };
+}
 
 export function row(name: string, typeId: string, over: Partial<ConnectionRow> = {}): ConnectionRow {
   return {

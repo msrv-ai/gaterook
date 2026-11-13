@@ -5,7 +5,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { ModulesApi } from '../../core/api/modules.api';
+import { ConnectorModules, ModulesApi } from '../../core/api/modules.api';
 import { CatalogIndex, McpProfile, McpRegistryPage, McpServersApi, PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
@@ -26,6 +26,7 @@ import {
   endpoints,
   installedTypes,
   moduleCheck,
+  moduleList,
   ownModuleType,
   rabbitUpdate,
   secretRows,
@@ -34,6 +35,7 @@ import {
   templates,
   typeDetail,
   typesCatalog,
+  typesWithListedModules,
 } from './connectors.fixtures';
 import { ConnectorsData } from './connectors.data';
 import { ConnectorsPage, SKELETON_DELAY_MS } from './connectors.page';
@@ -90,6 +92,8 @@ interface Answers {
   profiles: () => Promise<McpProfile[]>;
   /** What the core finds in a JAR chosen on this computer: a plugin, or a connector module. */
   fileCheck: () => Promise<PluginCheck>;
+  /** GateRook's connector modules and the state of their signed list. */
+  modules: () => Promise<ConnectorModules>;
 }
 
 /**
@@ -164,6 +168,7 @@ function setup(over: Partial<Answers> = {}): void {
     registry: registryPage,
     profiles: () => Promise.resolve([]),
     fileCheck: () => Promise.resolve(clickhouseCheck()),
+    modules: () => Promise.resolve(moduleList()),
     ...over,
   };
   const record = (name: string, body?: unknown) => {
@@ -316,6 +321,10 @@ function setup(over: Partial<Answers> = {}): void {
       {
         provide: ModulesApi,
         useValue: {
+          list: () => {
+            record('modules');
+            return answers.modules();
+          },
           uninstall: (id: string) => {
             record(`uninstall-module ${id}`);
             return Promise.resolve();
@@ -744,6 +753,9 @@ describe('Connectors page: a connector module from a file', () => {
   });
 });
 
+/** The core's words when GitHub can't be reached for GateRook's list of connector modules. */
+const LIST_UNREACHABLE = "The catalog can't be reached: index.json can't be downloaded from raw.githubusercontent.com: timeout";
+
 describe('Connectors page: Catalog', () => {
   it('says the catalog isn’t available on a core without it, and still installs from a file', async () => {
     setup({ catalog: () => Promise.reject(notAvailable()) });
@@ -836,6 +848,91 @@ describe('Connectors page: Catalog', () => {
       'The catalog can\'t be reached: timeout. These are the entries of the last index GateRook verified.',
     );
     expect(cardOf(el, 'catalog', 'ClickHouse')).not.toBeNull();
+  });
+
+  it('offers GateRook’s own modules that aren’t installed first, with what adding a connection downloads', async () => {
+    setup({ types: () => Promise.resolve(typesWithListedModules()), modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })) });
+    const { fixture, el } = await render();
+    const titles = Array.from(el.querySelectorAll('#catalog-grid .gw-card__title')).map(text);
+    expect(titles.slice(0, 3)).toEqual(['DuckDB', 'ClickHouse', 'Jira']);
+    // The plugin of the same name in the catalog's fixture stays an entry of its own.
+    expect(titles.filter((t) => t === 'ClickHouse')).toHaveLength(2);
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
+
+    const duckdb = cardOf(el, 'catalog', 'DuckDB')!;
+    expect(text(duckdb.querySelector('.gw-connector-card__meta'))).toBe('Built-in Version v1.1.0');
+    expect(text(duckdb.querySelector('[gwConnectorCardNote]'))).toBe('Not part of the installer: adding a connection downloads it (32 MB).');
+    expect(text(duckdb.querySelector('.gw-connector-card__tools'))).toBe('4 tools');
+    // Nothing to install by hand and nothing to review: the one action opens the type's form, which brings the module.
+    expect(duckdb.querySelector('button')).toBeNull();
+    const add = duckdb.querySelector<HTMLAnchorElement>('a.gw-btn')!;
+    expect(text(add)).toBe('Add connection for DuckDB');
+    expect(add.getAttribute('href')).toBe('/connections/new?type=duckdb');
+    expect(text(Array.from(el.querySelectorAll('#catalog article')).find((a) => text(a.querySelector('[gwConnectorCardNote]')).includes('(56 KB)'))?.querySelector('.gw-card__title'))).toBe('ClickHouse');
+
+    const search = el.querySelector<HTMLInputElement>('#catalog-search')!;
+    search.value = 'duck';
+    search.dispatchEvent(new Event('input'));
+    await settle(fixture);
+    expect(Array.from(el.querySelectorAll('#catalog-grid .gw-card__title')).map(text)).toEqual(['DuckDB']);
+    expect(text(el.querySelector('#catalog-count'))).toBe('1 of 7 catalog connectors');
+  });
+
+  it('shows GateRook’s modules in a build that reads no catalog, with the check of their list', async () => {
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+    });
+    const { el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(panel.querySelector('.gw-empty')).toBeNull();
+    expect(panel.querySelector('.gw-alert')).toBeNull();
+    expect(Array.from(panel.querySelectorAll('#catalog-grid .gw-card__title')).map(text)).toEqual(['DuckDB', 'ClickHouse']);
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-22');
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('2 connectors');
+    // The toolbar keeps the way to install a package from a file.
+    expect(Array.from(panel.querySelectorAll('button')).filter((b) => text(b).startsWith('Install from file or URL'))).toHaveLength(1);
+  });
+
+  it('says why GateRook’s list of modules couldn’t be read, over the cards of the last one', async () => {
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-21T11:00:00Z', offline: true, problem: LIST_UNREACHABLE })),
+    });
+    const { el } = await render();
+    const alert = el.querySelector('#catalog .gw-alert--warning');
+    expect(text(alert?.querySelector('.gw-alert__title'))).toBe("GateRook's list of connectors couldn't be checked");
+    expect(text(alert?.querySelector('.gw-alert__body'))).toBe(`${LIST_UNREACHABLE} These are the connectors of the last list GateRook verified.`);
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+  });
+
+  it('says why nothing is offered after a first start without the network', async () => {
+    // No list of modules was ever accepted, and this build reads no catalog either: the list's reason comes first.
+    setup({
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, offline: true, problem: LIST_UNREACHABLE })),
+    });
+    const { el } = await render();
+    expect(text(el.querySelector('#catalog .gw-empty__title'))).toBe("The catalog isn't available");
+    expect(text(el.querySelector('#catalog .gw-empty__text'))).toBe(`${LIST_UNREACHABLE} A plugin you have as a file can still be checked and installed.`);
+  });
+
+  it('reads the modules again when the core accepted another list in the background', async () => {
+    let listed = false;
+    setup({ types: () => Promise.resolve(listed ? typesWithListedModules() : typesCatalog()) });
+    const { fixture, el } = await render();
+    expect(cardOf(el, 'catalog', 'DuckDB')).toBeNull();
+    const before = calls.length;
+
+    listed = true;
+    events.emit('module.list', { modules: 8 });
+    await settle(fixture);
+    expect(calls.slice(before).sort()).toEqual(['modules', 'types']);
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
   });
 
   it('sets a catalog MCP server up in Add connection, which asks for its environment, review and endpoints', async () => {

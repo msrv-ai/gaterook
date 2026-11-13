@@ -35,13 +35,14 @@ One command (`scripts/dev.mjs`):
    DuckDB, H2, Microsoft Access) are served the same way, as a signed list of connector modules on a port of its own,
    made of the packages built in a checkout of that repository: the folder `GATEROOK_MODULES_REPO` names, or
    `gaterook-plugins` beside this checkout. The development core doesn't compile them in and installs one when it is
-   chosen in Add connection, as a release does from GateRook's list. A module that isn't built there is left out, and
-   without a checkout none of the four is offered. `--no-plugins` starts without a catalog, a list
-   of modules or a plugin host. `--core-flag` passes one more flag to the core's JVM. To see
-   [connector modules](../docs/connector-delivery.md#connector-modules) arrive as in a release, build `app.jar` without
-   `-Pall-bundled` and start with `--no-plugins --core-flag -Dgateway.lists=official --core-flag
-   -Dgateway.pluginHostJar=<path to plugin-host.jar>`: the core reads GateRook's published list of modules and
-   downloads from it;
+   chosen in Add connection, as a release does from GateRook's list. A module that isn't built there is left out.
+   Without a built package there, no local list is served and the core reads the list GateRook publishes, as every
+   build does, and downloads from it. `--no-plugins` starts without a catalog, a list of modules or a plugin host:
+   the core is told to read no list (`-Dgateway.lists=none`), since it couldn't run a module. `--core-flag` passes one
+   more flag to the core's JVM. To see [connector modules](../docs/connector-delivery.md#connector-modules) arrive as
+   in a release whatever is built beside this checkout, build `app.jar` without `-Pall-bundled` and start with
+   `--no-plugins --core-flag -Dgateway.lists=official --core-flag -Dgateway.pluginHostJar=<path to plugin-host.jar>`:
+   the core reads GateRook's published list of modules and downloads from it;
 4. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
    (`X-Gateway-Auth`, HMAC of `METHOD|target|ts|nonce`) and strips `Origin`, `Referer`, `Cookie` and `Sec-Fetch-*`,
    as Electron's main process does. `/internal` is not proxied.

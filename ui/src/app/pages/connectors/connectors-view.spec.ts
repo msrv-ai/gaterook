@@ -2,6 +2,7 @@ import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api'
 import { InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { CatalogEntry, CatalogIndex } from '../../core/api/plugins.api';
+import { moduleCard } from './connectors.fixtures';
 import {
   catalogViews,
   compareVersions,
@@ -15,6 +16,7 @@ import {
   joinAnd,
   matches,
   mcpServerView,
+  moduleCatalogViews,
   npmPackage,
   onEndpointsText,
   onThisComputer,
@@ -263,6 +265,39 @@ describe('connectors view: Catalog', () => {
 
   it('finds tool names only where they have an underscore', () => {
     expect(toolLiterals('Reads queues with rabbitmq_queues; plain words stay plain.')).toEqual(['rabbitmq_queues']);
+  });
+
+  it('offers GateRook’s own modules that aren’t installed, once per connector type', () => {
+    const views = moduleCatalogViews([
+      {
+        name: 'Databases',
+        cards: [
+          moduleCard('duckdb', 'DuckDB'),
+          // Part of this build, the person's own or GateRook's installed module, and a variant of a type: none is an offer.
+          moduleCard('postgres', 'PostgreSQL', { module: null }),
+          moduleCard('orders', 'Orders', {}, { installed: true, state: 'ready', signed: false }),
+          moduleCard('neo4j', 'Neo4j', {}, { installed: true, state: 'ready' }),
+          moduleCard('duckdb', 'MotherDuck', { variant: 'motherduck' }),
+          moduleCard('h2', 'H2', {}, { state: 'installing', step: 'downloading', sizeBytes: 2_775_406 }),
+          moduleCard('msaccess', 'Microsoft Access', {}, { state: 'failed', message: 'No network.', sizeBytes: 3_566_458 }),
+        ],
+      },
+      { name: 'Data warehouses', cards: [moduleCard('clickhouse', 'ClickHouse', { tools: 6 }, { version: '1.0.0', sizeBytes: 57_032 }), moduleCard('duckdb', 'DuckDB')] },
+    ]);
+    expect(views.map((v) => v.key)).toEqual(['module:duckdb', 'module:h2', 'module:msaccess', 'module:clickhouse']);
+    const duckdb = views[0];
+    expect(duckdb.entry).toBeNull();
+    expect(duckdb.action).toBe('add-connection');
+    expect(duckdb.note).toBe('Not part of the installer: adding a connection downloads it (32 MB).');
+    expect(duckdb.card).toMatchObject({ type: 'duckdb', variant: null, kind: 'built-in', version: '1.1.0', signed: null, tools: 4, action: 'add', status: null });
+    expect(matches(duckdb.search, 'duck')).toBe(true);
+    expect(matches(duckdb.search, 'databases')).toBe(true);
+    expect(matches(duckdb.search, 'module')).toBe(true);
+    expect(views[1].card.status).toEqual({ tone: 'info', text: 'Downloading' });
+    expect(views[1].note).toContain('(2.6 MB)');
+    expect(views[2].card.status).toEqual({ tone: 'warning', text: 'The download failed' });
+    expect(views[3].note).toBe('Not part of the installer: adding a connection downloads it (56 KB).');
+    expect(moduleCatalogViews([])).toEqual([]);
   });
 });
 

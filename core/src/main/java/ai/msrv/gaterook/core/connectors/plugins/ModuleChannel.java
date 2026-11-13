@@ -51,10 +51,23 @@ public final class ModuleChannel {
 
   private final PluginCatalog index;
   private final PluginArtifacts artifacts;
+  /** Told when a check accepted another list than the one held before. */
+  private volatile Runnable onChange = () -> {};
+  /** The sequence of the list the listener last heard of; {@link #UNSET} until the first check. */
+  private final java.util.concurrent.atomic.AtomicLong told = new java.util.concurrent.atomic.AtomicLong(UNSET);
+  private static final long UNSET = Long.MIN_VALUE;
 
   public ModuleChannel(PluginCatalog index, PluginArtifacts artifacts) {
     this.index = index;
     this.artifacts = artifacts;
+  }
+
+  /**
+   * {@code listener} runs whenever a check brings another list than the one held before, the first one included:
+   * what the channel offers changed. It runs on the thread that checked, after the list was accepted.
+   */
+  void onChange(Runnable listener) {
+    this.onChange = listener;
   }
 
   /** Whether this build has a module channel at all. */
@@ -64,7 +77,7 @@ public final class ModuleChannel {
 
   /** The index's state, checked again first when the last check is old. */
   public PluginCatalog.State state() {
-    return index.stateRefreshingIfStale();
+    return noting(index::stateRefreshingIfStale);
   }
 
   /** The index's state as it is, without a check. */
@@ -73,7 +86,27 @@ public final class ModuleChannel {
   }
 
   public PluginCatalog.State refresh() {
-    return index.refresh();
+    return noting(index::refresh);
+  }
+
+  /**
+   * Runs a check and tells the listener when it left another list than the one the listener heard of. Checks wait
+   * for one another, so two callers of one download both come back with the new list; the listener is told once.
+   */
+  private PluginCatalog.State noting(java.util.function.Supplier<PluginCatalog.State> check) {
+    // Before the first check, what is held from the last run is what the listener knows.
+    told.compareAndSet(UNSET, sequence(index.state()));
+    PluginCatalog.State after = check.get();
+    long now = sequence(after);
+    if (told.getAndSet(now) != now) {
+      onChange.run();
+    }
+    return after;
+  }
+
+  /** The sequence of the list a state holds, or -1 when it holds none. */
+  private static long sequence(PluginCatalog.State state) {
+    return state == null || state.verified() == null ? -1 : state.verified().sequence();
   }
 
   /** Why nothing installs from the channel now, or empty. */

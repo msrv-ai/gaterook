@@ -28,6 +28,19 @@ describe('starting the core', () => {
     assert.deepEqual(args.slice(-2), ['-jar', '/repo/app/target/app.jar']);
     assert.ok(args.includes('-Dgateway.clients.bridge-jar=/repo/bridge-cli/target/gw-bridge.jar'));
     assert.ok(!args.some((a) => a.startsWith('-Dgateway.resources')));
+    assert.ok(!args.some((a) => a.startsWith('-Dgateway.pluginHostJar')));
+  });
+
+  it('gives a core run from the repository the host of connector modules', () => {
+    // An installed app has the host in its bundle; without this flag a development core lists the modules GateRook
+    // publishes and can run none of them.
+    const host = '/repo/plugin-host/target/plugin-host.jar';
+    const jar = coreArgv({ kind: 'jar', java: '/jdk/bin/java', jar: '/repo/app/target/app.jar' },
+      { home: '/h', resources: null, pluginHostJar: host });
+    assert.ok(jar.args.indexOf(`-Dgateway.pluginHostJar=${host}`) < jar.args.indexOf('-jar'));
+    const native = coreArgv({ kind: 'native', binary: '/repo/app/target/gaterook-core', libDir: '/repo/app/target' },
+      { home: '/h', resources: null, pluginHostJar: host });
+    assert.ok(native.args.includes(`-Dgateway.pluginHostJar=${host}`));
   });
 
   it('passes the Store client policy to native, JVM and custom cores only on Windows', () => {
@@ -121,6 +134,28 @@ describe('layout', () => {
     assert.equal(jar.uiRoot, resolve(base.appPath, '..', 'ui', 'dist', 'gaterook-ui', 'browser'),
       'the renamed UI project when none is built yet');
     assert.throws(() => resolveLayout({ ...base, devBuild: true, packaged: false, env: { GW_CORE_COMMAND: '"sh"' } }), /JSON array/);
+  });
+
+  it('a development run takes the host of connector modules from the build of its repository', () => {
+    const { dir, remove } = tempDir('layout-host');
+    try {
+      const repo = join(dir, 'repo');
+      const host = join(repo, 'plugin-host', 'target', 'plugin-host.jar');
+      const run = (env: NodeJS.ProcessEnv, packaged = false) => resolveLayout({ ...base, appPath: join(repo, 'desktop'),
+        devBuild: true, packaged, env });
+      assert.equal(run({ JAVA_HOME: '/jdk' }).pluginHostJar, null, 'nothing is built yet');
+      mkdirSync(join(repo, 'plugin-host', 'target'), { recursive: true });
+      writeFileSync(host, 'jar');
+      assert.equal(run({ JAVA_HOME: '/jdk' }).pluginHostJar, host);
+      assert.equal(run({ GW_CORE_BINARY: join(repo, 'app', 'target', 'gaterook-core') }).pluginHostJar, host);
+      // A staged folder brings its own host, a test's core is started exactly as the test says, and an installed app
+      // has the host in its bundle.
+      assert.equal(run({ JAVA_HOME: '/jdk', GW_RESOURCES: join(dir, 'staged') }).pluginHostJar, null);
+      assert.equal(run({ GW_CORE_COMMAND: '["node","fake.mjs"]' }).pluginHostJar, null);
+      assert.equal(run({ JAVA_HOME: '/jdk' }, true).pluginHostJar, null);
+    } finally {
+      remove();
+    }
   });
 });
 

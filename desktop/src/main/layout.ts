@@ -16,6 +16,11 @@ export interface Layout {
   readonly core: CoreCommand;
   /** Development: the Java bridge the core's gw-bridge shim points at (`bridge-cli/target/gw-bridge.jar`). */
   readonly bridgeJar: string | null;
+  /**
+   * Development: the host the core runs connector modules and plugins in (`plugin-host/target/plugin-host.jar`).
+   * An installed app has it in its bundle, and a staged folder (`GW_RESOURCES`) brings its own.
+   */
+  readonly pluginHostJar: string | null;
   readonly preload: string;
 }
 
@@ -55,7 +60,7 @@ export function resolveLayout(i: LayoutInput): Layout {
       : { kind: 'jar', java: join(resources, 'jre', 'bin', `java${exe}`), jar: join(coreDir, 'app.jar') };
     return {
       dev: false, home: join(i.homedir, '.gaterook'), uiRoot: join(i.appPath, 'ui'), resources, core,
-      bridgeJar: null, preload,
+      bridgeJar: null, pluginHostJar: null, preload,
     };
   }
   const repo = resolve(i.appPath, '..');
@@ -80,13 +85,17 @@ export function resolveLayout(i: LayoutInput): Layout {
     };
   }
   const bridgeJar = join(repo, 'bridge-cli', 'target', 'gw-bridge.jar');
+  const resources = env['GW_RESOURCES'] ? resolve(env['GW_RESOURCES']) : null;
+  // Without it a core built from the repository can't run a connector module it downloaded.
+  const pluginHostJar = join(repo, 'plugin-host', 'target', 'plugin-host.jar');
   return {
     dev: true,
     home,
     uiRoot,
-    resources: env['GW_RESOURCES'] ? resolve(env['GW_RESOURCES']) : null,
+    resources,
     core,
     bridgeJar: existsSync(bridgeJar) ? bridgeJar : null,
+    pluginHostJar: !resources && core.kind !== 'custom' && existsSync(pluginHostJar) ? pluginHostJar : null,
     preload,
   };
 }

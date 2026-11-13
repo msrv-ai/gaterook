@@ -3,7 +3,7 @@ import { isNotAvailable } from '../../core/api/api-error';
 import { ConnectionDetail, ConnectionRow, ConnectionsApi, SecretInputs } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
-import { ModulesApi } from '../../core/api/modules.api';
+import { ConnectorModules, ModulesApi } from '../../core/api/modules.api';
 import {
   CatalogIndex,
   McpRegistryPage,
@@ -117,6 +117,11 @@ export class ConnectorsData {
     (rows) => this.loadServers(rows),
   );
   readonly catalog = new Source<CatalogIndex>(() => this.pluginsApi.catalog());
+  /**
+   * GateRook's own connector modules and the state of their signed list (`GET /api/modules`): the Catalog says when
+   * the list was checked and why it couldn't be. The cards themselves come with the types.
+   */
+  readonly modules = new Source<ConnectorModules>(() => this.modulesApi.list());
   readonly templates = new Source<readonly Template[]>(() => this.templatesApi.list(), () => this.loadEndpointTools());
   readonly endpoints = new Source<readonly EndpointSummary[]>(() => this.endpointsApi.list(), () => this.loadEndpointTools());
   readonly secrets = new Source<readonly SecretRow[]>(() => this.secretsApi.list());
@@ -171,6 +176,11 @@ export class ConnectorsData {
       this.events.on('plugin.state', () => void this.types.refresh()),
       // A module's installation moved on (GateRook's build replacing the person's own): its cards follow.
       this.events.on('module.state', () => void this.types.refresh()),
+      // The core read another list of GateRook's modules, in the background: what the Catalog offers follows.
+      this.events.on('module.list', () => {
+        void this.types.refresh();
+        void this.modules.refresh();
+      }),
       this.events.on('mcp-server.state', (e) => {
         if (e?.name && e.state) this.liveStatesSignal.update((m) => new Map(m).set(e.name, e.state));
         void this.types.refresh();
@@ -188,6 +198,7 @@ export class ConnectorsData {
       this.types.refresh(),
       this.connections.refresh(),
       this.catalog.refresh(),
+      this.modules.refresh(),
       this.templates.refresh(),
       this.endpoints.refresh(),
       this.secrets.refresh(),

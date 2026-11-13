@@ -713,6 +713,8 @@
             <systemPropertyVariables>
               <gateway.it.services>${it.services}</gateway.it.services>
               <gateway.build.version>${revision}</gateway.build.version>
+              <!-- No test reads GateRook's published lists by itself: a core in a test JVM has no channel unless given one. -->
+              <gateway.lists>none</gateway.lists>
             </systemPropertyVariables>
           </configuration>
         </plugin>
@@ -725,6 +727,8 @@
             <systemPropertyVariables>
               <gateway.it.services>${it.services}</gateway.it.services>
               <gateway.build.version>${revision}</gateway.build.version>
+              <!-- No test reads GateRook's published lists by itself: a core in a test JVM has no channel unless given one. -->
+              <gateway.lists>none</gateway.lists>
             </systemPropertyVariables>
           </configuration>
         </plugin>

@@ -18,10 +18,12 @@
 //    and install them as a release does. The connector modules whose source lives in the modules repository
 //    (ClickHouse, DuckDB, H2, Microsoft Access) come from a local signed list of modules beside it, made of the
 //    packages built in a checkout of gaterook/gaterook-plugins (GATEROOK_MODULES_REPO, or gaterook-plugins beside
-//    this checkout), and install when one is chosen, as in a release; without such a checkout they aren't offered.
-//    --no-plugins starts without both (no catalog, no list of modules, no plugin host).
+//    this checkout), and install when one is chosen, as in a release. Without a built package there, the core reads
+//    the list GateRook publishes, as every build does, and downloads from it.
+//    --no-plugins starts without a catalog, a list of modules or a plugin host: the core is told to read no list
+//    (-Dgateway.lists=none), since it couldn't run a module.
 //    --core-flag passes one more flag to the core's JVM, as often as it is given. To see connector modules arrive as
-//    in a release, build app.jar without -Pall-bundled and start with
+//    in a release whatever is built beside this checkout, build app.jar without -Pall-bundled and start with
 //    --no-plugins --core-flag -Dgateway.lists=official --core-flag -Dgateway.pluginHostJar=<plugin-host.jar>:
 //    the core then reads GateRook's published list of modules and downloads from it.
 // 4. Waits for the core's ready line, then `ng serve` with ui/proxy.conf.mjs signing every /api request with the
@@ -131,6 +133,9 @@ async function main() {
       // still check for real.
       ...(demo ? ['-Dgateway.connections.health-interval=1m', '-Dgateway.connections.health-initial-delay=7d'] : [`-Dgateway.clients.user-home=${userHome}`]),
       ...(catalog?.properties ?? []),
+      // A core without a plugin host can run no connector module, so it doesn't offer the ones GateRook publishes
+      // either; a --core-flag -Dgateway.lists=… decides otherwise.
+      ...(catalog || options('--core-flag').some((f) => f.startsWith('-Dgateway.lists=')) ? [] : ['-Dgateway.lists=none']),
       ...options('--core-flag'),
       '-jar',
       JAR,
