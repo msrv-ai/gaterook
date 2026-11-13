@@ -44,6 +44,23 @@ export const RABBITMQ = type('rabbitmq', 'RabbitMQ', {
   process: { state: 'running', pid: 4242, rssMb: 54, detail: null },
 });
 
+/**
+ * A connector type of a module the person installed from a file: the core lists it among the built-in types, with
+ * the installed module behind it (`signed: false`). `listedVersion`: GateRook's list has the module too.
+ */
+export function ownModuleType(listedVersion: string | null = null, over: Partial<InstalledConnector> = {}): InstalledConnector {
+  return type('orders', 'Orders', {
+    group: 'HTTP and MCP',
+    description: 'Orders of the shop over its API.',
+    version: '1.0.0',
+    signed: false,
+    tools: 2,
+    process: { state: 'stopped', pid: null, rssMb: null, detail: null },
+    module: { id: 'shop', version: '1.2.0', state: 'ready', step: null, sizeBytes: 2_700_000, installed: true, message: null, signed: false, listedVersion },
+    ...over,
+  });
+}
+
 export function installedTypes(): InstalledConnector[] {
   return [
     type('postgres', 'PostgreSQL', { connections: 2, tools: 4 }),
@@ -254,6 +271,43 @@ export function clickhouseCheck(signed = false): PluginCheck {
       configPreview: [{ title: 'Host' }, { title: 'Port' }, { title: 'User' }, { title: 'Password' }],
       // No sandbox for the plugin process on this system (K4 review: `landlock`, `sandbox-exec` or null).
       sandbox: null,
+    },
+  };
+}
+
+/**
+ * A connector module's package from a file: the person's own unless `signed` (GateRook's signed list has it). It adds
+ * two connector types.
+ */
+export function moduleCheck(signed = false, over: Partial<PluginCheck['report']> = {}): PluginCheck {
+  const orders: PluginCheck['report']['tools'] = [
+    { name: 'orders_list', declared: { readOnlyHint: true } },
+    { name: 'orders_cancel', declared: { destructiveHint: true } },
+  ];
+  const shipments: PluginCheck['report']['tools'] = [{ name: 'shipments_list', declared: { readOnlyHint: true } }];
+  return {
+    stagingId: 'stg-m1',
+    report: {
+      signed,
+      sha256: '4b1d7c0e9a2f5b8c3d6e1f4a7b0c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c',
+      size: 2.6 * 1024 * 1024,
+      id: 'shop',
+      version: '1.2.0',
+      name: 'Shop',
+      file: 'shop-1.2.0.jar',
+      requires: { gateway: '>=0.9.2 & <1.0.0', connectorApi: '>=1.2.0 & <2.0.0' },
+      tools: [...orders, ...shipments],
+      access: { hosts: ['{connection.host}:443'] },
+      configPreview: [],
+      sandbox: 'sandbox-exec',
+      module: true,
+      types: [
+        { id: 'orders', name: 'Orders', tools: orders, configPreview: ['Host', 'API key'] },
+        { id: 'shipments', name: 'Shipments', tools: shipments, configPreview: ['Host'] },
+      ],
+      installedVersion: null,
+      installedSigned: null,
+      ...over,
     },
   };
 }

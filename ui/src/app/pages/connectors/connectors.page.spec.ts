@@ -5,7 +5,8 @@ import { ApiError } from '../../core/api/api-error';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { CatalogIndex, McpProfile, McpRegistryPage, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { ModulesApi } from '../../core/api/modules.api';
+import { CatalogIndex, McpProfile, McpRegistryPage, McpServersApi, PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
@@ -23,6 +24,9 @@ import {
   connectionRows,
   endpointTools,
   endpoints,
+  installedTypes,
+  moduleCheck,
+  ownModuleType,
   rabbitUpdate,
   secretRows,
   sentryReview,
@@ -84,6 +88,8 @@ interface Answers {
   update: () => ReturnType<typeof rabbitUpdate>;
   registry: (search: string, cursor: string | null) => Promise<McpRegistryPage>;
   profiles: () => Promise<McpProfile[]>;
+  /** What the core finds in a JAR chosen on this computer: a plugin, or a connector module. */
+  fileCheck: () => Promise<PluginCheck>;
 }
 
 /**
@@ -157,6 +163,7 @@ function setup(over: Partial<Answers> = {}): void {
     update: rabbitUpdate,
     registry: registryPage,
     profiles: () => Promise.resolve([]),
+    fileCheck: () => Promise.resolve(clickhouseCheck()),
     ...over,
   };
   const record = (name: string, body?: unknown) => {
@@ -198,6 +205,10 @@ function setup(over: Partial<Answers> = {}): void {
     check: (source) => {
       record('check', source);
       return Promise.resolve(clickhouseCheck());
+    },
+    checkFile: (file) => {
+      record(`check-file ${file.name}`);
+      return answers.fileCheck();
     },
     install: (stagingId, ack) => {
       record(`install ${stagingId} ${ack}`);
@@ -302,6 +313,19 @@ function setup(over: Partial<Answers> = {}): void {
       { provide: ConnectorTypesApi, useValue: typesApi },
       { provide: ConnectionsApi, useValue: connections },
       { provide: PluginsApi, useValue: plugins },
+      {
+        provide: ModulesApi,
+        useValue: {
+          uninstall: (id: string) => {
+            record(`uninstall-module ${id}`);
+            return Promise.resolve();
+          },
+          replaceOwn: (id: string) => {
+            record(`replace-own ${id}`);
+            return Promise.resolve({} as never);
+          },
+        } satisfies Partial<ModulesApi>,
+      },
       { provide: McpServersApi, useValue: servers },
       { provide: TemplatesApi, useValue: templatesApi },
       {
@@ -567,6 +591,156 @@ describe('Connectors page: Installed', () => {
     events.emit('mcp-server.state', { name: 'github-mcp', state: 'running' });
     await settle(fixture);
     expect(text(cardOf(el, 'installed', 'github-mcp')!.querySelector('[gwConnectorCardNote] a'))).toBe('Running, see github-mcp in MCP servers');
+  });
+});
+
+describe('Connectors page: a connector module from a file', () => {
+  /** Opens Install plugin or module from the page's menu, chooses `name` and has the core check it. */
+  async function checkFile(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, name: string): Promise<HTMLDialogElement> {
+    button(el.querySelector('#menu-add-connector'), 'Install plugin or module').click();
+    await settle(fixture);
+    const install = el.querySelector<HTMLDialogElement>('dialog[gwPluginInstallDialog]')!;
+    expect(install.open).toBe(true);
+    expect(text(install.querySelector('.gw-dialog__title'))).toBe('Install plugin or module');
+    expect(text(install.querySelector('.gw-file-drop__hint'))).toBe('One plugin JAR, up to 50 MB, or one connector module, up to 150 MB');
+    const input = install.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { value: [new File(['jar'], name)], configurable: true });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle(fixture);
+    button(install, 'Check package').click();
+    await settle(fixture);
+    expect(calls).toContain(`check-file ${name}`);
+    expect(install.open).toBe(false);
+    return el.querySelector<HTMLDialogElement>('dialog[gwPluginReviewDialog]')!;
+  }
+
+  const rowsOf = (dialog: HTMLElement) =>
+    Array.from(dialog.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))] as const);
+
+  it('reviews the person’s own module as unsigned code and installs it only with their word', async () => {
+    setup({ fileCheck: () => Promise.resolve(moduleCheck()) });
+    const { fixture, el } = await render();
+    const dialog = await checkFile(fixture, el, 'shop-1.2.0.jar');
+    expect(dialog.open).toBe(true);
+    expect(dialog.classList).toContain('gw-dialog--danger');
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Install unsigned connector module Shop?');
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toContain("GateRook didn't sign this package");
+    expect(text(document.activeElement)).toBe('Cancel');
+    const rows = rowsOf(dialog);
+    const row = (key: string) => rows.find(([k]) => k === key)?.[1];
+    expect(row('Signature')).toBe("Unsigned Not in GateRook's signed list of connector modules");
+    expect(row('Package')).toBe('shop-1.2.0.jar · 2.6 MB');
+    expect(row('Manifest')).toBe('id shop, version 1.2.0');
+    expect(row('Adds')).toBe('Orders: orders_list orders_cancel');
+    expect(rows.map(([, value]) => value)).toContain('Shipments: shipments_list');
+    expect(row('Tools')).toContain('3 Declared by shop, not verified. On an endpoint each starts as Approval; Read only needs your confirmation per tool.');
+    expect(row('Tools')).toContain('What you approve is the call\'s arguments');
+    expect(row('Needs access to')).toBe('The host of each connection, port 443');
+    expect(row('Updates')).toContain("None from GateRook's list");
+    expect(row('Replaces')).toBeUndefined();
+    expect(row('Runs as')).toBeUndefined();
+
+    const install = button(dialog, 'Install unsigned module Shop');
+    expect(install.getAttribute('aria-disabled')).toBe('true');
+    install.click();
+    await settle(fixture);
+    expect(calls.some((x) => x.startsWith('install '))).toBe(false);
+
+    check(dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    install.click();
+    await settle(fixture);
+    expect(calls).toContain('install stg-m1 true');
+    expect(dialog.open).toBe(false);
+    expect(toasts().at(-1)).toMatchObject({
+      tone: 'warning',
+      title: 'Unsigned connector module Shop installed',
+      body: 'Add a connection to use it. On an endpoint each of its 3 tools starts as Approval.',
+    });
+  });
+
+  it('installs a package GateRook’s signed list has as GateRook’s own connector, without asking for trust', async () => {
+    setup({ fileCheck: () => Promise.resolve(moduleCheck(true, { installedVersion: '1.1.0', installedSigned: false })) });
+    const { fixture, el } = await render();
+    const dialog = await checkFile(fixture, el, 'shop-1.2.0.jar');
+    expect(dialog.classList).not.toContain('gw-dialog--danger');
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Install Shop connector');
+    const rows = rowsOf(dialog);
+    const row = (key: string) => rows.find(([k]) => k === key)?.[1];
+    expect(row('Signature')).toBe("Signed GateRook's signed list of connector modules has this package");
+    expect(row('Replaces')).toBe('Shop v1.1.0, your own build. Requests that wait for approval on its connections are rejected.');
+    expect(row('Tools')).toBe('3, in the modes the connector declares: on an endpoint reads start as Read only and the others as Approval.');
+    expect(row('Updates')).toBeUndefined();
+    expect(dialog.querySelector('input[type="checkbox"]')).toBeNull();
+
+    button(dialog, 'Install Shop connector').click();
+    await settle(fixture);
+    expect(calls).toContain('install stg-m1 false');
+    expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Shop connector installed' });
+  });
+
+  it('lists a type of the person’s own module as a module, unsigned, and removes the module on request', async () => {
+    setup({ types: () => Promise.resolve(typesCatalog([...installedTypes(), ownModuleType(), ownModuleType(null, { id: 'shipments', name: 'Shipments', tools: 1, connections: 0 })])) });
+    const { fixture, el } = await render();
+    expect(text(el.querySelector('#installed-count'))).toBe('10 built-in, 2 from your own module, 1 plugin, 1 MCP server');
+    const orders = cardOf(el, 'installed', 'Orders')!;
+    expect(Array.from(orders.querySelectorAll('.gw-connector-card__meta .gw-badge')).map(text)).toEqual(['Module', 'Unsigned']);
+    expect(text(orders.querySelector('.gw-connector-card__meta .gw-mono'))).toBe('v1.2.0');
+    expect(text(orders.querySelector('[gwConnectorCardNote]'))).toBe('2 tools, each starts as Approval · no connections yet · Add connection for Orders');
+    expect(text(orders.querySelector('.gw-card__footer .gw-status'))).toBe('Sleeping');
+    const menu = orders.querySelector('[role="menu"]')!;
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((item) => text(item.querySelector('.gw-menu__label')))).toEqual(['Uninstall module']);
+
+    button(menu, 'Uninstall module').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwConfirmDialog]')!;
+    expect(dialog.open).toBe(true);
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Uninstall module shop?');
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toBe(
+      'Its code is unloaded, its package deleted and the connector types Orders and Shipments removed. No connection uses it, so nothing stops working. Install it from its file again to use it.',
+    );
+    expect(text(document.activeElement)).toBe('Cancel');
+    expect(calls).not.toContain('uninstall-module shop');
+
+    button(dialog, 'Uninstall module shop').click();
+    await settle(fixture);
+    expect(calls).toContain('uninstall-module shop');
+    expect(dialog.open).toBe(false);
+    expect(toasts().at(-1)?.title).toBe('Module shop uninstalled');
+  });
+
+  it('says that connections stand in the way of removing a module, and returns to GateRook’s build where its list has one', async () => {
+    setup({ types: () => Promise.resolve(typesCatalog([...installedTypes(), ownModuleType('1.3.0', { connections: 2 })])) });
+    const { fixture, el } = await render();
+    const orders = cardOf(el, 'installed', 'Orders')!;
+    expect(text(orders.querySelector('.gw-card__footer .gw-status'))).toBe('GateRook’s build available · v1.3.0');
+    const menu = orders.querySelector('[role="menu"]')!;
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((item) => text(item.querySelector('.gw-menu__label')).split('Replace')[0])).toEqual([
+      "Use GateRook's build",
+      'Uninstall module',
+    ]);
+
+    button(menu, 'Uninstall module').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwConfirmDialog]')!;
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toContain('2 connections use it: remove those connections first, or the module stays.');
+    button(dialog, 'Cancel').click();
+    await settle(fixture);
+
+    button(menu, "Use GateRook's build").click();
+    await settle(fixture);
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe("Replace your Orders module with GateRook's v1.3.0?");
+    expect(dialog.classList).toContain('gw-dialog--warning');
+    button(dialog, "Use GateRook's v1.3.0").click();
+    await settle(fixture);
+    expect(calls).toContain('replace-own shop');
+    expect(toasts().at(-1)?.title).toBe("GateRook's Orders v1.3.0 is installing");
+
+    // The installation's steps reach the page as events: the cards follow them.
+    const before = calls.filter((x) => x === 'types').length;
+    events.emit('module.state', { id: 'shop', version: '1.3.0', step: 'ready', sizeBytes: 1 });
+    await settle(fixture);
+    expect(calls.filter((x) => x === 'types').length).toBe(before + 1);
   });
 });
 

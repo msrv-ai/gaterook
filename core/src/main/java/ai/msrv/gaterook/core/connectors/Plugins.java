@@ -40,14 +40,29 @@ public class Plugins {
       Integer tools, String installed, String icon, List<String> connectionTypes, String group) {}
 
   /**
-   * A checked, not-yet-installed plugin. {@code sandbox}: the OS sandbox it will run in here, or {@code null} ("Not
-   * sandboxed on this system").
+   * A checked, not-yet-installed package: a plugin, or a connector module that came as a file. {@code sandbox}: the
+   * OS sandbox it will run in here, or {@code null} ("Not sandboxed on this system").
+   *
+   * @param signed           a plugin: the catalog key signed this build. A module: GateRook's signed list pins this
+   *                         very package, so it is GateRook's own; else it is the person's own module
+   * @param types            a module's connector types with their tools; {@code null} for a plugin
+   * @param installedVersion a module: the version of the module of that id that is installed now and that this
+   *                         package would replace, or {@code null}
+   * @param installedSigned  whether that installed build is GateRook's
    */
   public record Check(String stagingId, boolean signed, String sha256, long size, String id, String version,
       String name, String file, JsonNode requires, List<Tool> tools, JsonNode access, JsonNode configPreview,
-      String sandbox) {}
+      String sandbox, List<TypeCheck> types, String installedVersion, boolean installedSigned) {
+
+    public boolean module() {
+      return types != null;
+    }
+  }
 
   public record Tool(String name, JsonNode declared) {}
+
+  /** One connector type of a checked module: its tools, and its connection form's schema. */
+  public record TypeCheck(String id, String name, List<Tool> tools, JsonNode configPreview) {}
 
   /** An installed plugin as Connectors shows it. */
   public record Installed(String id, String name, String version, String previousVersion, boolean signed,
@@ -75,9 +90,11 @@ public class Plugins {
   public RuntimeStatus prepareRuntime() { return service.prepareRuntime(); }
 
   private final PluginService service;
+  private final ai.msrv.gaterook.core.connectors.plugins.ModuleService modules;
 
-  Plugins(PluginService service) {
+  Plugins(PluginService service, ai.msrv.gaterook.core.connectors.plugins.ModuleService modules) {
     this.service = service;
+    this.modules = modules;
   }
 
   // ── Catalog ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -112,15 +129,25 @@ public class Plugins {
 
   // ── Check / install ─────────────────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Stages and checks a package a person chose on this computer: a plugin, or a connector module, whose review says
+   * whether GateRook's signed list pins it (docs/connector-delivery.md).
+   */
   public Check checkFile(byte[] bytes, String fileName) {
-    return check(service.checkFile(bytes, fileName));
+    PluginInstaller.Staged staged = service.checkFile(bytes, fileName);
+    return check(staged.manifest().module() ? modules.reviewFile(staged) : staged);
   }
 
   public Check checkCatalog(String id, String version) {
     return check(service.checkCatalog(id, version));
   }
 
+  /** Installs what was checked: a plugin, or a connector module that came as a file. */
   public void install(String stagingId, boolean acknowledgeUnsigned, String reason) {
+    if (service.stagedModule(stagingId)) {
+      modules.installFile(stagingId, acknowledgeUnsigned, reason);
+      return;
+    }
     service.install(stagingId, acknowledgeUnsigned, reason);
   }
 
@@ -165,11 +192,18 @@ public class Plugins {
 
   // ── Mapping ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private static Check check(PluginInstaller.Staged staged) {
+  private Check check(PluginInstaller.Staged staged) {
     PluginInstaller.Report r = staged.report();
     List<Tool> tools = r.tools().stream().map(t -> new Tool(t.name(), t.declared())).toList();
+    List<TypeCheck> types = !r.module() ? null : r.types().stream().map(type -> new TypeCheck(type.id(),
+        type.name(), type.tools().stream().map(t -> new Tool(t.name(), t.declared())).toList(),
+        type.configSchema())).toList();
+    Optional<ai.msrv.gaterook.core.connectors.plugins.ModuleService.Status> installed = !r.module()
+        ? Optional.empty() : modules.statusOf(r.id()).filter(s -> s.installed() && s.id().equals(r.id()));
     return new Check(staged.stagingId(), r.signed(), r.sha256(), r.size(), r.id(), r.version(), r.name(), r.fileName(),
-        r.requires(), tools, r.access(), r.configSchema(), r.sandbox());
+        r.requires(), tools, r.access(), r.configSchema(), r.sandbox(), types,
+        installed.map(ai.msrv.gaterook.core.connectors.plugins.ModuleService.Status::version).orElse(null),
+        installed.map(ai.msrv.gaterook.core.connectors.plugins.ModuleService.Status::signed).orElse(false));
   }
 
   private static Installed installed(PluginService.PluginView v) {

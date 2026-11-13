@@ -48,6 +48,25 @@ final class CoreClient {
     return new Answer(r.statusCode(), r.body());
   }
 
+  /** A package as the UI uploads it: multipart, the field {@code file}. */
+  Answer upload(String target, String fileName, byte[] bytes) throws Exception {
+    String boundary = "gw-e2e-" + Long.toHexString(System.nanoTime());
+    java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
+    body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + fileName
+        + "\"\r\nContent-Type: application/java-archive\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    body.write(bytes);
+    body.write(("\r\n--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    byte[] nonce = new byte[16];
+    new SecureRandom().nextBytes(nonce);
+    HttpRequest request = HttpRequest.newBuilder(uri(target)).timeout(Duration.ofSeconds(150))
+        .header("X-Gateway-Auth", core.secret().sign("POST", target, System.currentTimeMillis(),
+            Base64.getUrlEncoder().withoutPadding().encodeToString(nonce)))
+        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+        .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build();
+    HttpResponse<String> r = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+    return new Answer(r.statusCode(), r.body());
+  }
+
   JsonNode json(Answer answer, int status) {
     assertThat(answer.status()).as(answer.body()).isEqualTo(status);
     return CoreProcess.JSON.readTree(answer.body());

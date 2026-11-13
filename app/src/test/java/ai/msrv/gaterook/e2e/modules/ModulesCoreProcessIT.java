@@ -152,10 +152,17 @@ class ModulesCoreProcessIT {
 
   @Test
   @Order(2)
-  void aModulePackageIsNeverInstalledAsAPlugin() throws Exception {
-    Answer refused = multipart("/api/plugins/check", "echo-1.0.0.jar", jar);
-    assertThat(refused.status()).as(refused.body()).isEqualTo(422);
-    assertThat(refused.body()).contains("can't be installed as plugins");
+  void aListedPackageChosenAsAFileIsKnownAsGateRooksOwnAndCheckingInstallsNothing() throws Exception {
+    JsonNode check = json(multipart("/api/plugins/check", "echo-1.0.0.jar", jar), 200);
+    JsonNode report = check.path("report");
+    assertThat(report.path("module").asBoolean()).as(report.toString()).isTrue();
+    assertThat(report.path("signed").asBoolean()).as("the signed list pins this very package").isTrue();
+    assertThat(report.path("sha256").asString()).isEqualTo(sha256(jar));
+    assertThat(report.path("types")).extracting(t -> t.path("id").asString()).containsExactly("echo-db", "echo-log");
+    assertThat(report.path("installedVersion").isNull()).isTrue();
+    assertThat(module(json(admin("GET", "/api/modules", null), 200), "echo").path("installed").asBoolean())
+        .as("a check installs nothing").isFalse();
+    assertThat(DOWNLOADS.get()).isZero();
   }
 
   @Test

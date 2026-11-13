@@ -41,6 +41,16 @@ public interface ConnectorSource {
     return false;
   }
 
+  /**
+   * Whether a {@link #firstParty first-party} type comes from a package that GateRook's signed list doesn't pin: a
+   * connector module a person built or got elsewhere and installed from a file. It is registered as a module's types
+   * are, but nothing it says is vouched for: it shares no tool with another connector, its tools start in Approval,
+   * and the action a person approves is the call's own arguments.
+   */
+  default boolean unverified(String typeId) {
+    return false;
+  }
+
   /** The installed package (the {@code plugin} row) that delivers {@code typeId}, which its type row points at. */
   default Optional<String> packageOf(String typeId) {
     return Optional.empty();

@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * GateRook's connector modules (docs/connector-delivery.md): the connectors that aren't part of the installer. The
  * UI lists them, starts an installation when a person chooses one of their connector types and follows it by the
- * {@code module.state} events; nothing here asks for a review or a confirmation.
+ * {@code module.state} events; nothing here asks for a review or a confirmation. A module's package that a person
+ * chooses as a file is checked and installed where a plugin's is ({@code POST /api/plugins/check} and
+ * {@code /api/plugins/install}), with a review.
  */
 @RestController
 @RegisterReflectionForBinding({ModulesController.ModulesView.class, ModulesController.Reason.class,
@@ -60,6 +62,16 @@ class ModulesController {
   @PostMapping("/api/modules/{id}/rollback")
   Modules.Module rollback(@PathVariable String id, @RequestBody(required = false) Reason reason) {
     return modules.rollback(id, reason == null ? null : reason.reason());
+  }
+
+  /**
+   * Replaces a person's own build of a module, installed from a file, with the one GateRook's list has: the way back
+   * to GateRook's connector while connections use the module's types. Answers at once with where the installation
+   * stands. 409 when the list doesn't have the module.
+   */
+  @PostMapping("/api/modules/{id}/replace-own")
+  Modules.Module replaceOwn(@PathVariable String id) {
+    return modules.replaceOwn(id);
   }
 
   /** Removes an installed module. 409 while connections use one of its connector types. */

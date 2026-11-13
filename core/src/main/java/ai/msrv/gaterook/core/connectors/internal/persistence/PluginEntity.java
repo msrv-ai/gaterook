@@ -103,10 +103,15 @@ public class PluginEntity {
     this.updatedAt = now;
   }
 
-  /** A connector module's row. */
-  public static PluginEntity module(String id, String currentVersion, PluginSource source, String sha256,
-      long sizeBytes, Map<String, Object> manifest, Instant now) {
-    PluginEntity row = new PluginEntity(id, currentVersion, true, source, sha256, sizeBytes, manifest, now);
+  /**
+   * A connector module's row.
+   *
+   * @param signed whether GateRook's signed list pins the package; {@code false} for a person's own module, which
+   *               came as a file
+   */
+  public static PluginEntity module(String id, String currentVersion, boolean signed, PluginSource source,
+      String sha256, long sizeBytes, Map<String, Object> manifest, Instant now) {
+    PluginEntity row = new PluginEntity(id, currentVersion, signed, source, sha256, sizeBytes, manifest, now);
     row.module = true;
     return row;
   }
@@ -142,6 +147,23 @@ public class PluginEntity {
     this.previousSha256 = this.sha256;
     this.previousKeptUntil = keepPreviousUntil;
     this.currentVersion = Objects.requireNonNull(newVersion, "newVersion");
+    this.signed = signed;
+    this.source = Objects.requireNonNull(source, "source");
+    this.sha256 = Objects.requireNonNull(sha256, "sha256");
+    this.sizeBytes = sizeBytes;
+    this.manifest = Objects.requireNonNull(manifest, "manifest");
+    this.updatedAt = Objects.requireNonNull(now, "now");
+  }
+
+  /**
+   * Another build of the version that is installed takes its place (GateRook's build of a version a person had their
+   * own build of): the two share a folder, so nothing of the build before is kept for Roll back.
+   */
+  public void replaceBuild(boolean signed, PluginSource source, String sha256, long sizeBytes,
+      Map<String, Object> manifest, Instant now) {
+    this.previousVersion = null;
+    this.previousSha256 = null;
+    this.previousKeptUntil = null;
     this.signed = signed;
     this.source = Objects.requireNonNull(source, "source");
     this.sha256 = Objects.requireNonNull(sha256, "sha256");

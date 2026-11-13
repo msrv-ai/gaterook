@@ -40,10 +40,25 @@ export interface PluginCheckTool {
   readonly declared: JsonValue;
 }
 
-/** The report of a staged plugin before Install: signature, hash, what it asks for. */
+/** One connector type a connector module's package adds: its tools, and its connection form in words. */
+export interface ModuleCheckType {
+  readonly id: string;
+  readonly name: string;
+  readonly tools: PluginCheckTool[];
+  readonly configPreview: JsonValue;
+}
+
+/**
+ * The report of a staged package before Install: signature, hash, what it asks for. A file may be a plugin or a
+ * connector module (`module`): the same check reviews both and the same install installs what was checked.
+ */
 export interface PluginCheck {
   readonly stagingId: string;
   readonly report: {
+    /**
+     * A plugin: the catalog key signed this build. A connector module: GateRook's signed list of modules pins this
+     * very package, so it is GateRook's own; false for a module of the person's own.
+     */
     readonly signed: boolean;
     readonly sha256: string;
     /** Bytes of the JAR. */
@@ -65,6 +80,13 @@ export interface PluginCheck {
      * none ("Not sandboxed on this system", ARCHITECTURE §7.5); absent from a core before the K4 review.
      */
     readonly sandbox?: string | null;
+    /** The package is a connector module: `types` are the connector types it adds, `tools` those of all of them. */
+    readonly module?: boolean;
+    readonly types?: ModuleCheckType[] | null;
+    /** A module: the version of the module of that id installed now, which this package would replace; else null. */
+    readonly installedVersion?: string | null;
+    /** Whether that installed build is GateRook's (false: the person's own, from a file). */
+    readonly installedSigned?: boolean | null;
   };
 }
 
@@ -140,14 +162,17 @@ export class PluginsApi {
     return this.api.post('/api/plugins/check', source);
   }
 
-  /** A JAR from this computer, as multipart (`file`, ≤ 50 MB): the core stages and checks it before anything loads. */
+  /**
+   * A JAR from this computer, as multipart (`file`): a plugin (≤ 50 MB) or a connector module's package (≤ 150 MB).
+   * The core stages and checks it before anything loads.
+   */
   checkFile(file: File): Promise<PluginCheck> {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.api.post('/api/plugins/check', form);
   }
 
-  /** 422 for an unsigned plugin without `acknowledgeUnsigned`. */
+  /** Installs what was checked, a plugin or a connector module; 422 for an unsigned one without `acknowledgeUnsigned`. */
   install(stagingId: string, acknowledgeUnsigned = false, body: WithReason = {}): Promise<JsonObject> {
     return this.api.post('/api/plugins/install', { stagingId, acknowledgeUnsigned, ...body });
   }

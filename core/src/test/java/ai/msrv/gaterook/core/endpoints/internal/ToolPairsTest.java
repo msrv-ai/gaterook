@@ -242,6 +242,63 @@ class ToolPairsTest {
         reason -> assertThat(reason).contains("Confirm"));
   }
 
+  /**
+   * A connector module that a person installed from a file, and that GateRook's signed list doesn't pin, is code
+   * nobody reviewed with a built-in type's names: its tools start in Approval whatever defaults it declares, Read only
+   * is a confirmation per tool, and that confirmation is bound to its very build.
+   */
+  @Test
+  void aModuleGateRookDidNotSignIsTakenAtNoWordForItsTools() {
+    ToolDefinition read = ToolDefinition.builder("orders_list").defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build();
+    ToolDefinition change = ToolDefinition.builder("orders_cancel").nature(ToolDefinition.Nature.MUTATION)
+        .annotations(ToolDefinition.Annotations.write(true)).defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
+    ToolPairs.Offered own = new ToolPairs.Offered("orders_list", read, ConnectorManifest.Kind.BUILT_IN, "Orders",
+        "1.2.0+0123456789ab", null, null);
+
+    assertThat(builtIn(read).needsReadOnlyConfirmation()).isFalse();
+    assertThat(own.needsReadOnlyConfirmation()).isTrue();
+    assertThat(own.automaticReadOnly()).isFalse();
+    for (Env env : Env.values()) {
+      assertThat(ToolPairs.initial(builtIn(read), env, false)).isEqualTo(Mode.READ_ONLY);
+      assertThat(ToolPairs.initial(own, env, false)).isEqualTo(Mode.APPROVAL);
+      assertThat(ToolPairs.initial(new ToolPairs.Offered("orders_cancel", change, ConnectorManifest.Kind.BUILT_IN,
+          "Orders", "1.2.0+0123456789ab", null, null), env, false)).isEqualTo(Mode.APPROVAL);
+      assertThat(ToolPairs.initial(own, env, true)).as("nothing waits for a person on a read-only endpoint")
+          .isEqualTo(Mode.OFF);
+    }
+    assertThat(ToolPairs.refusal(own, Mode.READ_ONLY, false, false, "dev")).hasValueSatisfying(
+        reason -> assertThat(reason).contains("Confirm").contains("declared by Orders, not verified"));
+    assertThat(ToolPairs.refusal(own, Mode.READ_ONLY, false, true, "dev")).isEmpty();
+
+    // The registry's connector says whose build serves the type and what a confirmation is bound to.
+    Connector module = mock(Connector.class, org.mockito.Mockito.withSettings()
+        .extraInterfaces(ai.msrv.gaterook.core.connectors.PluginBuild.class).defaultAnswer(CALLS_REAL_METHODS));
+    ConnectorManifest orders = ConnectorManifest.builder("orders", "1.0.0", ConnectorManifest.Kind.BUILT_IN)
+        .name("Orders").tools(List.of(read)).build();
+    when(module.manifest()).thenReturn(orders);
+    when(((ai.msrv.gaterook.core.connectors.PluginBuild) module).signed()).thenReturn(false);
+    when(((ai.msrv.gaterook.core.connectors.PluginBuild) module).provenance()).thenReturn("1.2.0+0123456789ab");
+    when(registry.connectorFor(any())).thenReturn(Optional.of(module));
+    when(policies.view(Env.DEV, orders)).thenReturn(new PolicyView(Env.DEV, "dev.orders",
+        JsonNodeFactory.instance.objectNode(), LimitsOf.from(JsonNodeFactory.instance.objectNode(), Env.DEV)));
+    ConnectionConfig cfg = new ConnectionConfig("c-orders", "orders-dev", "orders", Env.DEV, 1,
+        JsonNodeFactory.instance.objectNode(), Set.of(), null);
+    ToolPairs.Offered offered = pairs.offered(List.of(new ToolPairs.Member(cfg, orders, true)), "dev", Env.DEV)
+        .get("c-orders").getFirst();
+    assertThat(offered.toolKey()).as("a built-in type's plain name").isEqualTo("orders_list");
+    assertThat(offered.declaredBy()).isEqualTo("Orders");
+    assertThat(offered.provenanceVersion()).isEqualTo("1.2.0+0123456789ab");
+
+    // GateRook's own build of a module: nobody else declared its tools.
+    when(((ai.msrv.gaterook.core.connectors.PluginBuild) module).signed()).thenReturn(true);
+    when(((ai.msrv.gaterook.core.connectors.PluginBuild) module).provenance()).thenReturn(null);
+    ToolPairs.Offered vouched = pairs.offered(List.of(new ToolPairs.Member(cfg, orders, true)), "dev", Env.DEV)
+        .get("c-orders").getFirst();
+    assertThat(vouched.declaredBy()).isNull();
+    assertThat(vouched.provenanceVersion()).isEqualTo("1.0.0");
+    assertThat(ToolPairs.initial(vouched, Env.DEV, false)).isEqualTo(Mode.READ_ONLY);
+  }
+
   @Test
   void theDefinitionHashSeesTheAppAToolShowsAndStaysWhatItWasForTheRest() {
     ToolDefinition plain = ToolDefinition.builder("search").description("Searches.").build();

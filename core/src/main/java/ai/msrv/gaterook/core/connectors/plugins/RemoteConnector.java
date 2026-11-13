@@ -188,6 +188,14 @@ final class RemoteConnector implements Connector, PluginBuild {
    * aren't the person's to approve.
    */
   ActionPreview exactAction(ToolCall call, ConnectionConfig cfg, ActionPreview described) {
+    return exactAction(call, cfg, described, pluginId + " " + manifest.version() + (signed ? "" : " (unsigned)"));
+  }
+
+  /**
+   * The exact action of a call whose description GateRook doesn't vouch for: the call's arguments as the main block,
+   * and what {@code by} (a plugin, or a connector module that GateRook didn't sign) said of it as a field.
+   */
+  static ActionPreview exactAction(ToolCall call, ConnectionConfig cfg, ActionPreview described, String by) {
     JsonNode arguments = call.arguments() == null ? GppJson.object() : call.arguments();
     List<ActionPreview.Field> fields = new ArrayList<>();
     List<String> warnings = new ArrayList<>();
@@ -199,8 +207,8 @@ final class RemoteConnector implements Connector, PluginBuild {
         }
       }
       if (!said.isEmpty()) {
-        fields.add(new ActionPreview.Field("Described by " + pluginId + " " + manifest.version()
-            + (signed ? "" : " (unsigned)") + ", not verified", clip(OutputSanitizer.sanitize(said), 4_000)));
+        fields.add(new ActionPreview.Field("Described by " + by + ", not verified",
+            clip(OutputSanitizer.sanitize(said), 4_000)));
       }
       for (String w : described.warnings()) {
         if (w != null && !w.isBlank()) {

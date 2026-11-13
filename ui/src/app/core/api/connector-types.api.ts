@@ -21,6 +21,17 @@ export interface ConnectorModuleRef {
   readonly installed: boolean;
   /** Why the last installation failed, in the core's words; else null. */
   readonly message: string | null;
+  /**
+   * Whether GateRook's signed list pins the package. False only for an installed module that a person installed from
+   * a file and that the list doesn't pin: their own module, whose tools start in Approval and which the list never
+   * replaces by itself. Absent from a core that knows only GateRook's own modules.
+   */
+  readonly signed?: boolean;
+  /**
+   * A higher version the list has for an installed module, or the version it has of a module whose installed build
+   * is the person's own; else null.
+   */
+  readonly listedVersion?: string | null;
 }
 
 /** A card of the Add connection wizard (one per type or `x-variants` variant). */
@@ -97,6 +108,8 @@ export interface InstalledConnector {
   readonly state: string;
   readonly process: ConnectorProcess | null;
   readonly variants: ConnectorVariant[];
+  /** The installed connector module that adds the type; null or absent for a type that is part of the installer. */
+  readonly module?: ConnectorModuleRef | null;
 }
 
 /** `GET /api/connector-types`. */

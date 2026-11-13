@@ -168,9 +168,17 @@ public class PluginService {
 
   // ── Install ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Stages and checks a JAR uploaded from this computer. */
+  /**
+   * Stages and checks a JAR uploaded from this computer: a plugin, or a connector module, which the module service
+   * reviews and installs.
+   */
   public PluginInstaller.Staged checkFile(byte[] bytes, String fileName) {
     return installer.check(bytes, PluginSource.FILE, null, fileName == null ? "plugin.jar" : fileName);
+  }
+
+  /** Whether what was staged under {@code stagingId} is a connector module's package. */
+  public boolean stagedModule(String stagingId) {
+    return stagingId != null && installer.staged(stagingId).filter(s -> s.manifest().module()).isPresent();
   }
 
   /** Stages a catalog entry {@code id@version} by downloading its signed artifact. */

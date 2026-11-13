@@ -8,7 +8,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs, selectFromFragment } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
-import { InstalledView, installedViews, plural, v } from './connectors-view';
+import { InstalledView, installedViews, joinAnd, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
@@ -30,7 +30,8 @@ export const SKELETON_DELAY_MS = 300;
  * can reach and the tools each brings, and the three ways to add one without rebuilding — a template, a plugin or an
  * MCP server.
  *
- * - Header: "Add connector" (the page's one primary) — New template (Templates tab), Install plugin, Add MCP server.
+ * - Header: "Add connector" (the page's one primary) — New template (Templates tab), Install plugin or module (a
+ *   JAR from this computer: a plugin, or a connector module, GateRook's own or the person's), Add MCP server.
  * - How it works: the three levels of connectors, folded and remembered.
  * - Tabs Installed / Catalog / Templates / MCP servers with their counts; `#installed|catalog|templates|mcp-servers`
  *   deep-links a tab (the app's fragment follower).
@@ -207,6 +208,10 @@ export class ConnectorsPage {
           },
           a.opener,
         );
+      case 'uninstall-module':
+        return this.uninstallModule(view, a.opener);
+      case 'replace-module':
+        return this.replaceModule(view, a.opener);
       case 'turn-on':
         return this.turnOn(view);
       case 'keep':
@@ -230,6 +235,69 @@ export class ConnectorsPage {
           a.opener,
         );
     }
+  }
+
+  /** Every card of the module behind `view`: a module may add several connector types. */
+  private moduleCards(view: InstalledView): InstalledView[] {
+    const id = view.module?.id;
+    return id ? (this.installed() ?? []).filter((x) => x.module?.id === id) : [];
+  }
+
+  /** Removing the person's own module takes all of its connector types; the core refuses while connections use one. */
+  private uninstallModule(view: InstalledView, opener: HTMLElement | null): void {
+    const module = view.module;
+    if (!module) return;
+    const cards = this.moduleCards(view);
+    const names = cards.map((x) => x.name);
+    const connections = cards.reduce((n, x) => n + x.connections, 0);
+    const what = names.length > 1 ? `the connector types ${joinAnd(names)}` : `the connector type ${view.name}`;
+    this.confirmDialog().ask(
+      {
+        tone: 'danger',
+        icon: 'trash-2',
+        title: `Uninstall module ${module.id}?`,
+        description: [
+          {
+            text: connections
+              ? `${plural(connections, 'connection')} ${connections === 1 ? 'uses' : 'use'} it: remove ${connections === 1 ? 'that connection' : 'those connections'} first, or the module stays. Uninstalling unloads its code, deletes its package and removes ${what}.`
+              : `Its code is unloaded, its package deleted and ${what} removed. No connection uses it, so nothing stops working. Install it from its file again to use it.`,
+            code: false,
+          },
+        ],
+        confirm: `Uninstall module ${module.id}`,
+        run: async () => {
+          await this.data.uninstallModule(module.id);
+          this.toasts.show({ tone: 'success', title: `Module ${module.id} uninstalled`, body: 'Past calls stay in Activity.' });
+        },
+      },
+      opener,
+    );
+  }
+
+  /** Back to GateRook's build of a module the person had their own build of: its tools are GateRook's own again. */
+  private replaceModule(view: InstalledView, opener: HTMLElement | null): void {
+    const module = view.module;
+    if (!module?.listedVersion) return;
+    const to = v(module.listedVersion);
+    this.confirmDialog().ask(
+      {
+        tone: 'warning',
+        icon: 'replace',
+        title: `Replace your ${view.name} module with GateRook's ${to}?`,
+        description: [
+          {
+            text: `GateRook downloads its own build, which its signed list has, and switches to it. Requests that wait for approval on its connections are rejected. Each tool keeps the mode it has; GateRook's list updates the module from then on.`,
+            code: false,
+          },
+        ],
+        confirm: `Use GateRook's ${to}`,
+        run: async () => {
+          await this.data.replaceOwnModule(module.id);
+          this.toasts.show({ tone: 'success', title: `GateRook's ${view.name} ${to} is installing`, body: 'Its card follows the download. Calls go on with your module until then.' });
+        },
+      },
+      opener,
+    );
   }
 
   private async openUpdate(key: string, id: string, to: string, connections: number, tools: number | null, opener: HTMLElement | null): Promise<void> {

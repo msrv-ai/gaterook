@@ -8,8 +8,10 @@ import org.springframework.web.multipart.support.StandardServletMultipartResolve
 import org.springframework.web.servlet.DispatcherServlet;
 
 /**
- * A plugin JAR is uploaded as multipart (ARCHITECTURE.md §6: {@code POST /api/plugins/check} multipart ≤ 50 MB), so the
- * servlet's multipart limit is raised to just over that. It is the only multipart route; everything else stays JSON.
+ * A plugin JAR is uploaded as multipart (ARCHITECTURE.md §6: {@code POST /api/plugins/check} multipart ≤ 50 MB), and
+ * so is a connector module's package, which may be 150 MB (a vendor's driver stack): the servlet's multipart limit is
+ * raised to just over that, and the installer holds each kind to its own limit once the manifest says which it is.
+ * It is the only multipart route; everything else stays JSON.
  *
  * <p>Parts are parsed lazily: only when the upload's controller reads its file, after the local guard checked the
  * request's signature, never by the dispatcher for a request nobody authenticated (the guards refuse multipart on
@@ -23,7 +25,7 @@ class PluginUploadConfiguration {
   @Bean
   MultipartConfigElement multipartConfigElement() {
     // location, maxFileSize, maxRequestSize, fileSizeThreshold.
-    return new MultipartConfigElement("", 51 * MB, 52 * MB, 0);
+    return new MultipartConfigElement("", 151 * MB, 152 * MB, 0);
   }
 
   /** Boot's resolver backs off for this one: the same servlet parts, parsed when first read. */

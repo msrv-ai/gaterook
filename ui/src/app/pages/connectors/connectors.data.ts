@@ -3,6 +3,7 @@ import { isNotAvailable } from '../../core/api/api-error';
 import { ConnectionDetail, ConnectionRow, ConnectionsApi, SecretInputs } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
+import { ModulesApi } from '../../core/api/modules.api';
 import {
   CatalogIndex,
   McpRegistryPage,
@@ -103,6 +104,7 @@ export class ConnectorsData {
   private readonly typesApi = inject(ConnectorTypesApi);
   private readonly connectionsApi = inject(ConnectionsApi);
   private readonly pluginsApi = inject(PluginsApi);
+  private readonly modulesApi = inject(ModulesApi);
   private readonly serversApi = inject(McpServersApi);
   private readonly templatesApi = inject(TemplatesApi);
   private readonly endpointsApi = inject(EndpointsApi);
@@ -167,6 +169,8 @@ export class ConnectorsData {
   start(): Promise<void> {
     this.unsubscribe.push(
       this.events.on('plugin.state', () => void this.types.refresh()),
+      // A module's installation moved on (GateRook's build replacing the person's own): its cards follow.
+      this.events.on('module.state', () => void this.types.refresh()),
       this.events.on('mcp-server.state', (e) => {
         if (e?.name && e.state) this.liveStatesSignal.update((m) => new Map(m).set(e.name, e.state));
         void this.types.refresh();
@@ -294,6 +298,18 @@ export class ConnectorsData {
     await this.pluginsApi.ensureRuntime(preparation);
     await this.pluginsApi.action(id, 'update', acknowledgeUnsigned ? { to, acknowledgeUnsigned } : { to });
     await Promise.all([this.types.refresh(), this.catalog.refresh()]);
+  }
+
+  /** Removes a connector module the person installed from a file, with every connector type it adds. */
+  async uninstallModule(id: string): Promise<void> {
+    await this.modulesApi.uninstall(id);
+    await this.types.refresh();
+  }
+
+  /** Starts replacing the person's own build of a module with GateRook's; `module.state` events follow it. */
+  async replaceOwnModule(id: string): Promise<void> {
+    await this.modulesApi.replaceOwn(id);
+    await this.types.refresh();
   }
 
   async uninstallPlugin(id: string): Promise<void> {

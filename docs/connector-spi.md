@@ -439,9 +439,9 @@ public final class ApiVersion { public static final String CURRENT = "1.2.0"; pr
 
 // ── ConnectorModule.java / ModuleContext.java (1.2) ────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api;
-/** The entry point of a connector module (docs/connector-delivery.md): a package of GateRook's own connectors that is
- *  delivered apart from the application. The module host instantiates the manifest's moduleClass once and asks it for
- *  its connectors, one per connector type the manifest declares. */
+/** The entry point of a connector module (docs/connector-delivery.md): a package of connectors that is delivered apart
+ *  from the application, GateRook's own or one a person built and installs from a file. The module host instantiates
+ *  the manifest's moduleClass once and asks it for its connectors, one per connector type the manifest declares. */
 public interface ConnectorModule extends AutoCloseable {
   List<Connector> connectors(ModuleContext context);
   @Override default void close() {}

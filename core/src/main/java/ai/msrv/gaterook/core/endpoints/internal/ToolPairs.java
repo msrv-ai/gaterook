@@ -39,9 +39,10 @@ public class ToolPairs {
   /**
    * One tool a connection offers.
    *
-   * @param declaredBy        for MCP server tools and the tools of a plugin whose build GateRook's catalog didn't
-   *                          sign: who declared the annotations ("Declared by github-mcp, not verified"); {@code null}
-   *                          for built-ins, templates and the tools of a signed plugin, whose code GateRook reviewed
+   * @param declaredBy        for MCP server tools and the tools of a plugin or a connector module whose build
+   *                          GateRook didn't sign: who declared the annotations ("Declared by github-mcp, not
+   *                          verified"); {@code null} for GateRook's own connectors, templates and the tools of a
+   *                          signed plugin, whose code GateRook reviewed
    * @param provenanceVersion the version a Read only confirmation of the tool is bound to: that of the connector
    *                          serving the connection (a plugin's version; an MCP server connection's upstream server
    *                          version, which its connector reports as its manifest version), not the type's catalog card
@@ -52,10 +53,10 @@ public class ToolPairs {
 
     /**
      * Tools whose Read only needs the person's confirmation per tool, bound to its definition and version: those of an
-     * unsigned plugin, which only declares what they do.
+     * unsigned plugin and of a connector module that GateRook didn't sign, which only declare what they do.
      */
     public boolean needsReadOnlyConfirmation() {
-      return kind == ConnectorManifest.Kind.PLUGIN && declaredBy != null;
+      return kind != ConnectorManifest.Kind.MCP_SERVER && declaredBy != null;
     }
 
     /**
@@ -143,7 +144,8 @@ public class ToolPairs {
     Member first = group.get(0);
     ConnectorManifest manifest = first.manifest();
     Optional<Connector> connector = registry.connectorFor(first.config());
-    String provenance = connector.map(c -> c.manifest().version()).orElse(manifest.version());
+    String provenance = connector.map(c -> c instanceof PluginBuild build && build.provenance() != null
+        ? build.provenance() : c.manifest().version()).orElse(manifest.version());
     List<ConnectionConfig> configs = new ArrayList<>();
     Map<String, Limits> limits = new LinkedHashMap<>();
     List<EndpointView.Contribution> contributions = new ArrayList<>();
@@ -211,12 +213,13 @@ public class ToolPairs {
   }
 
   /**
-   * Who declared the annotations of a connection's tools, when GateRook doesn't vouch for them: an MCP server, or a
-   * plugin unless the build that serves it is signed. A plugin whose connector isn't running here counts as unsigned.
+   * Who declared the annotations of a connection's tools, when GateRook doesn't vouch for them: an MCP server, a
+   * plugin unless the build that serves it is signed, or a connector module a person installed from a file that
+   * GateRook's signed list doesn't pin. A plugin whose connector isn't running here counts as unsigned.
    */
   private static String declaredBy(ConnectorManifest manifest, ConnectionConfig cfg, Connector connector) {
     return switch (manifest.kind()) {
-      case BUILT_IN -> null;
+      case BUILT_IN -> connector instanceof PluginBuild build && !build.signed() ? manifest.name() : null;
       case PLUGIN -> connector instanceof PluginBuild build && build.signed() ? null : manifest.name();
       case MCP_SERVER -> cfg.name();
     };
@@ -290,11 +293,12 @@ public class ToolPairs {
    * tool a connection offers. Built-in tools take the manifest's default for the endpoint's environment, which is Read
    * only for what reads and Approval for what changes data, runs commands or reads secrets; a default of Off or Bypass
    * starts in Approval. MCP tools and the tools of a plugin start in Read only when {@link Offered#automaticReadOnly()}
-   * and in Approval otherwise. On a read-only endpoint, no Approval and nothing that changes data.
+   * and in Approval otherwise; so do the tools of a connector module that GateRook didn't sign, whatever defaults it
+   * declares. On a read-only endpoint, no Approval and nothing that changes data.
    */
   public static Mode initial(Offered t, Env endpointEnv, boolean readOnlyEndpoint) {
     Mode mode = endpointEnv == Env.PROD ? t.definition().prodDefaultMode() : t.definition().defaultMode();
-    if (t.kind() != ConnectorManifest.Kind.BUILT_IN) {
+    if (t.kind() != ConnectorManifest.Kind.BUILT_IN || t.declaredBy() != null) {
       mode = t.automaticReadOnly() ? Mode.READ_ONLY : Mode.APPROVAL;
     } else if (mode == Mode.OFF || mode == Mode.BYPASS) {
       mode = Mode.APPROVAL;

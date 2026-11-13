@@ -20,9 +20,13 @@ import { GwIcon } from '../../icons';
 import { connectorMark } from '../shared/connector-categories';
 import { literalParts } from '../shared/literals';
 
-/** The kind badge: Built-in (neutral, it is also the trust), Template, Plugin, MCP server (outline). */
+/**
+ * The kind badge: Built-in (neutral, it is also the trust), Template, Plugin, MCP server (outline), and Module for a
+ * connector type of a module the person installed from a file, which carries its own trust badge (Unsigned).
+ */
 const KINDS: Record<string, { readonly icon: string; readonly text: string; readonly cls: string }> = {
   'built-in': { icon: 'package', text: 'Built-in', cls: 'gw-badge--neutral' },
+  module: { icon: 'package', text: 'Module', cls: 'gw-badge--outline' },
   template: { icon: 'file-code', text: 'Template', cls: 'gw-badge--outline' },
   plugin: { icon: 'puzzle', text: 'Plugin', cls: 'gw-badge--outline' },
   'mcp-server': { icon: 'plug', text: 'MCP server', cls: 'gw-badge--outline' },
@@ -123,7 +127,7 @@ export class GwConnectorCard {
   protected readonly kind = computed(() => kindBadge(this.card().kind));
   protected readonly mark = computed(() => {
     const c = this.card();
-    return c.kind === 'built-in' || c.kind === 'plugin' ? connectorMark(c.type, c.variant) : null;
+    return c.kind === 'built-in' || c.kind === 'plugin' || c.kind === 'module' ? connectorMark(c.type, c.variant) : null;
   });
   protected readonly description = computed(() => literalParts(this.card().description, this.card().literals ?? []));
   protected readonly status = computed<ConnectorCardStatus | null>(() => {
@@ -200,7 +204,8 @@ export class GwConnectorPicker {
 
   /**
    * "Built-in · 4 tools", "Built-in Logs · 2 tools", "PostgreSQL connector · 4 tools", "v1.2.0 · 5 tools",
-   * "Installs v1.0.0 from the catalog · 6 tools", "Built-in · 3 tools · 9.4 MB download", "Tools from the file".
+   * "Installs v1.0.0 from the catalog · 6 tools", "Built-in · 3 tools · 9.4 MB download", "Your module, unsigned ·
+   * 2 tools", "Tools from the file".
    */
   protected meta(c: ConnectorCard, group: ConnectorGroup): string {
     const tools = c.tools !== null ? `${c.tools} ${c.tools === 1 ? 'tool' : 'tools'}` : `Tools from the ${c.toolsFrom ?? 'server'}`;
@@ -210,6 +215,8 @@ export class GwConnectorPicker {
     if (c.kind === 'built-in' && c.module && !c.module.installed) {
       return `Built-in · ${tools} · ${formatBytes(c.module.sizeBytes)} download`;
     }
+    // A connector type of a module the person installed from a file: not one of GateRook's own, and it says so.
+    if (c.kind === 'built-in' && c.module?.installed && c.module.signed === false) return `Your module, unsigned · ${tools}`;
     if (c.kind === 'built-in') return c.tools !== null ? `Built-in${c.variant ? ` ${group.name}` : ''} · ${tools}` : tools;
     if (c.kind === 'plugin' && c.version && c.available) return `${c.version.startsWith('v') ? c.version : `v${c.version}`} · ${tools}`;
     return tools;

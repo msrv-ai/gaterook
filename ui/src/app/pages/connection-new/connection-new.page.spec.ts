@@ -1478,6 +1478,17 @@ describe('Add connection: wizard', () => {
     core.spec = { ...structuredClone(SPEC), type: 'cassandra', name: 'Cassandra' };
   }
 
+  it('says of a type of the person’s own module, installed from a file, that it is theirs and unsigned', async () => {
+    const module = { id: 'shop', version: '1.2.0', state: 'ready', step: null, sizeBytes: 2_700_000, installed: true, message: null, signed: false, listedVersion: null };
+    core.catalog = { groups: [{ name: 'Databases', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+      type: 'orders', name: 'Orders', kind: 'built-in', version: '1.0.0', tools: 2, connections: 0, module,
+    }] }], installed: [] };
+    const p = await open();
+    const card = p.q<HTMLInputElement>('#step-1 input[value="orders"]')!;
+    expect(text(card.closest('.gw-choice-card'))).toContain('Your module, unsigned · 2 tools');
+    expect(text(card.closest('.gw-choice-card'))).not.toContain('Built-in');
+  });
+
   it('a type of a connector module downloads on Continue with no question, and says which step it is at', async () => {
     cassandraModule();
     let arrive!: (spec: ConnectionFormSpec) => void;

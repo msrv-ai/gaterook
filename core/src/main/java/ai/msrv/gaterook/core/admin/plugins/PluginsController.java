@@ -30,11 +30,14 @@ import tools.jackson.databind.JsonNode;
  * update itself, and enable, disable, restart, roll back and uninstall. The shapes match the UI's
  * {@code plugins.api.ts}; the plugin subsystem is reached through the {@code connectors} module's {@link Plugins}
  * facade.
+ *
+ * <p>The file a person checks here may be a connector module's package as well (docs/connector-delivery.md): the
+ * same two calls review and install it, and what is installed then is a module ({@code /api/modules}).
  */
 @RestController
 @RegisterReflectionForBinding({PluginsController.CatalogView.class, PluginsController.SignatureView.class,
     PluginsController.CatalogEntryView.class, PluginsController.CheckResult.class, PluginsController.ReportView.class,
-    PluginsController.ToolView.class, PluginsController.InstallRequest.class, PluginsController.CheckRequest.class,
+    PluginsController.ToolView.class, PluginsController.TypeView.class, PluginsController.InstallRequest.class, PluginsController.CheckRequest.class,
     PluginsController.UpdatePreview.class, PluginsController.Package.class, PluginsController.Diff.class,
     PluginsController.Hunk.class, PluginsController.DiffLine.class, PluginsController.Reason.class,
     PluginsController.ToRequest.class, PluginsController.Done.class, Plugins.RuntimeStatus.class})
@@ -53,11 +56,23 @@ class PluginsController {
 
   record CheckResult(String stagingId, ReportView report) {}
 
-  /** {@code sandbox}: {@code landlock} or {@code sandbox-exec}, {@code null} where this system has none. */
+  /**
+   * {@code sandbox}: {@code landlock} or {@code sandbox-exec}, {@code null} where this system has none.
+   *
+   * <p>A file may be a connector module (docs/connector-delivery.md): {@code module} is true then, {@code types}
+   * are the connector types it adds, {@code tools} those of all of them, and {@code signed} says whether GateRook's
+   * signed list pins this very package (GateRook's own module) or it is the person's own. {@code installedVersion}
+   * is the version of the module of that id that is installed now, which this package would replace, and
+   * {@code installedSigned} whether that build is GateRook's.
+   */
   record ReportView(boolean signed, String sha256, long size, String id, String version, String name, String file,
-      JsonNode requires, List<ToolView> tools, JsonNode access, JsonNode configPreview, String sandbox) {}
+      JsonNode requires, List<ToolView> tools, JsonNode access, JsonNode configPreview, String sandbox,
+      boolean module, List<TypeView> types, String installedVersion, Boolean installedSigned) {}
 
   record ToolView(String name, JsonNode declared) {}
+
+  /** One connector type of a module's package: its tools, and its connection form in words. */
+  record TypeView(String id, String name, List<ToolView> tools, JsonNode configPreview) {}
 
   /** {@code acknowledgeUnsigned} may be left out (false): a missing flag is a refusal, not a malformed request. */
   record InstallRequest(String stagingId, Boolean acknowledgeUnsigned, String reason) {}
@@ -217,8 +232,12 @@ class PluginsController {
 
   private static CheckResult result(Plugins.Check c) {
     List<ToolView> tools = c.tools().stream().map(t -> new ToolView(t.name(), t.declared())).toList();
+    List<TypeView> types = !c.module() ? null : c.types().stream().map(type -> new TypeView(type.id(), type.name(),
+        type.tools().stream().map(t -> new ToolView(t.name(), t.declared())).toList(),
+        configPreview(type.configPreview()))).toList();
     return new CheckResult(c.stagingId(), new ReportView(c.signed(), c.sha256(), c.size(), c.id(), c.version(),
-        c.name(), c.file(), c.requires(), tools, c.access(), configPreview(c.configPreview()), c.sandbox()));
+        c.name(), c.file(), c.requires(), tools, c.access(), configPreview(c.configPreview()), c.sandbox(),
+        c.module(), types, c.installedVersion(), c.installedVersion() == null ? null : c.installedSigned()));
   }
 
   /**
