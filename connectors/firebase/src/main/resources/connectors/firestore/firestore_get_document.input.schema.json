@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "document"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "document": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 6144,
+      "description": "The document's path: collection and document IDs in turn, such as users/alice or users/alice/orders/o-1."
+    }
+  }
+}

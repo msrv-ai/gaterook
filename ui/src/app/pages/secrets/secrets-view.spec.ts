@@ -32,6 +32,9 @@ import {
   sortRows,
   sourceCell,
   sourceGroup,
+  STORE_KINDS,
+  anchorKind,
+  kindOfRef,
   storeAnchors,
   storeDescription,
   storeIssuesCount,
@@ -68,6 +71,9 @@ describe('stored secrets: filters, sort, count', () => {
     expect(filterRows(kitSecrets(), { q: '', source: 'vault' }, ctx).map((r) => r.name)).toEqual(['stage-db/password']);
     expect(filterRows(kitSecrets(), { q: '', source: 'aws-sm' }, ctx).map((r) => r.name)).toEqual(['billing-api/webhook-secret']);
     expect(sourceGroup(reference('x', 'y', 'reference', 'gcp-sm://projects/p/secrets/s'))).toBe('gcp-sm');
+    expect(sourceGroup(reference('x', 'y', 'reference', 'azure-kv://acme-kv/billing-db#password'))).toBe('azure-kv');
+    expect(sourceCell(reference('x', 'y', 'azure-kv', 'azure-kv://acme-kv/billing-db', { state: 'not-connected' })).label)
+      .toBe('Azure KV · not connected');
     expect(filterRows(kitSecrets(), { q: 'dev-db', source: 'vault' }, ctx)).toEqual([]);
   });
 
@@ -107,6 +113,7 @@ describe('stored secrets: cells', () => {
     expect(sourceCell(row('billing-api/webhook-secret'))).toEqual({ label: 'AWS SM · not connected', icon: null, tone: 'danger' });
     expect(sourceCell(local('a/b', 'a', null, null, { state: 'needs-value' }))).toMatchObject({ label: 'Encrypted here · needs a value', tone: 'warning' });
     expect(sourceCell(local('a/b', 'a', 3, null, { state: 'testing' }))).toMatchObject({ label: 'Encrypted here · new value failed its test', tone: 'warning' });
+    expect(sourceCell(local('a/b', 'a', 3, null, { state: 'unconfirmed' }))).toMatchObject({ label: 'Encrypted here · rotation unconfirmed', tone: 'warning' });
     expect(sourceCell(reference('a/b', 'a', 'vault', 'vault://kv/a', { state: 'changed-outside' }))).toMatchObject({ label: 'Vault · changed outside GateRook', tone: 'warning' });
   });
 
@@ -155,6 +162,10 @@ describe('row dialogs', () => {
     expect(dev).toMatchObject({ name: 'dev-db/password', usedBy: 'dev-db', version: 3, prod: false, testable: true });
     expect(replaceHint(dev)).toBe('Saving creates version 4. Version 3 stays in use until then.');
     expect(rotateLead(dev)).toBe('The connector sets a new value at the source, stores it as version 4 and tests dev-db. Version 3 keeps working until the test passes.');
+    // After a rotation without a clear answer, Rotate first finds out which value the source accepts.
+    const unsettled = subjectOf(local('dev-db/password', 'dev-db', 3, null, { state: 'unconfirmed' }), ctx);
+    expect(unsettled.unconfirmed).toBe(true);
+    expect(rotateLead(unsettled)).toBe('An earlier rotation got no clear answer. GateRook first tests which value dev-db accepts: if it took the kept new version, that one goes in use; if it still uses version 3, the kept one is discarded and the connector sets a new value.');
     const prod = subjectOf(local('prod-replica/password', 'prod-replica', 1, null), ctx);
     expect(prod.prod).toBe(true);
     // A store's sign-in is tested against the store: the kit names its host.
@@ -179,7 +190,8 @@ describe('row dialogs', () => {
 
   it('references: the scheme is checked here, the rest by the core; the result says nothing about the value', () => {
     expect(refProblem('')).toMatch(/^Enter a reference/);
-    expect(refProblem('https://vault/x')).toBe('A reference starts with vault://, gcp-sm:// or aws-sm://.');
+    expect(refProblem('https://vault/x')).toBe('A reference starts with vault://, gcp-sm://, aws-sm:// or azure-kv://.');
+    expect(refProblem('azure-kv://acme-kv/billing-db#password')).toBeNull();
     expect(refProblem('vault://kv/stage/db#password')).toBeNull();
     const found = { found: true, resolvedVersion: '7', created: null, type: 'json', keys: ['password', 'user'], latencyMs: 18 };
     expect(refTestToast('stage-db/password', found)).toEqual({ tone: 'success', title: 'Reference stage-db/password works', body: 'Resolved in 18 ms. Version v7. The value was neither shown nor kept.' });
@@ -316,6 +328,32 @@ describe('external stores', () => {
     expect(text(storeSignIn(aws))).toBe('AWS profile acme-stage assumes arn:aws:iam::412398765012:role/r with ExternalId gw-ext-3f9a0e1b2c3d.');
     expect(storeDescription(aws)).toBe('Read with AssumeRole and an ExternalId · eu-central-1');
     expect(text(storeSignIn({ ...vault, config: { address: 'https://v', auth: { method: 'cli-token' } } }))).toBe('Your vault login on this computer (~/.vault-token)');
+
+    const azure: SecretStore = {
+      ...vault,
+      kind: 'azure-kv',
+      name: 'azure-acme-kv',
+      config: { vault: 'acme-kv', cloud: 'AzureCloud', tenantId: 'contoso.onmicrosoft.com', credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+      signIn: [{ field: '/credentials/clientSecret', secretId: 'id-azure', name: 'azure-acme-kv/client-secret', state: 'stored', version: 1 }],
+    };
+    expect(storeDescription(azure)).toBe('Read with a service principal of Entra ID');
+    expect(storeDescription({ ...azure, config: { ...azure.config, cloud: 'AzureUSGovernment' } })).toBe('Read with a service principal of Entra ID · Azure Government');
+    expect(text(storeSignIn(azure))).toBe('Service principal 0a1b2c3d-1111-4222-8333-444455556666 with a client secret stored here: azure-acme-kv/client-secret');
+    const certificate: SecretStore = {
+      ...azure,
+      config: { ...azure.config, credentials: { source: 'clientCertificate', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+      signIn: [{ field: '/credentials/certificate', secretId: 'id-cert', name: 'azure-acme-kv/certificate', state: 'stored', version: 1 }],
+    };
+    expect(text(storeSignIn(certificate))).toBe('Service principal 0a1b2c3d-1111-4222-8333-444455556666 with a certificate stored here: azure-acme-kv/certificate');
+  });
+
+  it('Azure Key Vault is a kind of its own, with the scheme and anchor of its references', () => {
+    expect(STORE_KINDS.map((k) => k.kind)).toEqual(['vault', 'gcp-sm', 'aws-sm', 'azure-kv']);
+    expect(kindOfRef('azure-kv://acme-kv/billing-db#password')).toBe('azure-kv');
+    expect(anchorKind('azure-kv')).toBe('azure');
+    expect(storeAnchors([{ ...kitStores()[0], kind: 'azure-kv', name: 'azure-acme-kv' }]).get('azure-acme-kv')).toBe('store-azure');
+    // Each key vault is a store of its own: the kind offers another one, as Vault does.
+    expect(STORE_KINDS.filter((k) => k.another).map((k) => k.kind)).toEqual(['vault', 'azure-kv']);
   });
 
   it('counts SSH certificate connections without hidden Vault database credentials', () => {
@@ -326,8 +364,8 @@ describe('external stores', () => {
   });
 
   it('counts connected kinds and lists the references waiting for a store', () => {
-    expect(storesSummary(kitStores())).toMatch(/2 of 3 connected\.$/);
-    expect(storesSummary([])).toMatch(/0 of 3 connected\.$/);
+    expect(storesSummary(kitStores())).toMatch(/2 of 4 connected\.$/);
+    expect(storesSummary([])).toMatch(/0 of 4 connected\.$/);
     expect(waitingFor('aws-sm', kitSecrets())).toEqual(['billing-api/webhook-secret']);
     expect(text(waitingText(['billing-api/webhook-secret']))).toBe("billing-api/webhook-secret points here and can't be resolved until you connect.");
     expect(text(waitingText(['a', 'b', 'c']))).toBe("a, b and c point here and can't be resolved until you connect.");

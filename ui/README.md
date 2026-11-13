@@ -15,7 +15,7 @@ bundled fonts, `theme-boot.js` and logo into `public/assets` (`scripts/sync-ui-a
 ## Develop against the demo world
 
 ```bash
-npm run dev -w ui                    # or: npm run dev -w ui -- --port 4311 [--core-port N] [--keep] [--no-demo]
+npm run dev -w ui                    # or: npm run dev -w ui -- --port 4311 [--core-port N] [--keep] [--no-demo] [--no-plugins] [--core-flag <JVM flag>]...
 ```
 
 One command (`scripts/dev.mjs`):
@@ -26,7 +26,24 @@ One command (`scripts/dev.mjs`):
    on an empty home in `ui/target/dev-home`: the shared demo world (`--keep` reuses the last home,
    `--no-demo` starts empty and discovers sample AI apps in `demo-user-home` inside that development home,
    so connecting them does not change your real AI app configurations);
-3. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
+3. serves this checkout's plugins as a signed catalog on `127.0.0.1` (`scripts/dev-catalog.mjs`): the JARs that
+   `catalog/index.json` names and `plugin-host.jar` are built when missing or older than their sources, the index is
+   signed with a key made for this run and served over HTTPS with a certificate made for this run, and the core gets
+   the plugin host, the catalog's address and key, and that certificate as its test CA (`gateway.test.catalog.ca`).
+   Add connection and Connectors › Catalog then offer and install the plugins as a release does. The connector
+   modules whose source lives in the [modules repository](https://github.com/gaterook/gaterook-plugins) (ClickHouse,
+   DuckDB, H2, Microsoft Access) are served the same way, as a signed list of connector modules on a port of its own,
+   made of the packages built in a checkout of that repository: the folder `GATEROOK_MODULES_REPO` names, or
+   `gaterook-plugins` beside this checkout. The development core doesn't compile them in and installs one when it is
+   chosen in Add connection, as a release does from GateRook's list. A module that isn't built there is left out.
+   Without a built package there, no local list is served and the core reads the list GateRook publishes, as every
+   build does, and downloads from it. `--no-plugins` starts without a catalog, a list of modules or a plugin host:
+   the core is told to read no list (`-Dgateway.lists=none`), since it couldn't run a module. `--core-flag` passes one
+   more flag to the core's JVM. To see [connector modules](../docs/connector-delivery.md#connector-modules) arrive as
+   in a release whatever is built beside this checkout, build `app.jar` without `-Pall-bundled` and start with
+   `--no-plugins --core-flag -Dgateway.lists=official --core-flag -Dgateway.pluginHostJar=<path to plugin-host.jar>`:
+   the core reads GateRook's published list of modules and downloads from it;
+4. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
    (`X-Gateway-Auth`, HMAC of `METHOD|target|ts|nonce`) and strips `Origin`, `Referer`, `Cookie` and `Sec-Fetch-*`,
    as Electron's main process does. `/internal` is not proxied.
 

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "query"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database the query reads (a bucket on InfluxDB 2.x). Needed for every query but SHOW DATABASES."
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000,
+      "description": "One read. SQL (InfluxDB 3 only): SELECT, WITH … SELECT, SHOW or EXPLAIN. InfluxQL: SELECT without INTO, or SHOW DATABASES, MEASUREMENTS, SERIES, TAG KEYS, TAG VALUES, FIELD KEYS or RETENTION POLICIES. Flux isn't supported."
+    },
+    "language": {
+      "enum": [
+        "sql",
+        "influxql"
+      ],
+      "description": "The query language. Default: sql on InfluxDB 3, influxql on InfluxDB 1.x and 2.x."
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 50,
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      },
+      "description": "Values of the query's $name placeholders, such as {\"host\": \"web-1\"}."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "description": "Most rows to return; the connection and the endpoint cap it."
+    }
+  }
+}

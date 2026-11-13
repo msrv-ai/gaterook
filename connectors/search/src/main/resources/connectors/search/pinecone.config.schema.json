@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pinecone",
+  "type": "object",
+  "x-card": {
+    "description": "Indexes and records of Pinecone: metadata-filtered fetches, nearest-neighbour search by vector, record or text with integrated embedding. Upserts and deletes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "apiKey"
+  ],
+  "properties": {
+    "apiKey": {
+      "type": "string",
+      "title": "API key",
+      "minLength": 1,
+      "maxLength": 4096,
+      "writeOnly": true,
+      "x-gateway-secret": "value",
+      "format": "password",
+      "description": "Stored encrypted by GateRook. The project's key: ControlPlaneViewer finds the indexes, DataPlaneViewer reads them; agents that upsert and delete need DataPlaneEditor."
+    },
+    "collections": {
+      "type": "array",
+      "title": "Indexes",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "examples": [
+        [
+          "docs",
+          "support-*"
+        ]
+      ],
+      "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+    }
+  }
+}

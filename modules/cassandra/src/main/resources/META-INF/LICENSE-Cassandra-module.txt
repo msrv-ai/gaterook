@@ -1,0 +1,22 @@
+This package is GateRook's Apache Cassandra connector with the libraries it needs, unmodified, in one file.
+
+GateRook's own code (com.gaterook.connectors.*, https://github.com/gaterook/gaterook) is under the Apache
+License 2.0.
+
+It includes:
+
+- Apache Cassandra Java Driver @cassandra-driver.version@ (org.apache.cassandra:java-driver-core and
+  java-driver-guava-shaded, with com.datastax.oss:native-protocol; https://github.com/apache/cassandra-java-driver),
+  under the Apache License 2.0. Its license is META-INF/LICENSE and its notices are META-INF/NOTICE.txt and
+  META-INF/NOTICE_binary.txt.
+- Netty (io.netty:netty-handler, netty-codec-base, netty-transport, netty-transport-native-unix-common, netty-buffer,
+  netty-resolver and netty-common; https://netty.io), under the Apache License 2.0.
+- Typesafe Config (com.typesafe:config, https://github.com/lightbend/config), under the Apache License 2.0.
+- Reactive Streams (org.reactivestreams:reactive-streams, https://www.reactive-streams.org), under the MIT No
+  Attribution license.
+- OkHttp @okhttp.version@ (com.squareup.okhttp3:okhttp-jvm and okhttp-tls) and Okio (com.squareup.okio:okio-jvm;
+  https://square.github.io), under the Apache License 2.0.
+- The Kotlin standard library (org.jetbrains.kotlin:kotlin-stdlib) and JetBrains annotations
+  (org.jetbrains:annotations; https://kotlinlang.org), under the Apache License 2.0.
+
+The text of the Apache License 2.0 is META-INF/LICENSE.

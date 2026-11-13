@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # The real servers the connectors' integration tests can use instead of starting their own (test-services/README.md).
 #
-#   scripts/test-services.sh up [profile…]   start and wait until healthy; default: everything but k8s and sqlserver
+#   scripts/test-services.sh up [profile…]   start and wait until healthy; default: sql mongo redis logs aws vault ssh
 #   scripts/test-services.sh down            stop and remove the containers (disposable data is removed with them)
 #   scripts/test-services.sh run <command…>  run a command (mvn … -Pservices) as the only user of the servers: the ITs
 #                                            reset them, so two runs at once (two worktrees) would spoil each other
 #   scripts/test-services.sh ps | logs [service…] | env
 #
-# Profiles: sql oracle sqlserver mongo redis logs aws vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
+# Profiles: sql oracle sqlserver cockroach trino cosmosdb spanner cassandra mongo neo4j redis logs aws dynamodb s3 prometheus influxdb search vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 dir="$root/test-services"
@@ -20,7 +20,7 @@ case "$cmd" in
     [ ${#profiles[@]} -gt 0 ] || profiles=(sql mongo redis logs aws vault ssh)
     args=()
     for p in "${profiles[@]}"; do args+=(--profile "$p"); done
-    mkdir -p "$dir/run/certs" "$dir/run/openssh" "$dir/run/k3s"
+    mkdir -p "$dir/run/certs" "$dir/run/openssh" "$dir/run/k3s" "$dir/run/cockroach-certs"
     "${compose[@]}" "${args[@]}" up -d --build --wait
     echo
     echo "Ready. Run the ITs against them: mvn -B -ntp verify -Pservices   (or export GW_TEST_SERVICES=$dir)"

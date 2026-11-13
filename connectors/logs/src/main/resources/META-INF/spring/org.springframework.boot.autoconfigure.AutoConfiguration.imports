@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.logs.boot.LogsConnectorsAutoConfiguration
+com.gaterook.connectors.logs.boot.LogsConnectorsAutoConfiguration

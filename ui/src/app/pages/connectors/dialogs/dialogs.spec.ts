@@ -1,11 +1,11 @@
 import { ApiError } from '../../../core/api/api-error';
-import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
+import { clickhouseCheck, moduleCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
-import { mcpRequest } from './mcp-add.dialog';
+import { mcpRequest } from '../../connection-new/mcp/mcp-configure';
 import { registryResult } from '../mcp-registry-results';
-import { connectedToast } from './mcp-endpoint.dialog';
+import { connectedToast } from '../../connection-new/mcp/mcp-endpoints';
 import { McpServerAuthConfig } from '../../../core/api/plugins.api';
-import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
+import { mcpReviewView, mcpSecretValues, signInConfig } from '../../connection-new/mcp/mcp-review';
 import { accessText, connectionFormText, pluginFacts } from './plugin-facts';
 
 describe('plugin review facts', () => {
@@ -23,7 +23,31 @@ describe('plugin review facts', () => {
       connectionForm: 'Host, port, user and password, from its config schema',
       access: 'The host of each connection, port 8443',
       unsandboxed: true,
+      module: false,
+      types: [],
+      replaces: null,
     });
+  });
+
+  it('reviews a connector module from a file: its types, whose build it is and what it replaces', () => {
+    const own = pluginFacts(moduleCheck(), null);
+    expect(own).toMatchObject({ module: true, signed: false, id: 'shop', name: 'Shop', version: '1.2.0', file: 'shop-1.2.0.jar', replaces: null, unsandboxed: false });
+    expect(own.types).toEqual([
+      { id: 'orders', name: 'Orders', toolNames: ['orders_list', 'orders_cancel'] },
+      { id: 'shipments', name: 'Shipments', toolNames: ['shipments_list'] },
+    ]);
+    expect(own.toolNames).toEqual(['orders_list', 'orders_cancel', 'shipments_list']);
+    expect(own.access).toBe('The host of each connection, port 443');
+
+    // GateRook's signed list has the package: it is GateRook's own, and here it replaces the person's build.
+    const gaterooks = pluginFacts(moduleCheck(true, { installedVersion: 'v1.1.0', installedSigned: false }), null);
+    expect(gaterooks).toMatchObject({ module: true, signed: true, replaces: { version: 'v1.1.0', own: true } });
+    expect(pluginFacts(moduleCheck(false, { installedVersion: '1.1.0', installedSigned: true }), null).replaces).toEqual({ version: 'v1.1.0', own: false });
+    // A type the package names without a display name goes by its id.
+    const check = moduleCheck();
+    expect(pluginFacts({ ...check, report: { ...check.report, types: [{ id: 'orders', name: '', tools: [], configPreview: [] }] } }, null).types).toEqual([
+      { id: 'orders', name: 'orders', toolNames: [] },
+    ]);
   });
 
   it('says a plugin runs without a sandbox only when the core reports none (report.sandbox null)', () => {
@@ -54,6 +78,13 @@ describe('plugin review facts', () => {
     expect(accessText({ hosts: ['{connection.host}', 'api.example.com'], commands: ['kubectl'] })).toBe(
       'The host of each connection; api.example.com; the commands kubectl',
     );
+    expect(accessText({ hosts: [], tcp: ['{connection.host}:{connection.port}'] })).toBe('TCP connections to the host and port of each connection');
+    expect(accessText({ tcp: ['{connection.host}:10000', '{connection.host}:10001', 'kdc.acme.com:88'] })).toBe(
+      'TCP connections to the host of each connection, ports 10000 and 10001; kdc.acme.com:88',
+    );
+    expect(accessText({ hosts: ['{connection.host}:443'], tcp: ['{connection.host}:{connection.port}'] })).toBe(
+      'The host of each connection, port 443; TCP connections to the host and port of each connection',
+    );
     expect(accessText({})).toBe('Nothing beyond its connections');
     expect(accessText(null)).toBe('Nothing beyond its connections');
     expect(connectionFormText('Host, port, virtual host, user and password')).toBe('Host, port, virtual host, user and password');
@@ -73,7 +104,7 @@ describe('Add MCP server request', () => {
       command: 'A quote in the command isn’t closed.',
     });
     expect(mcpRequest('linear', 'http', '', 'http://example.com/mcp', []).errors).toEqual({
-      url: 'Use an HTTPS URL, or http://127.0.0.1 for a server on this computer.',
+      url: 'Use an HTTPS URL, starting with https://.',
     });
     expect(mcpRequest('local', 'http', '', 'http://127.0.0.1:3000/mcp', []).errors).toBeNull();
     expect(mcpRequest('a', 'stdio', 'run', '', [{ name: '1BAD' }]).errors?.variables).toBe(
@@ -137,6 +168,20 @@ describe('Add MCP server request', () => {
     });
   });
 
+  it('sends a verified profile’s switch as a header with a fixed value, never a credential or a secret’s name', () => {
+    const fixed = [{ name: 'X-MCP-Readonly', text: 'true' }];
+    expect(mcpRequest('devops-mcp', 'http', '', 'https://mcp.dev.azure.com/contoso', [], undefined, fixed).source).toEqual({
+      config: { name: 'devops-mcp', transport: 'http', url: 'https://mcp.dev.azure.com/contoso', headers: [], fixedHeaders: fixed },
+    });
+    expect(mcpRequest('devops-mcp', 'stdio', 'npx -y @azure-devops/mcp contoso', '', [], undefined, fixed).source).toEqual({
+      config: { name: 'devops-mcp', transport: 'stdio', command: ['npx', '-y', '@azure-devops/mcp', 'contoso'], env: [] },
+    });
+    expect(mcpRequest('devops-mcp', 'http', '', 'https://mcp.dev.azure.com/contoso', [], undefined, [{ name: 'Authorization', text: 'Bearer x' }]).errors)
+      .toEqual({ fixedHeaders: 'Authorization carries a credential: add it as a header whose value the review asks for.' });
+    expect(mcpRequest('devops-mcp', 'http', '', 'https://mcp.dev.azure.com/contoso', [{ name: 'x-mcp-readonly' }], undefined, fixed).errors)
+      .toEqual({ fixedHeaders: 'X-MCP-Readonly is also a header whose value the review asks for. Keep one.' });
+  });
+
   it('reuses an existing Authorization header for Bearer tokens and still rejects duplicate header names', () => {
     const options = { with: 'bearer' as const, clientId: '', scopes: '', callbackPort: '' };
     const headers = [{ name: 'X-Workspace' }, { name: 'authorization' }];
@@ -178,6 +223,12 @@ describe('Add MCP server request', () => {
     expect(google({}, undefined, [{ name: 'Authorization' }]).errors?.variables).toBe(
       'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.',
     );
+    // A token with the cloud-platform scope goes to Google's own servers only, whatever else a server says.
+    for (const url of ['https://mcp.example.com/mcp', 'https://my-service-abc123.a.run.app/mcp']) {
+      expect(google({}, url).errors?.url).toBe(
+        'Google Cloud credentials go only to Google’s own servers (https://<service>.googleapis.com). Sign in to this one another way.',
+      );
+    }
   });
 
   it('signs requests with AWS credentials for the service and region the URL names, or the ones given', () => {
@@ -306,6 +357,31 @@ describe('MCP server review', () => {
     expect(mcpReviewView(typed(['./server'])).version).toBeNull();
   });
 
+  it('shows the verified profile the core matched, with how its pins stand and the tools it starts', () => {
+    const profile = {
+      id: 'supabase', name: 'Supabase', publisher: 'Supabase', category: 'Cloud platform', description: '',
+      documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', checked: '2026-11-11',
+      transport: 'http' as const, url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true', command: [], headers: [],
+      placeholders: [], signIn: 'OAuth.', notes: [],
+      pins: [{ in: 'query' as const, name: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true …', set: false }],
+      tools: [{ tool: 'execute_sql', start: 'approval' as const, kind: 'write' as const, reason: 'It runs any SQL.' }],
+    };
+    const url = 'https://mcp.supabase.com/mcp?project_ref=abc';
+    const w = mcpReviewView({
+      review: sentryReview({ transport: 'http', url, argv: [], env: [], warnings: ['Without read_only=true …'], profile }),
+      source: { config: { name: 'supabase-mcp', transport: 'http', url } },
+      name: 'supabase-mcp',
+      transport: 'http',
+      target: url,
+      variables: [],
+      opener: null,
+    });
+    expect(w.profile).toBe(profile);
+    expect(w.profileStarts).toBe('execute_sql in Approval');
+    expect(w.warnings).toEqual(['Without read_only=true …']);
+    expect(mcpReviewView(typed(['npx', '-y', '@sentry/mcp-server@0.12.0']))).toMatchObject({ profile: null, profileStarts: '' });
+  });
+
   it('reviews a catalog server by the core’s name, pin and resolved command', () => {
     const w = mcpReviewView({
       review: sentryReview({ name: 'github-mcp', catalogEntry: 'github@0.6.2', argv: ['node', '/Users/me/.gaterook/mcp/github-mcp/dist/index.js'], env: ['GITHUB_PERSONAL_ACCESS_TOKEN'], sandbox: 'landlock' }),
@@ -414,6 +490,9 @@ describe('MCP server review', () => {
     expect(withHeader.risk).toBe('Every call sends your sign-in and these secrets to this URL. Nobody has verified the server behind it.');
     expect(withHeader.trust).toBe('I trust this server with my sign-in and these secrets');
     expect(remote({ kind: 'optional', registration: 'dynamic' }).signIn).toBe('optional');
+    // With an optional sign-in, the checkbox is for connecting without one: a sign-in confirms the server by itself.
+    expect(remote({ kind: 'optional', registration: 'dynamic' }).trust).toBe('I trust this server with the calls of my AI apps');
+    expect(remote({ kind: 'optional', registration: 'dynamic' }, ['X-Workspace']).trust).toBe('I trust this server with these secrets');
     expect(remote({ kind: 'none' }).signIn).toBeNull();
     // Nothing secret goes with the calls of a server without a sign-in or headers: the review doesn't say otherwise.
     expect(remote({ kind: 'none' }).risk).toBe('Every call goes to this URL. Nobody has verified the server behind it.');
@@ -425,6 +504,11 @@ describe('MCP server review', () => {
     // A key the person passes as the Authorization header is their choice instead of the sign-in.
     expect(remote({ kind: 'oauth', registration: 'dynamic' }, ['Authorization']).signIn).toBeNull();
     expect(remote({ kind: 'oauth', registration: 'app' }, [], 'Iv23li0abc').appClient).toBe('Iv23li0abc');
+    // GateRook's own app (GitHub): a sign-in with a one-time code, no client of the person's.
+    const github = remote({ kind: 'oauth', issuer: 'https://github.com/login/oauth', authorizationHost: 'github.com', registration: 'gaterook-app' });
+    expect(github.signIn).toBe('required');
+    expect(github.appClient).toBeNull();
+    expect(github.secrets).toEqual([]);
   });
 
   const cloudy = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], chosen?: McpServerAuthConfig, url = 'https://bigtableadmin.googleapis.com/mcp') =>

@@ -24,7 +24,8 @@ import { planFileKey } from './file-key.ts';
 import { FileKeyUnlock } from './file-key-unlock.ts';
 import { NativeUnlockClient } from './native-unlock.ts';
 import { OsFileKey } from './os-file-key.ts';
-import { chooseFile, choosePrivateKeyFile, chooseRepository, chooseVaultTokenFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { chooseDatabaseFile, chooseFile, choosePrivateKeyFile, chooseRepository, chooseVaultTokenFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { databaseKind } from './database-file-picker.ts';
 import { mcpSignInPage, signInEnded } from './mcp-sign-in.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { GoogleSignIn } from './google-sign-in.ts';
@@ -38,11 +39,12 @@ import { ShutdownSequence } from './shutdown.ts';
 import { createFullBackup, restoreFullBackup, type FullBackupHost, type RestoreContext } from './full-backup.ts';
 import { EndpointShares, endpointShareInArgv } from './endpoint-shares.ts';
 import { recoverFullRestore } from './full-backup-restore.ts';
+import { reportStartupFailure, StartupProblem } from './startup-failure.ts';
 import { privateDirectory } from './full-backup-files.ts';
 import { findDangerousSwitches } from './switches.ts';
 import { AppTray, markImage, setBadge } from './tray.ts';
 import { Updates } from './updater.ts';
-import { autoUpdateWanted } from './updates.ts';
+import { autoUpdateWanted, betaUpdatesWanted } from './updates.ts';
 import { APP_URL, createAppWindow, hardenAllContents, safeUrl, type AppWindow } from './window.ts';
 
 /** Replaced by esbuild: true in a development bundle, false in a release (scripts/build.mjs). */
@@ -103,13 +105,22 @@ export function main(): Desktop | null {
   const first = deepLinkInArgv(process.argv);
   if (first) desktop.deepLink(first);
   app.whenReady().then(async () => {
-    if (existsSync(layout.home)) recoverFullRestore(realpathSync(layout.home));
+    if (existsSync(layout.home)) {
+      try {
+        recoverFullRestore(realpathSync(layout.home));
+      } catch (e) {
+        // Its messages say what to keep and do; they belong in front of the person, not only in the log.
+        throw new StartupProblem(`GateRook couldn't finish restoring a full backup: ${(e as Error).message}`,
+          { cause: e });
+      }
+    }
     if (hasPendingReset(layout.home)) await desktop.finishReset();
     else await desktop.start();
-  }).catch((e: Error) => {
-    log(`could not start: ${e.stack ?? e.message}`);
-    app.exit(1);
-  });
+  }).catch((e: unknown) => reportStartupFailure(e, {
+    log, logFile: join(layout.home, 'logs', 'desktop.log'),
+    showErrorBox: (title, content) => dialog.showErrorBox(title, content),
+    exit: (code) => app.exit(code),
+  }));
   return desktop;
 }
 
@@ -185,7 +196,8 @@ export class Desktop {
       home: layout.home,
       ports: () => ({ port: this.config.port, publicPort: this.config.publicPort }),
       command: () => {
-        const { file, args } = coreArgv(layout.core, { home: layout.home, resources: layout.resources, bridgeJar: layout.bridgeJar });
+        const { file, args } = coreArgv(layout.core, { home: layout.home, resources: layout.resources, bridgeJar: layout.bridgeJar,
+          pluginHostJar: layout.pluginHostJar });
         return { file, args, env: coreEnv(process.env, layout.dev, { home: layout.home }) };
       },
       fileKey: () => this.prepareFileKey(),
@@ -299,8 +311,13 @@ export class Desktop {
       push: (state) => this.send(IPC.updateStatePush, state),
       autoUpdate: async () => {
         const general = await this.generalSettings();
-        if (general) this.rememberAutoUpdate(general.autoUpdate);
+        if (general) this.rememberUpdateSettings(general);
         return autoUpdateWanted(general?.autoUpdate, this.config.autoUpdate);
+      },
+      betaUpdates: async () => {
+        const general = await this.generalSettings();
+        if (general) this.rememberUpdateSettings(general);
+        return betaUpdatesWanted(general?.betaUpdates, this.config.betaUpdates);
       },
       prepareInstall: async () => {
         if (this.resetting || this.quitting || this.fullBackupBusy) throw new Error('GateRook is busy or closing.');
@@ -360,15 +377,15 @@ export class Desktop {
     const general = await this.generalSettings();
     if (general) {
       this.storeLoginSettings({ openAtLogin: general.openAtLogin, startHidden: general.startHidden });
-      this.rememberAutoUpdate(general.autoUpdate);
+      this.rememberUpdateSettings(general);
     }
   }
 
-  /** Main's copy of "Check for updates automatically", for the hours the core doesn't answer. */
-  private rememberAutoUpdate(value: boolean): void {
+  /** Main's copy of "Check for updates automatically" and "Get beta versions", for the hours the core doesn't answer. */
+  private rememberUpdateSettings(s: { autoUpdate: boolean; betaUpdates: boolean }): void {
     if (this.resetting || this.quitting) return;
-    if (this.config.autoUpdate === value) return;
-    this.config = { ...this.config, autoUpdate: value };
+    if (this.config.autoUpdate === s.autoUpdate && this.config.betaUpdates === s.betaUpdates) return;
+    this.config = { ...this.config, autoUpdate: s.autoUpdate, betaUpdates: s.betaUpdates };
     try {
       writeDesktopConfig(this.layout.home, this.config);
     } catch (e) {
@@ -501,14 +518,16 @@ export class Desktop {
     setBadge(this.window?.win ?? null, pending);
   }
 
-  private async generalSettings(): Promise<{ openAtLogin: boolean; startHidden: boolean; autoUpdate: boolean } | null> {
+  private async generalSettings(): Promise<{ openAtLogin: boolean; startHidden: boolean; autoUpdate: boolean;
+    betaUpdates: boolean } | null> {
     const core = this.supervisor.endpoint();
     if (!core || core.locked) return null;
     try {
       const answer = await callCore<{ values?: Record<string, unknown> }>(core, 'GET', '/api/settings/general');
       const v = answer.status === 200 ? answer.body.values : undefined;
       if (!v) return null;
-      return { openAtLogin: v['openAtLogin'] !== false, startHidden: v['startHidden'] !== false, autoUpdate: v['autoUpdate'] !== false };
+      return { openAtLogin: v['openAtLogin'] !== false, startHidden: v['startHidden'] !== false,
+        autoUpdate: v['autoUpdate'] !== false, betaUpdates: v['betaUpdates'] === true };
     } catch {
       return null;
     }
@@ -735,6 +754,7 @@ export class Desktop {
     handle(IPC.saveFile, (purpose) => chooseFile(files, purpose, true));
     handle(IPC.openFile, (purpose) => chooseFile(files, purpose, false));
     handle(IPC.choosePrivateKeyFile, () => choosePrivateKeyFile(files));
+    handle(IPC.chooseDatabaseFile, (...args) => chooseDatabaseFile(files, databaseKind(args)));
     handle(IPC.chooseRepository, (...args) => {
       if (args.length) throw new Error('Repository selection does not accept arguments.');
       return chooseRepository(files);
@@ -830,7 +850,8 @@ export class Desktop {
       if (publicPort === null) throw new Error('No second local port is available for backup validation.');
       helper = new CoreSupervisor({ version: app.getVersion(), home: validatorHome, ports: () => ({ port, publicPort }),
         command: () => {
-          const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources, bridgeJar: this.layout.bridgeJar });
+          const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources,
+            bridgeJar: this.layout.bridgeJar, pluginHostJar: this.layout.pluginHostJar });
           return { ...command, env: coreEnv(process.env, false, { home: validatorHome }) };
         },
         fileKey: () => this.prepareFileKey(), log: () => undefined, restartDelaysMs: [],

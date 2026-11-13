@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "bucket",
+    "key",
+    "content"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "bucket": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{1,220}[A-Za-z0-9]$",
+      "description": "The bucket, such as acme-reports."
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "The object's key, such as reports/2026-q3.csv."
+    },
+    "content": {
+      "type": "string",
+      "maxLength": 1048576,
+      "description": "The object's text, sent as UTF-8; at most the endpoint's request size."
+    },
+    "contentType": {
+      "type": "string",
+      "maxLength": 255,
+      "default": "text/plain; charset=utf-8",
+      "description": "A text media type, such as text/csv or application/json."
+    },
+    "metadata": {
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "description": "User metadata, sent as x-amz-meta-<name> headers: lower-case names, printable ASCII values."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "default": true,
+      "description": "false: only create the object; nothing changes when the key already holds one."
+    },
+    "ifMatch": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Replace the object only while its ETag is this one (from s3_head_object)."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

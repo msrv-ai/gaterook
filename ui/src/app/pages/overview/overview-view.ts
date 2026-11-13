@@ -359,23 +359,67 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'mysql':
     case 'oracle':
     case 'sqlserver':
+    case 'sqlite':
+    case 'dynamodb':
+    case 'bigquery':
+    case 'spanner':
+    case 'snowflake':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':
+    case 'firestore':
       return `Show me the collections in ${name}`;
+    case 'firebase-rtdb':
+      return `Show me the top-level paths in ${name}`;
     case 'redis':
       return `Show me a few keys in ${name}`;
     case 'opensearch':
     case 'elasticsearch':
       return `Show me the indices in ${name}`;
+    case 'pinecone':
+      return `Show me the indexes in ${name}`;
+    case 'qdrant':
+    case 'milvus':
+    case 'weaviate':
+    case 'chroma':
+      return `Show me the vector collections in ${name}`;
+    case 'algolia':
+    case 'meilisearch':
+    case 'azure-ai-search':
+      return `Show me the search indexes in ${name}`;
+    case 'typesense':
+      return `Show me the collections in ${name}`;
     case 'kubernetes':
       return `Show me the pods in ${name}`;
+    case 'cloudflare':
+      return `Show me the DNS zones in ${name}`;
+    case 's3':
+      return `Show me the buckets in ${name}`;
     case 'logs':
     case 'gcp-logging':
     case 'cloudwatch':
+    case 'azure-monitor':
     case 'loki':
     case 'ssh-logs':
       return `Show me the latest errors in ${name}`;
+    case 'prometheus':
+      return `Show me the targets Prometheus scrapes in ${name}`;
+    case 'influxdb':
+      return `Show me the measurements in ${name}`;
+    case 'redshift':
+      return `Show me the tables in ${name}`;
+    case 'databricks':
+      return `Show me the tables in ${name}`;
+    case 'trino':
+      return `Show me the tables in ${name}`;
+    case 'athena':
+      return `Show me the tables in ${name}`;
+    case 'cosmosdb':
+      return `Show me the containers in ${name}`;
+    case 'neo4j':
+      return `Show me the node labels in ${name}`;
+    case 'cassandra':
+      return `Show me the keyspaces in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }

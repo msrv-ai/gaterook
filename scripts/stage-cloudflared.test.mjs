@@ -44,7 +44,7 @@ test('platforms are named like the core names them', () => {
 });
 
 test('every platform of the installers is pinned', () => {
-  const pins = JSON.parse(readFileSync(join(root, 'core/src/main/resources/ai/msrv/gaterook/core/tunnel/binaries.json'),
+  const pins = JSON.parse(readFileSync(join(root, 'core/src/main/resources/com/gaterook/core/tunnel/binaries.json'),
     'utf8'));
   for (const p of ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64', 'windows-x64']) {
     const pin = pins.cloudflared.platforms[p];

@@ -16,11 +16,11 @@
     "allowExec": {
       "type": "boolean",
       "title": "Allow any shell command (ssh_exec)",
-      "default": false,
+      "default": true,
       "x-stricter": "and",
       "x-inherit": false,
       "x-confirm": "danger",
-      "description": "Off: only runbooks run. Not inherited between environments."
+      "description": "On: every ssh_exec command waits for approval. Off: only runbooks run. Not inherited between environments."
     },
     "commandTimeoutSeconds": {
       "type": "integer",
@@ -66,6 +66,7 @@
         "password"
       ],
       "x-stricter": "intersect",
+      "x-empty": "none",
       "x-env-default": {
         "prod": [
           "vaultSshCa",

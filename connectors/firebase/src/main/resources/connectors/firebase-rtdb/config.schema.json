@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Firebase Realtime Database",
+  "type": "object",
+  "x-card": {
+    "description": "Paths, shallow reads and queries. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "databaseUrl",
+    "credentials"
+  ],
+  "properties": {
+    "databaseUrl": {
+      "type": "string",
+      "title": "Database URL",
+      "maxLength": 200,
+      "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.firebaseio\\.com|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.[a-z]{2,20}-[a-z]{2,20}[0-9]{1,2}\\.firebasedatabase\\.app)/?$",
+      "examples": [
+        "https://acme-default-rtdb.firebaseio.com",
+        "https://acme-eu.europe-west1.firebasedatabase.app"
+      ],
+      "description": "As the Firebase console shows it: https://<database>.firebaseio.com or https://<database>.<region>.firebasedatabase.app."
+    },
+    "paths": {
+      "type": "array",
+      "title": "Paths",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 768,
+        "pattern": "^[^/.$#\\[\\]%\\\\\\u0000-\\u001f\\u007f]+$"
+      },
+      "examples": [
+        [
+          "users",
+          "public-*"
+        ]
+      ],
+      "description": "The top-level paths agents may use, with everything under them; * matches any characters, such as public-*. Empty: the whole database."
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Authentication",
+          "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. Your own sign-in keeps the scopes it was given; a key or an impersonated service account gets firebase.database and userinfo.email.",
+          "enum": [
+            "adc",
+            "serviceAccountKey"
+          ],
+          "default": "adc",
+          "x-enumTitles": [
+            "Existing Google sign-in (ADC)",
+            "Service account key (JSON)"
+          ]
+        },
+        "impersonate": {
+          "type": "string",
+          "title": "Service account to impersonate",
+          "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+          "examples": [
+            "gw-rtdb@acme-stage.iam.gserviceaccount.com"
+          ],
+          "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes. Empty: calls use the sign-in or key itself."
+        },
+        "lifetimeSeconds": {
+          "type": "integer",
+          "title": "Token lifetime",
+          "minimum": 300,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
+        }
+      },
+      "patternProperties": {
+        "^(serviceAccountKey)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "serviceAccountKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "serviceAccountKey": {
+                "type": "string",
+                "title": "Service account key",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "x-widget": "textarea",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "serviceAccountKey"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

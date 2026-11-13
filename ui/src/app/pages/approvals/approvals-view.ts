@@ -4,7 +4,7 @@ import { NotificationChannel, Notifications } from '../../core/api/notifications
 import { JsonValue } from '../../core/api/types';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { Look } from '../../kit/elements/shared/dictionaries';
-import { requestState, statusBadge, who, windowMinutes } from '../../kit/elements/approval-request/approval-view';
+import { Requester, requestState, statusBadge, who, windowMinutes } from '../../kit/elements/approval-request/approval-view';
 
 /**
  * What the Approvals page shows, computed from the admin API (ARCHITECTURE.md §6
@@ -142,13 +142,13 @@ export function decidedAt(item: Pick<ApprovalItem, 'status' | 'decidedAt' | 'exp
 }
 
 /** Who decided, as the history's caption says it (desktop: one local user, "by you"). */
-export function decidedBy(item: Pick<ApprovalItem, 'status' | 'decidedVia' | 'client'>): string {
+export function decidedBy(item: Pick<ApprovalItem, 'status' | 'decidedVia' | 'client'> & Partial<Requester>): string {
   if (item.status === 'expired' || item.decidedVia === 'timeout') return 'No answer';
   switch (item.decidedVia) {
     case 'core':
       return 'By GateRook';
     case 'client':
-      return `Withdrawn by ${who(item.client)}`;
+      return `Withdrawn by ${who({ tokenLabel: null, ...item })}`;
     case 'slack':
       return 'By you, from Slack';
     case 'telegram':
@@ -228,7 +228,7 @@ export function historyRows(
       at: decidedAt(i),
       badge: statusBadge(requestState(i.status)),
       by: stopped ? 'Approved by you, stopped by GateRook' : decidedBy(i),
-      srText: ` on ${target} from ${who(i.client)}, ${outcome(i, stopped)}: open in Activity`,
+      srText: ` on ${target} from ${who(i)}, ${outcome(i, stopped)}: open in Activity`,
       link: call ? { route: '/activity', fragment: `event-${call.eventId}` } : { route: '/activity', queryParams: { q } },
     };
   });
@@ -271,10 +271,14 @@ function actionThing(kind: string | null | undefined): string {
  * rejected. Nothing ran on dev-db." / "sql_execute on dev-db approved" · "Running on dev-db. The result goes back to
  * Codex and into Activity.").
  */
-export function decisionToast(r: Pick<ApprovalDetail, 'tool' | 'connection' | 'endpoint' | 'client' | 'action'>, decision: 'approve' | 'deny'): DecisionToast {
+export function decisionToast(
+  r: Pick<ApprovalDetail, 'tool' | 'connection' | 'endpoint' | 'client' | 'action'> & Partial<Requester>,
+  decision: 'approve' | 'deny',
+): DecisionToast {
   const target = r.connection ?? r.endpoint;
-  const client = who(r.client);
-  const agent = r.client ? client : 'The agent';
+  // Who asked: the client the credential implies, else the credential's label (approval-view `who`).
+  const client = who({ tokenLabel: null, ...r });
+  const agent = client === 'the agent' ? 'The agent' : client;
   if (decision === 'deny') {
     return {
       title: `${r.tool} on ${target} rejected`,

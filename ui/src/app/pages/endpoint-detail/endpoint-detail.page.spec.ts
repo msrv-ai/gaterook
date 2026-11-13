@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ActivityApi } from '../../core/api/activity.api';
@@ -17,6 +18,7 @@ import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
+import { GwToolPolicyList } from '../../kit/elements/tool-policy-list/tool-policy-list';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { connected, kitClients, previewFor } from '../clients/clients.fixtures';
@@ -94,7 +96,12 @@ function setup(
     },
     delete: (slug, confirm) => {
       calls.push(`delete ${slug} ${confirm}`);
-      return Promise.resolve({ clients: ['claude-desktop', 'codex'], tokensRevoked: ['codex-laptop'], rejectedApprovals: 3 });
+      return Promise.resolve({
+        clients: ['Claude Desktop', 'Codex'],
+        tokensRevoked: ['codex-laptop'],
+        rejectedApprovals: 3,
+        notes: ['Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.'],
+      });
     },
     previewConnection: (slug, name) =>
       Promise.resolve(name === 'prod-replica' ? preview(name, { refusal: 'prod-replica is a prod connection: it goes only on a prod endpoint, and dev is stage' }) : preview(name)),
@@ -566,7 +573,7 @@ describe('Endpoint detail page', () => {
     expect(calls.some((call) => call.startsWith('mode '))).toBe(false);
   });
 
-  it('deletes after the confirmation, with what stops working, then goes to Endpoints', async () => {
+  it('deletes after the confirmation, with what stops working and the AI apps it disconnects, then goes to Endpoints', async () => {
     setup();
     const { fixture, el } = await render();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -574,11 +581,11 @@ describe('Endpoint detail page', () => {
     await settle(fixture);
     const dialog = el.querySelector('#ep-dlg-delete')!;
     expect(text(dialog.querySelector('#ep-del-desc'))).toBe(
-      'Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
+      'Claude Desktop and Codex are disconnected at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
     );
     expect(Array.from(dialog.querySelectorAll('.gw-kv__row')).map(kv)).toEqual([
       'URL http://127.0.0.1:7465/mcp/dev',
-      'AI apps Claude Desktop, Codex',
+      'AI apps Claude Desktop, Codex (disconnected)',
       'Tokens codex-laptop, inspector-debug (revoked)',
       'Waiting 3 approval requests (denied)',
     ]);
@@ -586,7 +593,14 @@ describe('Endpoint detail page', () => {
     button(dialog, 'Delete endpoint dev').click();
     await settle(fixture);
     expect(calls).toContain('delete dev dev');
-    expect(toasts().at(-1)?.title).toBe('Endpoint dev deleted');
+    // The toast says what the core did: who was disconnected, what it revoked and denied, what is left to do.
+    expect(toasts().at(-1)).toMatchObject({
+      tone: 'success',
+      title: 'Endpoint dev deleted',
+      body:
+        'Claude Desktop and Codex are disconnected. Its URL stops answering. The audit log keeps every call. 1 token revoked, 3 waiting requests denied. '
+        + 'Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.',
+    });
     expect(navigate).toHaveBeenCalledWith(['/endpoints']);
   });
 
@@ -791,6 +805,29 @@ describe('Endpoint detail page', () => {
     expect(grant.client).toBe('localhost');
   });
 
+  it('sends the definition a mode was picked for, and none when only the limits are saved', async () => {
+    setup();
+    const bodies: unknown[] = [];
+    const api = TestBed.inject(EndpointsApi);
+    api.setMode = (_slug, request) => {
+      bodies.push(request);
+      return Promise.resolve(groups());
+    };
+    const { fixture } = await render();
+    const list = fixture.debugElement.query(By.directive(GwToolPolicyList)).componentInstance as GwToolPolicyList;
+
+    list.modeChange.emit({ toolKey: 'sql_execute', connection: 'dev-db', mode: 'BYPASS', definitionHash: 'hash-sql_execute', version: 1 });
+    await settle(fixture);
+    list.overridesChange.emit({ toolKey: 'sql_execute', connection: 'dev-db', overrides: { rowLimit: 5 }, version: 1 });
+    await settle(fixture);
+
+    expect(bodies).toEqual([
+      { toolKey: 'sql_execute', connection: 'dev-db', mode: 'BYPASS', definitionHash: 'hash-sql_execute', version: 1 },
+      // The stored mode with the new limits: a tool held in Approval stays held until a person picks its mode.
+      { toolKey: 'sql_execute', connection: 'dev-db', mode: 'APPROVAL', overrides: { rowLimit: 5 }, version: 1 },
+    ]);
+  });
+
   describe('settings', () => {
     it('saves the instructions with a Save bar that shows only while they changed', async () => {
       setup();
@@ -943,6 +980,43 @@ describe('Endpoint detail page', () => {
       await settle(fixture);
       expect(text(el.querySelector('#ep-st-proto-err'))).toBe('Keep at least one revision: with none, no AI app can call dev.');
       expect(calls.some((c) => c.startsWith('settings'))).toBe(false);
+    });
+
+    it('searches a long tool list and pins the connections whose tools stay listed (ARCHITECTURE.md §5.7)', async () => {
+      const state = { search: true, tools: 186, listedTools: 2, bytes: 359_000, searchAboveTools: 40, searchAboveBytes: 102_400, mostUsedTools: ['sql_query', 'redis_get'] };
+      setup(() => Promise.resolve(detail({ settings: { toolList: { mode: 'auto' }, toolListState: state } })));
+      const { fixture, el } = await render({ slug: 'dev', tab: 'settings' });
+      expect(Array.from(el.querySelectorAll('#ep-st-tools .gw-kv__row')).map(kv)).toEqual([
+        'Tools of dev 186 tools · 351 KB of definitions, about 90,000 tokens',
+        "AI apps get GateRook's own tools and the 2 most used; find_tools finds the other 184.",
+        'Most used here sql_query, redis_get',
+      ]);
+      const most = el.querySelector<HTMLSelectElement>('#ep-st-tools-most')!;
+      expect(most.value).toBe('10');
+      expect(Array.from(most.options).map((o) => o.textContent?.trim())).toEqual(['None', '5', '10 (default)', '20', '30', '40']);
+      expect(el.querySelector<HTMLInputElement>('#ep-st-tools-auto')!.checked).toBe(true);
+      expect(text(el.querySelector('#ep-st-tools-auto-hint'))).toBe('Every tool up to 40 tools and 100 KB of definitions, a searched list above that.');
+      const bar = el.querySelector('#ep-st-tools .gw-form__actions')!;
+      expect(bar.hasAttribute('hidden')).toBe(true);
+
+      el.querySelector<HTMLInputElement>('#ep-st-tools-search')!.click();
+      await settle(fixture);
+      el.querySelector<HTMLInputElement>('#ep-st-pin-orders-mongo')!.click();
+      el.querySelector<HTMLInputElement>('#ep-st-pin-dev-db')!.click();
+      most.value = '20';
+      most.dispatchEvent(new Event('change'));
+      await settle(fixture);
+      expect(bar.hasAttribute('hidden')).toBe(false);
+      el.querySelector('#ep-st-tools-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await settle(fixture);
+      expect(calls).toContain('settings {"toolList":{"mode":"search","pinned":["dev-db","orders-mongo"],"mostUsed":20},"version":8}');
+      expect(toasts().at(-1)?.title).toBe('Tool list settings saved');
+
+      // Every tool: nothing is left to pin or count.
+      el.querySelector<HTMLInputElement>('#ep-st-tools-all')!.click();
+      await settle(fixture);
+      expect(el.querySelector('#ep-st-pin-dev-db')).toBeNull();
+      expect(el.querySelector('#ep-st-tools-most')).toBeNull();
     });
   });
 

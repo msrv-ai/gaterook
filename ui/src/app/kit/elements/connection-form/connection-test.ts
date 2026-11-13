@@ -19,8 +19,11 @@ export interface TestTarget {
 export type TestState = 'idle' | 'testing' | 'done';
 
 /** Only local Google ADC connections can use the desktop sign-in command. */
+/** The Google connectors that can sign in with Google sign-in on this computer (ADC). */
+const GOOGLE_ADC_TYPES: ReadonlySet<string> = new Set(['gcp', 'gcp-logging', 'bigquery', 'spanner', 'firestore', 'firebase-rtdb']);
+
 export function usesGoogleAdc(type: string | undefined, config: JsonObject | null): boolean {
-  if (type !== 'gcp' && type !== 'gcp-logging' && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
+  if (!GOOGLE_ADC_TYPES.has(type ?? '') && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
   const credentials = config?.['credentials'];
   return !!credentials && typeof credentials === 'object' && !Array.isArray(credentials) && credentials['source'] === 'adc';
 }
@@ -44,6 +47,8 @@ const CONFIRM_TITLES: Record<string, (host: string | null) => string> = {
   'host-key': (h) => (h ? `Check the host key of ${h}` : 'Check the host key'),
   'tls-cert': (h) => (h ? `Check the certificate of ${h}` : 'Check the certificate'),
   'exec-plugin': () => 'Run the credential command from the kubeconfig?',
+  'azure-cli': () => 'Run the Azure CLI to get tokens?',
+  'azure-sign-in': () => 'Sign in to Azure in your browser',
 };
 
 /** "INSERT, UPDATE, DELETE on public.*": SQL keywords and `schema.*` patterns are literals the kit sets in mono. */
@@ -111,6 +116,8 @@ export function testFacts(data: JsonValue | null | undefined): { readonly key: s
   add('issuer', 'Issuer');
   add('sha256', 'SHA-256');
   add('command', 'Command');
+  add('userCode', 'Code');
+  add('verificationUri', 'Sign-in page');
   return out;
 }
 
@@ -197,16 +204,16 @@ function severity(h: TestHint): string {
               <div class="gw-alert gw-alert--warning gw-alert--compact">
                 <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
                 <div class="gw-alert__content">
-                  <p class="gw-alert__title">This user can write</p>
+                  <p class="gw-alert__title">{{ writesFile() ? 'GateRook can write this file' : 'This user can write' }}</p>
                   <p class="gw-alert__body">{{ writeAdvice() }}</p>
                 </div>
                 @if (changeUserButton()) {
                   <div class="gw-alert__actions">
-                    <button class="gw-btn gw-btn--link" type="button" (click)="changeUser.emit()">Change user<span class="gw-sr-only"> {{ o.identity }}</span></button>
+                    <button class="gw-btn gw-btn--link" type="button" (click)="changeUser.emit()">@if (writesFile()) {Choose another file} @else {Change user<span class="gw-sr-only"> {{ o.identity }}</span>}</button>
                   </div>
                 } @else if (userFieldId()) {
                   <div class="gw-alert__actions">
-                    <a class="gw-btn gw-btn--link" [attr.href]="'#' + userFieldId()" (click)="focusUser($event)">Change user<span class="gw-sr-only"> {{ o.identity }}</span></a>
+                    <a class="gw-btn gw-btn--link" [attr.href]="'#' + userFieldId()" (click)="focusUser($event)">@if (writesFile()) {Choose another file} @else {Change user<span class="gw-sr-only"> {{ o.identity }}</span>}</a>
                   </div>
                 }
               </div>
@@ -404,6 +411,9 @@ export class GwConnectionTest {
     this.canWrite() ? ((this.outcome()?.hints ?? []).find((h) => /write/i.test(h.code)) ?? null) : null,
   );
 
+  /** A database file (SQLite, DuckDB): the connector's write hint names the file field, not a user. */
+  protected readonly writesFile = computed(() => /(^|\/)file$/.test(this.writeHint()?.field ?? ''));
+
   /** The write warning's body: the connector's advice after its first sentence, or the kit's general one. */
   protected readonly writeAdvice = computed(() => {
     const h = this.writeHint();
@@ -436,7 +446,10 @@ export class GwConnectionTest {
       case 'tls-cert':
         return 'Trust this certificate and test again';
       case 'exec-plugin':
+      case 'azure-cli':
         return 'Allow the command and test again';
+      case 'azure-sign-in':
+        return 'I signed in, test again';
       default:
         return 'Trust and test again';
     }

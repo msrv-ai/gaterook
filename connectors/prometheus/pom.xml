@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Prometheus (docs/prometheus.md): PromQL instant and range queries, series, label names and values, metric metadata,
+  scrape targets, rules and alerts of Prometheus and servers with its HTTP API (VictoriaMetrics, Thanos Query, Grafana
+  Mimir, Cortex). Read only: GET requests to fixed paths of /api/v1 over java.net.http, never an admin, write or
+  lifecycle endpoint. No Prometheus client library. Spring only in the .boot subpackage.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>${revision}</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-prometheus</artifactId>
+  <name>GateRook · Connectors · Prometheus</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <!-- UrlRules, AddressPolicy, TimeArg, OutputSanitizer, Pem and TrustStores. -->
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in bean, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        A fake of the HTTP API (MockWebServer) runs in every build. PrometheusIT, tag prometheus-it, runs with
+        -Pservices,prometheus-it against the prom/prometheus service of test-services (profile prometheus).
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

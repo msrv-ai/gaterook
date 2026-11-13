@@ -30,6 +30,12 @@
         <dd class="gw-kv__value gw-tabular">{{ duration() }}</dd>
       </div>
     }
+    @if (traffic(); as tr) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Traffic</dt>
+        <dd class="gw-kv__value gw-tabular">{{ tr }}</dd>
+      </div>
+    }
     @if (showEventId()) {
       <div class="gw-kv__row">
         <dt class="gw-kv__key">Event</dt>
@@ -67,7 +73,7 @@
     }
   </div>
   <dl class="gw-kv">
-    <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value">@if (e().client; as cl) {<span [gwClientMark]="cl" size="sm"></span> }{{ who() }}</dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value">@if (clientRow().mark; as cl) {<span [gwClientMark]="cl" size="sm"></span> }{{ clientRow().text }}</dd></div>
     <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: token() }" /></dd></div>
     <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ e().endpoint }}</code> · <span class="gw-mono">/mcp/{{ e().endpoint }}</span></dd></div>
     @if (protocol()) {

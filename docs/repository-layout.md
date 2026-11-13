@@ -10,7 +10,8 @@ GateRook's desktop MCP Firewall lives in a single application source tree with M
 | `app/` | Executable Spring Boot application, native image configuration, process and end-to-end tests |
 | `core/` | MCP Firewall modules: policy, approvals, audit, secrets, endpoints, MCP, OAuth, clients, notifications, and admin API |
 | `connector-api/` | Connector SPI and shared types |
-| `connectors/` | SQL, MongoDB, Redis, OpenSearch, Elasticsearch, SSH, logs, Kubernetes, GCP, AWS, HTTP, external MCP, and shared support |
+| `connectors/` | `delivery.json` (which connectors are compiled into the core and which are modules, see [connector delivery](connector-delivery.md)); SQL (including SQLite; Oracle Database and SQL Server are registered with their drivers by `sql-oracle` and `sql-sqlserver`), MongoDB, Redis, DynamoDB, BigQuery, Snowflake, Redshift, Databricks, Trino, Athena, Firestore and Realtime Database, Cosmos DB, Cassandra, Neo4j, Prometheus, InfluxDB, vector databases and search engines (`connectors/search`), OpenSearch, Elasticsearch, SSH, logs, Kubernetes, GCP, AWS, Azure, Cloudflare, S3-compatible object storage, HTTP, external MCP, and shared support |
+| `modules/` | Connector modules built from this repository's connectors: the packages of connectors under `connectors/` that are not part of the installer, each with its descriptor, and `modules.lock.json` with their released versions (see [connector delivery](connector-delivery.md#connector-modules)). The modules built against the connector API alone (ClickHouse, DuckDB, H2, Microsoft Access) have their source in the [modules repository](https://github.com/gaterook/gaterook-plugins) |
 | `plugin-protocol/` | GPP/1 messages, framing, and protocol tests |
 | `plugin-host/`, `plugin-it/` | Isolated JVM plugin runtime and integration tests |
 | `plugins/` | First-party plugins and test fixtures |

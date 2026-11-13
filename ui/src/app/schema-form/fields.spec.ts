@@ -121,6 +121,19 @@ describe('secret reference fields', () => {
     expect(view.form.secretInputs()).toEqual({});
   });
 
+  it('an Azure Key Vault reference names its vault and secret, and the menu calls it Azure', async () => {
+    const view = await secretForm();
+    view.form.stores.set([{ kind: 'azure-kv', store: null, title: 'Azure Key Vault', detail: null, available: true, reason: null }]);
+    await view.settle();
+    await view.pick('Azure Key Vault');
+    expect(view.input().value).toBe('azure-kv://');
+    expect(view.input().placeholder).toMatch(/^azure-kv:\/\/<vault>\//);
+    const azure = 'azure-kv://acme-kv/billing-db#password';
+    await view.type(azure);
+    expect(view.menu().textContent?.trim()).toBe('Azure');
+    expect(view.form.secretInputs()).toEqual({ '/password': { source: 'reference', ref: azure } });
+  });
+
   it('keeps a password typed as Text exactly, also when it only mentions a scheme', async () => {
     const view = await secretForm();
     const value = '  test-only gcp-sm://password  ';

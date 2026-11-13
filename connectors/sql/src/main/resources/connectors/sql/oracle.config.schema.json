@@ -73,7 +73,8 @@
       "x-gateway-secret": "login",
       "additionalProperties": false,
       "required": [
-        "user"
+        "user",
+        "password"
       ],
       "properties": {
         "user": {
@@ -86,9 +87,10 @@
         "password": {
           "type": "string",
           "title": "Password",
-          "description": "The Oracle database password.",
+          "description": "The Oracle database password. Oracle refuses a sign-in without one.",
           "writeOnly": true,
-          "format": "password"
+          "format": "password",
+          "minLength": 1
         }
       }
     },
@@ -125,7 +127,8 @@
           "items": {
             "type": "string",
             "maxLength": 200
-          }
+          },
+          "description": "Only these schemas are available to agents. Unquoted names use uppercase. Empty: every schema the user may read."
         },
         "connectTimeoutMs": {
           "type": "integer",
@@ -140,7 +143,7 @@
           "title": "Default schema",
           "maxLength": 130,
           "pattern": "^(?:[A-Za-z][A-Za-z0-9_$#]{0,127}|\"(?:[^\"\\u0000]|\"\")+\")$",
-          "description": "Empty: the authenticated user. Unquoted names use uppercase; double-quote a case-sensitive name."
+          "description": "Where table names without a schema resolve. Empty: the user's own schema. Unquoted names use uppercase; double-quote a case-sensitive name."
         }
       }
     }

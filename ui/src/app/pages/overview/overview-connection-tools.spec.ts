@@ -82,7 +82,7 @@ describe('Overview connection tools', () => {
     p.root.querySelector<HTMLButtonElement>('[role="menuitemradio"][data-value="OFF"]')!.click();
     await settle(p.fixture);
     expect(p.endpoints.setMode).toHaveBeenCalledExactlyOnceWith('dev', {
-      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'OFF', version: 4,
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'OFF', definitionHash: null, version: 4,
     });
     expect(p.root.querySelector('button[aria-label="Off: sql_query on dev"]')).not.toBeNull();
     expect(p.changed).toHaveBeenCalledTimes(1);

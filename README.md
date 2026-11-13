@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/019835d6-2b7b-4c91-be5c-28eba543087a
 
 For example: “Search the staging API logs for recent errors, compare them with database records, and propose a fix.” Allowed reads run within your configured limits; a change requiring approval waits for your decision.
 
-Built-in connectors do not need the optional Java plugin runtime or Cloudflare Tunnel download. Those components are verified and cached on first use; that first use requires internet access. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
+Most connectors are part of the installer and need no download. A few of GateRook's own connectors arrive the first time you choose them (Apache Cassandra, Neo4j, ClickHouse, DuckDB, H2 and Microsoft Access are [connector modules](docs/connector-delivery.md#connector-modules)); they and Java plugins run on the optional Java runtime. That runtime, the modules and the Cloudflare Tunnel binary are verified and cached on first use; that first use requires internet access. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
 
 ## Connect your AI apps in one place
 
@@ -69,13 +69,20 @@ Built-in connectors give AI structured tools for the services you already operat
 
 | Category | Connectors | Typical tasks |
 | --- | --- | --- |
-| **SQL databases** | PostgreSQL, MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md) | Explore schemas, query data, and review supported writes. |
-| **Documents and key-value data** | MongoDB, [Redis](docs/redis.md) | Find documents, inspect keys and values, and review updates. |
-| **Search** | OpenSearch, Elasticsearch | Discover indices, query documents, and review administrative requests. |
-| **Logs** | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, [SSH log files](docs/ssh-log-files.md) | Search logs, investigate errors, and read selected remote files. |
-| **Cloud and infrastructure** | AWS, GCP, Kubernetes, SSH | Inspect resources and metrics, read pod logs, run configured commands or runbooks, and review supported changes. |
+| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), [DuckDB](https://github.com/gaterook/gaterook-plugins/blob/main/docs/duckdb.md), [H2](https://github.com/gaterook/gaterook-plugins/blob/main/docs/h2.md) and [Microsoft Access](https://github.com/gaterook/gaterook-plugins/blob/main/docs/access.md) | Explore schemas, query data, and review supported writes. |
+| **Documents, key-value, and wide-column data** | MongoDB, [Redis](docs/redis.md), [Amazon DynamoDB](docs/dynamodb.md), [Cloud Firestore](docs/firestore.md), [Firebase Realtime Database](docs/firebase-rtdb.md), [Azure Cosmos DB](docs/cosmosdb.md), [Apache Cassandra](docs/cassandra.md) | Find documents and items, inspect keys and values, run queries, and review updates. |
+| **Graph databases** | [Neo4j](docs/neo4j.md) | Explore labels, relationships, and properties, run Cypher reads that Neo4j confirms as read only, and review writes. |
+| **Data warehouses** | [Google BigQuery](docs/bigquery.md), [Snowflake](docs/snowflake.md), [Amazon Redshift](docs/redshift.md), [Databricks SQL](docs/databricks.md), [Trino and Presto](docs/trino.md), [Amazon Athena](docs/athena.md), ClickHouse | Explore datasets and tables, run reads checked by the engine's own plan or dry run, and review changes. |
+| **Metrics and time series** | [Prometheus](docs/prometheus.md), [InfluxDB](docs/influxdb.md) | Query metrics and series, inspect targets, rules, and alerts, and review InfluxDB writes. |
+| **Vector databases** | [Pinecone, Qdrant, Milvus and Zilliz Cloud, Weaviate, Chroma](docs/vector-databases.md) | Fetch records by id or metadata filter, search nearest neighbours by vector, record, or text, and review upserts and deletes. |
+| **Search** | OpenSearch, Elasticsearch, [Algolia, Meilisearch, Typesense, Azure AI Search](docs/search-engines.md) | Discover indices, run filtered and faceted searches, fetch documents, and review document writes and administrative requests. |
+| **Logs** | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, [Azure Monitor Logs](docs/azure.md#logs), Loki, [SSH log files](docs/ssh-log-files.md) | Search logs, investigate errors, and read selected remote files. |
+| **Cloud and infrastructure** | AWS, GCP, [Azure](docs/azure.md), [Cloudflare](docs/cloudflare.md), Kubernetes, SSH | Inspect resources and metrics, call [any Google Cloud API method](docs/gcp-api.md) or [any AWS API operation](docs/aws-api.md) within the connection's limits, manage Cloudflare DNS, Workers, and Pages, read pod logs, run configured commands or runbooks, and review supported changes. |
+| **Object storage** | [Amazon S3 and S3-compatible storage](docs/s3.md) such as Cloudflare R2, DigitalOcean Spaces, Backblaze B2, and MinIO | List buckets and objects, read text objects within limits, and review uploads, copies, and deletes. |
 | **HTTP APIs** | HTTP requests and [OpenAPI imports](docs/http-api-import.md) | Expose selected API operations as scoped MCP tools. |
 | **External MCP servers** | Remote Streamable HTTP / SSE and local stdio | Bring existing MCP tools behind GateRook's permissions and approvals. |
+
+**Compatible services** such as Supabase, Neon, Amazon Aurora and RDS, Cloud SQL, PlanetScale, TiDB, Valkey, Amazon ElastiCache, ScyllaDB and Thanos have cards of their own in **Add connection** that open the supported connector with the service's starting settings; plugins that the signed catalog offers can be installed there too. See [compatible services](docs/compatible-services.md).
 
 ![GateRook connector catalog showing built-in database and SSH integrations.](docs/images/gaterook-connectors.png)
 
@@ -85,7 +92,11 @@ Built-in connectors give AI structured tools for the services you already operat
 
 Open **Connectors → MCP servers** to browse developer integrations or search the **Official MCP Registry**. Add a server by URL, local command, or pasted Claude Desktop/Cursor JSON, VS Code JSON, or Codex TOML. Review its settings before connecting or starting it.
 
-For servers that support OAuth, sign in through your browser; GateRook stores and renews the encrypted sign-in. Select the endpoints that may use the server, then control its tools individually. A registry listing or a server's read-only declaration is not a safety certification. See the [MCP server guide](docs/mcp-servers.md) for setup and trust boundaries.
+For AWS Knowledge, Cloudflare, DigitalOcean, Vercel, Firebase, Supabase, Netlify, and Azure DevOps, GateRook's [verified profiles](docs/mcp-servers.md#verified-profiles-for-cloud-platforms) set up the vendor's official server. A profile turns on the vendor's read-only switch where there is one and starts tools that run code, return credentials, or hand work to another agent in **Approval**; it can start a tool stricter, never looser.
+
+For servers that support OAuth, sign in through your browser; GateRook stores and renews the encrypted sign-in. GitHub's server signs in with a one-time code that you enter on GitHub, using GateRook's own GitHub app, so there is no OAuth app to create. Select the endpoints that may use the server, then control its tools individually. A registry listing or a server's read-only declaration is not a safety certification. See the [MCP server guide](docs/mcp-servers.md) for setup and trust boundaries.
+
+An endpoint with many servers can publish more tools than some AI apps accept. When an endpoint has more than 40 tools or 100 KB of tool definitions, its tool list shows GateRook's own tools and the 10 tools agents call most; `find_tools` finds the others by what they do, and `call_tool` or `call_read_tool` runs them under their own modes, approvals, and audit. Change this in the endpoint's **Settings → Tool list**.
 
 ## Review the exact action before it runs
 
@@ -123,7 +134,7 @@ GateRook governs requests routed through its endpoints and connectors. Allowed r
 
 Manage credentials in **Secrets**. The local vault keeps its master key outside the database. With OS credential protection enabled and available, the master-key file is protected using **macOS Keychain**, **Windows Hello / DPAPI**, or **Linux Secret Service / KWallet**. The app shows the active protection status; macOS unlock supports Touch ID or your Mac password.
 
-Use **Secrets → External stores** to resolve credentials from **HashiCorp Vault / OpenBao**, **GCP Secret Manager**, or **AWS Secrets Manager**. External values are resolved at call time and cached briefly in memory. See [external stores and secret references](docs/research/12-secrets.md#5-external-stores-and-reference-syntax) and [desktop key protection](docs/ARCHITECTURE.md#71-electron).
+Use **Secrets → External stores** to resolve credentials from **HashiCorp Vault / OpenBao**, **GCP Secret Manager**, **AWS Secrets Manager**, or **Azure Key Vault**. External values are resolved at call time and cached briefly in memory. See [external stores and secret references](docs/research/12-secrets.md#5-external-stores-and-reference-syntax), [Key Vault as an external secret store](docs/azure.md#key-vault-as-an-external-secret-store), and [desktop key protection](docs/ARCHITECTURE.md#71-electron).
 
 ### Follow every request through Activity
 
@@ -136,7 +147,7 @@ Inspect calls, approval decisions, execution outcomes, and configuration changes
 - **Share reviewed setups:** export a passphrase-encrypted endpoint file, with secrets excluded by default. Recipients review what to import; client grants and tokens do not transfer. [Endpoint sharing](docs/development.md#endpoint-sharing).
 - **Back up and restore:** create a passphrase-encrypted full backup from **Settings → Backup**. [Recovery guide](docs/development.md#full-backup-and-restore).
 - **Test and reuse tools:** try calls in **Playground**; turn named SQL queries, SSH runbooks, and OpenAPI operations into reusable tools with typed parameters.
-- **Extend the connector catalog:** install Java plugins in a separate JVM host, with reviewed capabilities and tool permissions. [Plugin architecture](docs/ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers).
+- **Extend the connector catalog:** install Java plugins, or a [connector module of your own](docs/connector-delivery.md#a-module-from-a-file), in a separate JVM host, with reviewed capabilities and tool permissions. [Plugin architecture](docs/ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers); [how a connector module is built](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md).
 - **Use remote access when appropriate:** publish non-production endpoints through the built-in tunnel with OAuth. Production endpoints remain local. [Security boundaries](docs/security.md#apply-stricter-controls-to-production).
 - **Work in your preferred theme:** light, dark, and high-contrast variants, with keyboard navigation throughout the desktop UI.
 
@@ -195,7 +206,9 @@ See the [development guide](docs/development.md), [IntelliJ IDEA setup](docs/dev
 | [Security model](docs/security.md) | Permissions, approvals, credential protection, audit integrity, and trust boundaries. |
 | [Architecture](docs/ARCHITECTURE.md) | Processes, modules, execution flow, persistence, UI, and extension contracts. |
 | [Development](docs/development.md) | Local builds, tests, backups, endpoint sharing, and troubleshooting. |
-| [External MCP servers](docs/mcp-servers.md) | Registry discovery, local and remote servers, OAuth, and cloud credentials. |
+| [External MCP servers](docs/mcp-servers.md) | Registry discovery, verified cloud profiles, local and remote servers, OAuth, and cloud credentials. |
+| [Writing a connector module](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md) | The parts, the package, the connector API in use and an example module, in the [modules repository](https://github.com/gaterook/gaterook-plugins). |
+| [Connector guides](#connect-your-stack) | Credentials, permissions, limits, and reviewed changes for the connectors linked in the connector table. |
 | [AI connection import](docs/ai-connection-import.md) / [OpenAPI import](docs/http-api-import.md) | Reviewable setup flows for repositories and HTTP APIs. |
 | [Product decisions](docs/DECISIONS.md) / [Research](docs/research/README.md) | Accepted engineering decisions and curated technical investigations. |
 | [Repository layout](docs/repository-layout.md) / [Contributor rules](AGENTS.md) | Where code belongs and how to contribute. |

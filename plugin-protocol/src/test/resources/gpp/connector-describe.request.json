@@ -1,0 +1,44 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 74,
+  "method" : "connector/describe",
+  "params" : {
+    "generation" : "neo4j@1.0.0",
+    "callId" : "dc_01JBC4",
+    "callToken" : "ct_Zx81bR4wQ0mN2pL7sK3tAb",
+    "connection" : {
+      "id" : "9d2e",
+      "name" : "graph-dev",
+      "type" : "neo4j",
+      "env" : "dev",
+      "version" : 2,
+      "configHash" : "sha256:31229bddb792a3e5bd33c964dc8b5166b5d7556879368055892b04d7ea9e43a3",
+      "config" : {
+        "uri" : "neo4j+s://graph.example.com:7687",
+        "database" : "neo4j"
+      },
+      "secretFields" : [ "/password" ]
+    },
+    "timeoutMs" : 10000,
+    "limits" : {
+      "maxRows" : 1000,
+      "maxLines" : 1000,
+      "maxResponseBytes" : 524288,
+      "maxRequestBytes" : 1048576,
+      "maxOutputBytes" : 262144,
+      "maxStderrBytes" : 65536,
+      "maxCellChars" : 8192,
+      "statementTimeoutMs" : 5000,
+      "commandTimeoutMs" : 30000,
+      "toolTimeoutMs" : 10000,
+      "maxRangeMs" : 604800000
+    },
+    "egress" : {
+      "hosts" : [ ],
+      "allowPrivate" : [ ],
+      "corePorts" : [ 7465, 7466 ],
+      "tcp" : [ "graph.example.com:7687" ]
+    },
+    "object" : "Order"
+  }
+}

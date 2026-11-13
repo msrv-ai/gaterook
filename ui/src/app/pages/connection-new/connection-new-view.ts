@@ -1,12 +1,15 @@
+import { HistogramBucket } from '../../core/api/activity.api';
 import { ConnectionHealth, ConnectionUsedBy, StoredSecret, TestOutcome } from '../../core/api/connections.api';
 import { ConnectorCard, ConnectorGroup, ConnectorKind, ConnectorTool } from '../../core/api/connector-types.api';
 import { EndpointSummary } from '../../core/api/endpoints.api';
+import { Insights } from '../../core/api/insights.api';
 import { EnvPolicy } from '../../core/api/policies.api';
 import { Env, JsonObject, JsonValue, ToolAnnotations, ToolMode } from '../../core/api/types';
-import { duration, everyInterval, formatCount } from '../../core/time/time-format';
+import { clockTime, duration, everyInterval, formatCount, shortDate } from '../../core/time/time-format';
 import { ProdDefault } from '../../kit/elements/connection-form/connection-form';
 import { testConfirmTitle, testFailureTitle } from '../../kit/elements/connection-form/connection-test';
 import { clientName } from '../../kit/elements/shared/client-mark';
+import { PageLink, StatDelta, activityLink, bucketUnit, callsDelta, rangeWords, sparkPoints as trendPoints } from '../insights/insights-view';
 
 /**
  * The words and decisions of Add connection that need no DOM: the wizard's stepper,
@@ -17,7 +20,7 @@ import { clientName } from '../../kit/elements/shared/client-mark';
 /** The page's three modes: the wizard, the wizard from Configure with a copy's settings, one connection. */
 export type Mode = 'add' | 'duplicate' | 'edit';
 export type StepNumber = 1 | 2 | 3 | 4;
-export const STEP_NAMES = ['Choose type', 'Configure', 'Test', 'Add to endpoint'] as const;
+export const STEP_NAMES = ['Choose', 'Configure', 'Test', 'Add to endpoint'] as const;
 
 /** "a, b and c". */
 export function list(words: readonly string[]): string {
@@ -61,18 +64,20 @@ export function stepperSteps(
   facts: { readonly typeName: string | null; readonly name: string; readonly env: Env; readonly test: TestSummary | null; readonly endpoints: readonly string[] },
   firstRun = false,
   firstEndpoint: string | null = null,
+  flow: 'connector' | 'mcp' = 'connector',
 ): StepView[] {
   return STEP_NAMES.map((stepName, i) => {
     const n = (i + 1) as StepNumber;
-    // First run reuses the starter endpoint, or creates one when none exists.
-    const name = n === 4 && firstRun && !firstEndpoint ? 'Create endpoint' : stepName;
+    // An MCP server is reviewed, then connects (or starts), where a connection is tested. First run reuses the starter
+    // endpoint, or creates one when none exists.
+    const name = flow === 'mcp' && n === 3 ? 'Review' : n === 4 && firstRun && !firstEndpoint ? 'Create endpoint' : stepName;
     const failed = n === 3 && !!facts.test && !facts.test.passed && current >= 3;
     const state: StepState = failed ? 'error' : n < current ? 'complete' : n === current ? 'current' : 'upcoming';
     let description: StepView['description'] = null;
     if (state === 'complete' || state === 'error') {
       if (n === 1) description = facts.typeName ? { text: facts.typeName } : null;
       else if (n === 2) description = { name: facts.name || 'this connection', env: facts.env };
-      else if (n === 3) description = facts.test ? { text: facts.test.text } : { text: 'Not tested' };
+      else if (n === 3) description = facts.test ? { text: facts.test.text } : { text: flow === 'mcp' ? 'Not connected' : 'Not tested' };
       else if (firstRun) description = { text: `Endpoint ${firstEndpoint ?? facts.env}` };
       else description = { text: facts.endpoints.length ? `Endpoint ${facts.endpoints.join(', ')}` : 'No endpoint yet' };
     }
@@ -95,12 +100,16 @@ export function findCard(groups: readonly ConnectorGroup[], key: string | null):
 
 /**
  * The card the picker opens on: `?type=` (and `&variant=`) from Connectors, else the first type that can be used —
- * the kit's page opens with PostgreSQL chosen. A type that isn't available never becomes the choice.
+ * the kit's page opens with PostgreSQL chosen. A type that isn't available never becomes the choice, except a catalog
+ * plugin named by `?type=`, which Continue installs.
  */
 export function defaultCardKey(groups: readonly ConnectorGroup[], type?: string | null, variant?: string | null): string | null {
-  const cards = groups.flatMap((g) => g.cards).filter((c) => c.available);
+  const all = groups.flatMap((g) => g.cards);
+  const cards = all.filter((c) => c.available);
   if (type) {
-    const exact = cards.find((c) => c.type === type && (variant ? c.variant === variant : true));
+    const exact = all.find(
+      (c) => c.type === type && (variant ? c.variant === variant : true) && (c.available || !!c.catalogRef),
+    );
     if (exact) return cardKey(exact);
   }
   return cards[0] ? cardKey(cards[0]) : null;
@@ -298,20 +307,26 @@ export interface ToolPreview {
 
 /**
  * The modes a new connection's tools start in on an endpoint, by the core's rules (`endpoints.ToolPairs.initial`):
- * the manifest's default for the endpoint's env (prod has its own), Approval for plugin tools, and Read only for
- * declared MCP reads. On a read-only endpoint nothing changes data or runs in Approval. The core decides again when
- * the connection is added; this is what the person agrees to.
+ * nothing starts Off on a standard endpoint. Built-in tools take the manifest's default for the endpoint's env (prod
+ * has its own), Approval where it says Off or Bypass; declared MCP reads and the declared reads of a signed plugin start
+ * in Read only, their other tools in Approval. On a read-only endpoint nothing changes data or runs in Approval. The
+ * core decides again when the connection is added; this is what the person agrees to.
+ *
+ * @param signed for a plugin: whether the catalog key signed its build
  */
 export function toolPreview(
   tools: readonly ConnectorTool[],
   kind: ConnectorKind,
   dynamicTools: boolean,
   choice: EndpointChoice,
+  signed = false,
 ): ToolPreview {
   const rows = tools.map((t): PreviewRow => {
     let mode = toolMode(choice.env === 'prod' ? t.prodDefaultMode : t.defaultMode);
-    if ((kind !== 'built-in' && kind !== 'mcp-server') || mode === 'BYPASS') mode = 'APPROVAL';
-    if (kind === 'mcp-server') mode = readOnlyAllowed(t) && t.annotations.readOnlyHint && !t.annotations.destructiveHint ? 'READ_ONLY' : 'APPROVAL';
+    const declaredRead = readOnlyAllowed(t) && t.annotations.readOnlyHint === true && !t.annotations.destructiveHint;
+    if (kind === 'mcp-server') mode = declaredRead ? 'READ_ONLY' : 'APPROVAL';
+    else if (kind !== 'built-in') mode = signed && declaredRead && !mutating(t) ? 'READ_ONLY' : 'APPROVAL';
+    else if (mode === 'BYPASS' || mode === 'OFF') mode = 'APPROVAL';
     if (choice.readOnly) {
       // ToolPairs.clampReadOnly: never Approval, never a tool that only changes data, Read only only where allowed.
       if ((t.nature ?? '').toLowerCase() === 'mutation' || mode === 'APPROVAL') mode = 'OFF';
@@ -321,7 +336,7 @@ export function toolPreview(
     const note = locked
       ? { icon: 'lock', text: `${choice.slug} is read only` }
       : !readOnlyAllowed(t)
-        ? { icon: 'lock', text: 'Mutates data: starts in Approval or Off' }
+        ? { icon: 'lock', text: 'Mutates data: starts in Approval' }
         : null;
     return { name: t.name, description: t.description, annotations: t.annotations, mode, note };
   });
@@ -361,26 +376,12 @@ export function isFirstRun(connections: number, endpoints: number | readonly End
 }
 
 /**
- * The tools of the first endpoint, which Save reuses or creates: the type's
- * default modes for that env, and on prod nothing that waits for approval — "prod is read only by default" (kit) —
- * so a tool that changes data starts Off there.
+ * The tools of the first endpoint, which Save reuses or creates: the type's default modes for that env, the same on
+ * prod — reads run at once and anything that changes data waits for approval.
  */
-export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env, slug: string = env): ToolPreview {
+export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env, slug: string = env, signed = false): ToolPreview {
   const choice: EndpointChoice = { slug, description: '', meta: null, refusal: null, readOnly: false, published: false, env, warning: null };
-  const base = toolPreview(tools, kind, dynamicTools, choice);
-  if (env !== 'prod') return base;
-  const rows = base.rows.map((r): PreviewRow =>
-    r.mode === 'APPROVAL' ? { ...r, mode: 'OFF', note: { icon: 'lock', text: PROD_OFF_NOTE } } : r,
-  );
-  const count = (m: ToolMode) => rows.filter((r) => r.mode === m).length;
-  const parts = [
-    count('READ_ONLY') ? `${count('READ_ONLY')} read only` : null,
-    count('APPROVAL') ? `${count('APPROVAL')} approval` : null,
-    count('BYPASS') ? `${count('BYPASS')} bypass` : null,
-    count('OFF') ? `${count('OFF')} off` : null,
-  ].filter(Boolean);
-  const n = rows.length;
-  return { ...base, rows, summary: [`${formatCount(n)} ${n === 1 ? 'tool' : 'tools'}`, ...parts].join(' · ') };
+  return toolPreview(tools, kind, dynamicTools, choice, signed);
 }
 
 /** Tool names as the kit lists them: "sql_list_schemas, sql_describe_table and sql_query". */
@@ -409,9 +410,6 @@ export function firstRunToast(name: string, endpoint: string, created = true): {
   return { title: `Connection ${name} saved`, body: `${created ? `Endpoint ${endpoint} created with its tools.` : `Added to endpoint ${endpoint} with its tools.`} Next: connect your AI app.` };
 }
 
-/** The note of a tool that would wait for approval and starts Off on a first prod endpoint. */
-export const PROD_OFF_NOTE = 'Off on prod: read only by default';
-
 /** A sentence with the literals (tool names) the template sets in mono. */
 export interface Sentence {
   readonly text: string;
@@ -420,14 +418,12 @@ export interface Sentence {
 
 /**
  * "What your AI apps can do" of the first endpoint (kit): "Reads run at once. Anything that changes data, like
- * sql_execute, waits for your approval. You can change the modes later." — on prod "sql_execute is off: prod is
- * read only by default." instead of the approval line.
+ * sql_execute, waits for your approval. You can change the modes later."
  */
 export function firstRunModes(preview: ToolPreview): Sentence {
   const rows = preview.rows;
   const approval = rows.filter((r) => r.mode === 'APPROVAL').map((r) => r.name);
   const bypass = rows.filter((r) => r.mode === 'BYPASS').map((r) => r.name);
-  const prodOff = rows.filter((r) => r.note?.text === PROD_OFF_NOTE).map((r) => r.name);
   const parts: string[] = [];
   if (preview.fromServer) parts.push('Its tools come from the server once it runs, and each one waits for your approval.');
   if (rows.some((r) => r.mode === 'READ_ONLY')) parts.push('Reads run at once.');
@@ -435,23 +431,21 @@ export function firstRunModes(preview: ToolPreview): Sentence {
     ? `${list(approval)} ${approval.length === 1 ? 'waits' : 'wait'} for your approval.`
     : `Anything that changes data, like ${approval[0]}, waits for your approval.`);
   if (bypass.length) parts.push(`${list(bypass)} ${bypass.length === 1 ? 'runs' : 'run'} without approval (Bypass).`);
-  if (prodOff.length) parts.push(`${list(prodOff)} ${prodOff.length === 1 ? 'is' : 'are'} off: prod is read only by default.`);
   parts.push('You can change the modes later.');
-  return { text: parts.join(' '), literals: [...(bypass.length ? approval : approval.slice(0, 1)), ...bypass, ...prodOff] };
+  return { text: parts.join(' '), literals: [...(bypass.length ? approval : approval.slice(0, 1)), ...bypass] };
 }
 
 /**
  * The ready card's Tools (kit): "sql_list_schemas, sql_describe_table and sql_query run at once (read only);
- * sql_execute waits for your approval" — on prod "sql_execute is off: prod is read only by default". From the
- * endpoint's tools as the core answered them after Save.
+ * sql_execute waits for your approval". From the endpoint's tools as the core answered them after Save.
  */
-export function toolsSentence(line: ToolsLine, env: Env): Sentence {
+export function toolsSentence(line: ToolsLine): Sentence {
   const verb = (names: readonly string[], one: string, many: string) => (names.length === 1 ? one : many);
   const parts = [
     line.reads.length ? `${list(line.reads)} ${verb(line.reads, 'runs', 'run')} at once (read only)` : null,
     line.approval.length ? `${list(line.approval)} ${verb(line.approval, 'waits', 'wait')} for your approval` : null,
     line.bypass.length ? `${list(line.bypass)} ${verb(line.bypass, 'runs', 'run')} without approval (Bypass)` : null,
-    line.off.length ? `${list(line.off)} ${verb(line.off, 'is', 'are')} off${env === 'prod' ? ': prod is read only by default' : ''}` : null,
+    line.off.length ? `${list(line.off)} ${verb(line.off, 'is', 'are')} off` : null,
   ].filter((p): p is string => !!p);
   return {
     text: parts.length ? parts.join('; ') : 'They come from the server once it runs',
@@ -473,6 +467,7 @@ export const POLICY_SECTION: Readonly<Record<string, string>> = {
   mysql: 'sql',
   oracle: 'sql',
   sqlserver: 'sql',
+  sqlite: 'sql',
   ssh: 'ssh',
   kubernetes: 'k8s',
   logs: 'logs',
@@ -651,6 +646,60 @@ export function usedByMeta(uses: readonly EndpointUse[]): { readonly tools: numb
 /** `activity?q=` for a connection, or one of its tools on one endpoint ("connection:dev-db tool:sql_query endpoint:dev"). */
 export function activityQuery(connection: string, tool?: string | null, endpoint?: string | null): string {
   return [`connection:${connection}`, tool ? `tool:${tool}` : null, endpoint ? `endpoint:${endpoint}` : null].filter(Boolean).join(' ');
+}
+
+/** The tools the Tools tab lists: one row per tool, however many endpoints it is on (the tab's count). */
+export function toolCount(usedBy: readonly ConnectionUsedBy[]): number {
+  return new Set(usedBy.map((use) => use.tool)).size;
+}
+
+/** A run of the stat's line under "Calls, last 30 days": text, or a link to the calls behind a number. */
+export interface CallsMetaPart {
+  readonly text: string;
+  readonly link?: PageLink;
+}
+
+/** The stat "Calls, last 30 days", from `GET /api/insights?q=connection:<name>` over the last 30 days. */
+export interface CallsStat {
+  /** Calls with a decision, as Insights counts them ("1,284"). */
+  readonly value: string;
+  /** Calls per day as a `gw-sparkline`, with the busiest day in words; null without a call to draw. */
+  readonly chart: { readonly points: string; readonly label: string } | null;
+  /** Against the 30 days before; null when the audit doesn't reach back that far or neither range has a call. */
+  readonly delta: StatDelta | null;
+  /** "3 errors · 12 denied by policy", each opening its calls in Activity, or one plain sentence. */
+  readonly meta: readonly CallsMetaPart[];
+}
+
+export function callsStat(insights: Insights, connection: string, now: number): CallsStat {
+  const cur = insights.kpis.current;
+  const prev = insights.kpis.previous;
+  const h = insights.callsOverTime;
+  const words = rangeWords('30d');
+  let peak: HistogramBucket | null = null;
+  for (const b of h.buckets) if (b.total > 0 && (!peak || b.total > peak.total)) peak = b;
+  let chart: CallsStat['chart'] = null;
+  if (peak) {
+    const days = h.stepHours >= 24;
+    const at = days ? shortDate(peak.from, now) : clockTime(peak.from, false);
+    const when = at === 'Today' ? 'today' : `${days ? 'on' : 'at'} ${at}`;
+    chart = {
+      points: trendPoints(h.buckets.map((b) => b.total)),
+      label: `Calls per ${bucketUnit(h.stepHours)}, ${words.span}: peak of ${formatCount(peak.total)} ${when}`,
+    };
+  }
+  const query = activityQuery(connection);
+  const meta: CallsMetaPart[] = [];
+  if (cur.errors > 0) meta.push({ text: `${formatCount(cur.errors)} ${cur.errors === 1 ? 'error' : 'errors'}`, link: activityLink(query, '30d', ['decision:error']) });
+  if (cur.denied > 0) meta.push({ text: `${formatCount(cur.denied)} denied by policy`, link: activityLink(query, '30d', ['decision:denied']) });
+  if (cur.pending > 0) meta.push({ text: `${formatCount(cur.pending)} waiting for approval`, link: { route: '/approvals' } });
+  if (!meta.length) meta.push({ text: cur.calls > 0 ? 'No errors or denials' : `No calls in the ${words.span}` });
+  return {
+    value: formatCount(cur.calls),
+    chart,
+    delta: prev && (cur.calls > 0 || prev.calls > 0) ? callsDelta(cur.calls, prev.calls, words.previous) : null,
+    meta,
+  };
 }
 
 /** Delete's sentence about the credentials: what is destroyed here and what stays in its store. */

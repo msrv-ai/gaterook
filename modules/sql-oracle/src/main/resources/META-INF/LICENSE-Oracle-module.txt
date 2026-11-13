@@ -1,0 +1,29 @@
+This package is GateRook's Oracle Database connector with the libraries it needs, unmodified, in one file.
+
+GateRook's own code (com.gaterook.connectors.*, https://github.com/gaterook/gaterook) is under the Apache
+License 2.0.
+
+It includes:
+
+- Oracle JDBC Driver @oracle-jdbc.version@ (com.oracle.database.jdbc:ojdbc17,
+  https://www.oracle.com/database/technologies/appdev/jdbc.html), under the Oracle Free Distribution, Hosting, and Use
+  Terms and Conditions. Its license is META-INF/license.txt.
+- JSqlParser @jsqlparser.version@ (com.github.jsqlparser:jsqlparser, https://github.com/JSQLParser/JSqlParser), under
+  the Apache License 2.0 or the GNU Lesser General Public License 2.1, at your choice; GateRook uses it under the
+  Apache License 2.0.
+- HikariCP (com.zaxxer:HikariCP, https://github.com/brettwooldridge/HikariCP), under the Apache License 2.0.
+- PostgreSQL JDBC Driver (org.postgresql:postgresql, https://jdbc.postgresql.org), under the BSD 2-Clause License. Its
+  license is META-INF/LICENSE. It carries the SCRAM and SASLprep libraries of OnGres (com.ongres.scram and
+  com.ongres.stringprep), under the BSD 2-Clause License; their licenses are under META-INF/licenses/. The SQL
+  connector reads this driver's errors; this package opens no PostgreSQL connection.
+- Checker Framework qualifiers (org.checkerframework:checker-qual, https://checkerframework.org), which the
+  PostgreSQL driver depends on, under the MIT License. Their license is META-INF/LICENSE.txt.
+- The classes of SQLite JDBC (org.xerial:sqlite-jdbc, https://github.com/xerial/sqlite-jdbc), without its native
+  libraries, under the Apache License 2.0. The SQL connector reads this driver's errors; this package opens no SQLite
+  file.
+- OkHttp @okhttp.version@ (com.squareup.okhttp3:okhttp-jvm and okhttp-tls) and Okio (com.squareup.okio:okio-jvm;
+  https://square.github.io), under the Apache License 2.0.
+- The Kotlin standard library (org.jetbrains.kotlin:kotlin-stdlib) and JetBrains annotations
+  (org.jetbrains:annotations; https://kotlinlang.org), under the Apache License 2.0.
+
+The text of the Apache License 2.0 is META-INF/LICENSE-Apache-2.0.txt.

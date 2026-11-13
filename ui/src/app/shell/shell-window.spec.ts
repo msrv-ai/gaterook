@@ -272,6 +272,21 @@ describe('the OAuth consent dialog is the window’s, on any page (§7.3)', () =
     return { ...app, dialog };
   }
 
+  it('names a local app by the name it registered with, not the host of its first callback', async () => {
+    const app = await runningApp();
+    const consents = app.http.match('/api/oauth/consents');
+    expect(consents.length).toBe(1);
+    consents[0].flush([{ ...DEMO_CONSENT, clientHost: 'insiders.vscode.dev', clientName: 'Visual Studio Code', clientKind: 'dcr' }]);
+    await settle();
+    await app.fixture.whenStable();
+    await Promise.resolve();
+    const dialog = app.el.querySelector<HTMLDialogElement>('gw-oauth-consent dialog')!;
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Allow Visual Studio Code to sign in to stage-readonly?');
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toBe('An app on this computer registered as Visual Studio Code asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.');
+    expect(text(dialog)).not.toContain('insiders.vscode.dev');
+  });
+
   it('opens for the oldest sign-in with Deny focused; Allow waits 700 ms and sends the core’s decision', async () => {
     const { fixture, http, dialog } = await withConsent();
     TestBed.inject(Router).navigateByUrl('/settings/general');

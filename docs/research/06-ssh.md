@@ -66,6 +66,8 @@ A runbook stores a stable name, description, version, read-only declaration, one
 
 Every placeholder must be declared and used. Placeholders must appear outside quoted strings and heredocs; a small lexer tracks quotes and escapes before substitution. Quoting a value inside an already quoted template can reopen shell syntax and defeat escaping.
 
+Parameterized commands must name a fixed executable. The compiler rejects parameters passed to known evaluators such as `eval`, `sh`, `ssh`, and `watch`, including quoted or escaped executable names. It also rejects parameters after dispatch wrappers such as `sudo`, `env`, and `timeout`, whose option grammars can select another interpreter; use a direct command instead. Parameterized templates cannot use `$'…'` quoting or quotes inside double-quoted `${…}` expansions because their boundaries differ between supported shells. Existing templates are checked again when offered to an endpoint. These checks do not prove a command read-only or validate arbitrary programs' argument semantics.
+
 Validate each value first, then POSIX-single-quote it. Strings require an explicit pattern and length bound (proposal: at most 256); enums have bounded control-free values; integers require min/max; booleans map only to permitted fixed literals. Reject control characters and leading dashes by default. Shell quoting prevents shell expansion, but not option injection, so templates should also use `--` where the command supports it.
 
 A read-only declaration is the template author's assertion, not a proof. Warn about commands containing restart/stop/remove/kill/sudo/redirection, and audit a change from mutating to read-only. Warn about follow/watch commands that will run until the deadline.

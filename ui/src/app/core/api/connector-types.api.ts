@@ -5,6 +5,35 @@ import { Env, JsonObject, JsonValue, ToolAnnotations, WithReason } from './types
 /** `built-in`, `plugin`, `mcp-server`, `template`. */
 export type ConnectorKind = 'built-in' | 'plugin' | 'mcp-server' | 'template' | string;
 
+/**
+ * The connector module that adds a card's type: one of GateRook's own connectors that isn't part of the installer.
+ * Choosing the card installs it without a review; the type's form waits for it.
+ */
+export interface ConnectorModuleRef {
+  readonly id: string;
+  readonly version: string;
+  /** `ready`, `installing`, `missing`, `available`, `failed`, `revoked` or `disabled`. */
+  readonly state: string;
+  /** The step of a running installation (`runtime`, `downloading`, `verifying`, `installing`), else null. */
+  readonly step: string | null;
+  /** The size of the download. */
+  readonly sizeBytes: number;
+  readonly installed: boolean;
+  /** Why the last installation failed, in the core's words; else null. */
+  readonly message: string | null;
+  /**
+   * Whether GateRook's signed list pins the package. False only for an installed module that a person installed from
+   * a file and that the list doesn't pin: their own module, whose tools start in Approval and which the list never
+   * replaces by itself. Absent from a core that knows only GateRook's own modules.
+   */
+  readonly signed?: boolean;
+  /**
+   * A higher version the list has for an installed module, or the version it has of a module whose installed build
+   * is the person's own; else null.
+   */
+  readonly listedVersion?: string | null;
+}
+
 /** A card of the Add connection wizard (one per type or `x-variants` variant). */
 export interface ConnectorCard {
   readonly type: string;
@@ -21,14 +50,30 @@ export interface ConnectorCard {
   readonly toolsFrom: string | null;
   readonly connections: number;
   readonly available: boolean;
-  /** Why the card is unavailable ("Not installed. Install it from the catalog…"). */
+  /** Why the card is unavailable ("Not installed yet. Continue reviews it and installs it from the catalog."). */
   readonly reason: string | null;
   readonly presetConfig: JsonValue;
+  /** `id@version` of a plugin the signed catalog offers and this core hasn't installed: the wizard installs it. */
+  readonly catalogRef?: string | null;
+  /** The connector module that adds the type, when one does; absent for a type that is part of the installer. */
+  readonly module?: ConnectorModuleRef | null;
+  /** Set by the wizard, not the core: a compatible service's card names its base connector ("PostgreSQL"). */
+  readonly compatibleWith?: string | null;
+  /** Set by the wizard for an MCP server card: its mark, a path of the app's public files (`mcp-logos/linear.png`). */
+  readonly markSrc?: string | null;
+  /** Set by the wizard for an MCP server card: the line under its description ("MCP server · HTTP · v1.2.0"). */
+  readonly metaText?: string | null;
+  /** Set by the wizard for an MCP server card: GateRook's verified profile, an official registry entry, a deprecated one. */
+  readonly badge?: 'verified' | 'official' | 'deprecated' | null;
+  /** Set by the wizard for an MCP server card: what the search matches besides its name, in place of its type and variant. */
+  readonly searchWords?: string | null;
 }
 
 export interface ConnectorGroup {
   readonly name: string;
   readonly cards: ConnectorCard[];
+  /** Set by the wizard: a sentence under the category's title (the MCP section's groups). */
+  readonly description?: string | null;
 }
 
 export interface ConnectorProcess {
@@ -63,6 +108,8 @@ export interface InstalledConnector {
   readonly state: string;
   readonly process: ConnectorProcess | null;
   readonly variants: ConnectorVariant[];
+  /** The installed connector module that adds the type; null or absent for a type that is part of the installer. */
+  readonly module?: ConnectorModuleRef | null;
 }
 
 /** `GET /api/connector-types`. */

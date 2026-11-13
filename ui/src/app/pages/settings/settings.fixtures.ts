@@ -20,7 +20,7 @@ const section = (name: string, values: JsonObject, version = 3): SettingsSection
 
 export function kitSections(over: Partial<Record<string, JsonObject>> = {}): { [name: string]: SettingsSection } {
   const values: Record<string, JsonObject> = {
-    general: { openAtLogin: true, startHidden: true, autoUpdate: true, singleKeyShortcuts: true, toastDurationSeconds: 10 },
+    general: { openAtLogin: true, startHidden: true, autoUpdate: true, betaUpdates: false, singleKeyShortcuts: true, toastDurationSeconds: 10 },
     appearance: { theme: 'system', contrast: 'system' },
     authorization: { tokenTtlDays: 184, clientRegistration: 'cimd' },
     'approval-rules': {

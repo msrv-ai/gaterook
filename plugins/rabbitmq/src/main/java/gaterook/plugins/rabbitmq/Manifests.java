@@ -1,7 +1,7 @@
 package gaterook.plugins.rabbitmq;
 
-import ai.msrv.gaterook.connector.api.ConnectorManifest;
-import ai.msrv.gaterook.connector.api.ToolDefinition;
+import com.gaterook.connector.api.ConnectorManifest;
+import com.gaterook.connector.api.ToolDefinition;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;

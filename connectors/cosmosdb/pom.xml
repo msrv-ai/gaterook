@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Azure Cosmos DB for NoSQL (docs/cosmosdb.md): databases, containers, SQL queries and point reads as reads, one
+  approved create, upsert, replace, patch or delete of one item per change. Cosmos DB's REST API over java.net.http,
+  signed with the account key's HMAC or authorized with a Microsoft Entra ID token of a service principal. No Azure SDK
+  module. Spring only in the .boot subpackage.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>${revision}</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-cosmosdb</artifactId>
+  <name>GateRook · Connectors · Cosmos DB</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <!-- The Azure CLI's tenants on this computer, for the form's suggestions (CloudLocal). -->
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-cloud-auth</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Cosmos DB's gateway and Microsoft Entra ID's token endpoint are faked with MockWebServer. -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        *IT with -Pservices,cosmosdb-it (tag cosmosdb-it): the Linux emulator vNext of the Compose services
+        (scripts/test-services.sh up cosmosdb).
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -302,6 +302,9 @@ describe('Connections view: delete', () => {
     expect(secretsSentence([s('billing-api/token', 'gcp-sm', 'reference'), s('billing-api/webhook-secret', 'aws-sm', 'not-connected', null)])).toBe(
       'Its two references are removed; the secrets stay in GCP Secret Manager and AWS Secrets Manager.',
     );
+    expect(secretsSentence([s('billing-db/password', 'azure-kv', 'reference', null)])).toBe(
+      'The Azure KV reference is removed; the secret itself stays in Azure Key Vault.',
+    );
     expect(andList(['a', 'b', 'c'])).toBe('a, b and c');
   });
 

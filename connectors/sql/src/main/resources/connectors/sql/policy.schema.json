@@ -11,7 +11,7 @@
       "default": true,
       "readOnly": true,
       "title": "Keep query calls read-only",
-      "description": "Always on: reads end with ROLLBACK. PostgreSQL, MySQL and Oracle enforce READ ONLY transactions; SQL Server enforces strict SELECT validation and needs a SELECT-only login for server-enforced protection."
+      "description": "Always on: reads end with ROLLBACK. PostgreSQL, MySQL and Oracle enforce READ ONLY transactions, SQLite a read-only file handle; SQL Server enforces strict SELECT validation and needs a SELECT-only login for server-enforced protection."
     },
     "statementTimeoutMs": {
       "type": "integer",
@@ -42,11 +42,7 @@
       "title": "Block DDL",
       "default": false,
       "x-stricter": "or",
-      "x-env-default": {
-        "stage": true,
-        "prod": true
-      },
-      "description": "CREATE, ALTER, DROP and TRUNCATE are denied instead of waiting for approval."
+      "description": "Off: CREATE, ALTER, DROP and TRUNCATE wait for approval like other changes. On: they are denied instead."
     },
     "allowlist": {
       "type": "array",
@@ -54,6 +50,7 @@
       "uniqueItems": true,
       "maxItems": 500,
       "x-stricter": "intersect",
+      "x-empty": "all",
       "items": {
         "type": "string",
         "maxLength": 200
@@ -77,7 +74,7 @@
       "title": "Max response size",
       "minimum": 1,
       "maximum": 10240,
-      "default": 512,
+      "default": 1024,
       "x-unit": "KB",
       "x-stricter": "min"
     }

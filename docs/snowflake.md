@@ -1,0 +1,49 @@
+# Control AI access to Snowflake
+
+GateRook's MCP Firewall lets AI apps read Snowflake with checked, bounded statements and holds every change for your review. Snowflake has no read-only transaction, so the roles of the user GateRook signs in as remain the boundary: GateRook's checks are defence in depth. The [security model](security.md) explains execution controls, explicit Bypass, and the append-only, tamper-evident audit trail.
+
+## Connect with a key pair or a token
+
+The built-in **Snowflake** connector (`snowflake`) calls Snowflake's SQL API v2 over HTTPS. There is no JDBC driver or Snowflake SDK in GateRook. The address is derived from the **Account identifier** alone (`myorg-myaccount`, or an account locator with its region such as `xy12345.eu-central-1`): requests go only to `<account>.snowflakecomputing.com`, or to `<account>.privatelink.snowflakecomputing.com` with **Private connectivity**. The form takes no URL, redirects are never followed and no proxy is used. Snowflake's China regions (`snowflakecomputing.cn`) are not supported.
+
+Choose how GateRook signs in as the **User**:
+
+- a **key pair**: an unencrypted RSA private key of at least 2048 bits, PKCS#8 or PKCS#1 PEM, stored encrypted in GateRook. Each call signs its own JWT (RS256, `iss` `<ACCOUNT>.<USER>.SHA256:<fingerprint>`), valid a few minutes longer than the call and never more than 59 minutes. Test connection shows the key's fingerprint: it must equal the user's `RSA_PUBLIC_KEY_FP` (`DESCRIBE USER`). An encrypted key is refused with the `openssl` command that decrypts it;
+- a **programmatic access token**, sent as `PROGRAMMATIC_ACCESS_TOKEN`. Snowflake accepts it only from addresses that a network policy of the user allows; restrict the token to a role that only reads (`ROLE_RESTRICTION`).
+
+A JWT or token a call uses is added to the call's taint, so an answer that echoes it is masked. **Warehouse**, **Role**, **Database** and **Schema** go with every statement, written as Snowflake stores names (`analytics` is `ANALYTICS`; `"Mixed Case"` keeps its case); empty fields use the user's defaults. Queries over tables need a warehouse, so the form shows Warehouse outside the Advanced settings. A schema needs its database, so the form requires Database with a Schema.
+
+While you fill in the form, GateRook offers the connections of the Snowflake CLI and drivers on this computer (`connections.toml` and `config.toml` in `SNOWFLAKE_HOME` or `~/.snowflake`): the default connection's account, and the user, warehouse, role, database and schema of the connection whose account the form names. It reads names only, never a password, token or key. Once the form can sign in, it fills in the user's default warehouse, role, database and schema where the form leaves them empty, and offers the roles the user may use, the warehouses and databases the role sees and the schemas of the database. It runs only `SHOW` statements and context functions for this, without the form's warehouse or database.
+
+## The role is the boundary
+
+Nothing in a Snowflake session stops a role from writing. Give the user only roles that read, with `SELECT` on what agents may use. Snowflake also authorizes statements with the user's secondary roles: set `DEFAULT_SECONDARY_ROLES = ()` for this user, or use a token restricted to one role.
+
+**Test connection** signs in, runs `SELECT CURRENT_VERSION(), CURRENT_USER(), CURRENT_ROLE(), CURRENT_SECONDARY_ROLES(), CURRENT_WAREHOUSE(), …` and reads `SHOW GRANTS TO ROLE` for the session's role. It reports the identity, the role and the warehouse, and the role's own write privileges (`INSERT`, `OWNERSHIP`, `CREATE …` and the like; inherited roles are named, not followed). A system role such as `ACCOUNTADMIN` is a danger outside dev, a role that can write is a warning outside dev, and active secondary roles are a warning too. Outside dev it always advises a read-only role unless the role's grants show it only reads. Health runs `SELECT 1`.
+
+**Tables** lists the tables agents may use as `DATABASE.SCHEMA.TABLE`; `*` matches any characters and case is ignored (`ANALYTICS.PUBLIC.*`). Empty, every table the role may read.
+
+## Bound reads and review exact changes
+
+| Tool | What it does | Default mode |
+| --- | --- | --- |
+| `snowflake_list_schemas` | Schemas and tables of one database from its INFORMATION_SCHEMA, with row counts and sizes | Read only |
+| `snowflake_describe_table` | Columns, types, nullability, defaults and comments of one table or view | Read only |
+| `snowflake_query` | One `SELECT`, `WITH … SELECT`, `SHOW` or `DESCRIBE` | Read only |
+| `snowflake_execute` | One `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE` or DDL statement | Approval |
+
+The listing and the description run GateRook's own statements over INFORMATION_SCHEMA, with the names and patterns as bound values, and with a table list show only listed tables.
+
+GateRook reads a statement by Snowflake's own tokens: `'…'` strings with backslash escapes and doubled quotes, `$$…$$` strings, `"…"` names, `--`, `//` and `/* … */` comments. What it can't read the same way is refused: an open quote or comment, a comment inside a comment, `$$` right after a name, unbalanced parentheses, control characters, invisible characters outside strings, and characters outside ASCII outside strings and quoted names. Both tools refuse more than one statement, the flow operator `->>`, session and transaction control (`USE`, `ALTER SESSION`, `SET`, `BEGIN`, `COMMIT`, `ROLLBACK`), `CALL`, `EXECUTE IMMEDIATE` and scripting blocks, and file commands (`PUT`, `GET`, `COPY`, `LIST`, `REMOVE`). Every statement is sent with `MULTI_STATEMENT_COUNT=1`, so Snowflake itself refuses a second one, and with a `QUERY_TAG` that names GateRook, the tool and the call, for `QUERY_HISTORY`.
+
+`snowflake_query` also refuses every statement that changes data or objects, `NEXTVAL`, `FOR UPDATE`, and every `SYSTEM$` function except `SYSTEM$TYPEOF` and the clustering statistics (`SYSTEM$CLUSTERING_INFORMATION`, `SYSTEM$CLUSTERING_DEPTH`): other system functions cancel queries, change state or send messages. Before a SELECT runs, Snowflake plans it with `EXPLAIN USING JSON`, which compiles the statement without running it; a plan GateRook can't read, or one with an operation that changes data, is refused. With a table list, every table the plan reads must be listed (Snowflake shows the tables under a view, so list those too), and `SHOW`, INFORMATION_SCHEMA, stages and functions that read an object named in a string (`RESULT_SCAN`, `GET_DDL`, `INFER_SCHEMA`, the clustering functions) are refused. User-defined, secure and external functions run as Snowflake defines them: GateRook sees only the tables Snowflake's plan names, and an external function can reach the service it calls.
+
+Answers are typed by the statement's result metadata: `FIXED` integers within ±2^53 and finite `REAL` values are JSON numbers, decimals and larger numbers their exact text; `BOOLEAN` is a boolean; `DATE`, `TIME` and the `TIMESTAMP` types are ISO-8601 text; `VARIANT`, `OBJECT`, `ARRAY` and the geospatial types are JSON text without white space; `BINARY` shows its first 256 bytes in hex with its length; text is cut to the endpoint's cell size. A query keeps at most the endpoint's row limit (`ROWS_PER_RESULTSET`), and GateRook reads Snowflake's result partitions until the row limit, a share of the response size or the call's deadline. When rows are left, the answer says so and asks for a narrower query. The statement timeout is the stricter of the connection's and the policy's (Policies › SQL), and always ends before the call does; a statement still running at the deadline is canceled.
+
+`snowflake_execute` also refuses `GRANT`, `REVOKE`, `DROP DATABASE`, and statements on users, roles, integrations, secrets, network, authentication, password and session policies, shares, connections, replication and failover groups and the account: a person changes those in Snowflake itself. The approval shows the exact statement with the role, warehouse, database and schema it runs in, and what runs is the approved text in that context: when the connection's account, role, warehouse or namespace changed since, it doesn't run. Snowflake commits the statement when it ends, DDL at once. A change is never retried: a request whose answer is lost, a server failure during it and a statement still running at the deadline (which GateRook asks Snowflake to cancel) are reported as unknown. The answer reports the rows inserted, updated and deleted from the SQL API's statistics, or the status of DDL. With a table list, a change must name one listed table directly; a query inside it, a stage, `CLONE`, `LIKE`, renames, swaps, and sources of `UPDATE … FROM`, `DELETE … USING` and `MERGE … USING` that aren't listed are refused.
+
+## Verification limits
+
+No Snowflake account was used to build or test this connector, and Snowflake has no emulator. The tests run against a fake of the SQL API that verifies each JWT's signature and claims, and check the requests, the plan check, partitions, typed values, table lists, approvals and error mapping. How Snowflake itself behaves is not verified: the operation names of its plans for every kind of query, its partition sizes, `ROWS_PER_RESULTSET`, its error codes, and whether `SELECT 1` and the context functions of Test connection run without a warehouse. JVM checks do not establish native-image or installer compatibility.
+
+Snowflake documents the [SQL API](https://docs.snowflake.com/en/developer-guide/sql-api/reference), [authentication for it](https://docs.snowflake.com/en/developer-guide/sql-api/authenticating), [programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens), [EXPLAIN](https://docs.snowflake.com/en/sql-reference/sql/explain) and [secondary roles](https://docs.snowflake.com/en/sql-reference/sql/use-secondary-roles).

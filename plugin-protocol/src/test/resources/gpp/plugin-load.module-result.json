@@ -1,0 +1,85 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 2,
+  "result" : {
+    "generation" : "firebase@1.2.0",
+    "type" : "firestore",
+    "connectorApi" : "2.0.0",
+    "loadMs" : 212,
+    "tools" : [ {
+      "name" : "firestore_get",
+      "title" : "Get a document",
+      "description" : "Reads one document.",
+      "inputSchema" : {
+        "type" : "object"
+      },
+      "annotations" : {
+        "readOnlyHint" : true,
+        "destructiveHint" : false,
+        "idempotentHint" : true,
+        "openWorldHint" : false
+      },
+      "nature" : "READ",
+      "defaultMode" : "READ_ONLY",
+      "prodDefaultMode" : "READ_ONLY",
+      "resultShape" : "JSON",
+      "risk" : {
+        "privateData" : true,
+        "untrustedContent" : true,
+        "egress" : "NONE"
+      }
+    } ],
+    "sandbox" : "seatbelt",
+    "types" : [ {
+      "type" : "firestore",
+      "tools" : [ {
+        "name" : "firestore_get",
+        "title" : "Get a document",
+        "description" : "Reads one document.",
+        "inputSchema" : {
+          "type" : "object"
+        },
+        "annotations" : {
+          "readOnlyHint" : true,
+          "destructiveHint" : false,
+          "idempotentHint" : true,
+          "openWorldHint" : false
+        },
+        "nature" : "READ",
+        "defaultMode" : "READ_ONLY",
+        "prodDefaultMode" : "READ_ONLY",
+        "resultShape" : "JSON",
+        "risk" : {
+          "privateData" : true,
+          "untrustedContent" : true,
+          "egress" : "NONE"
+        }
+      } ]
+    }, {
+      "type" : "firebase-rtdb",
+      "tools" : [ {
+        "name" : "rtdb_get",
+        "title" : "Read a path",
+        "description" : "Reads the value at a path.",
+        "inputSchema" : {
+          "type" : "object"
+        },
+        "annotations" : {
+          "readOnlyHint" : true,
+          "destructiveHint" : false,
+          "idempotentHint" : true,
+          "openWorldHint" : false
+        },
+        "nature" : "READ",
+        "defaultMode" : "READ_ONLY",
+        "prodDefaultMode" : "READ_ONLY",
+        "resultShape" : "JSON",
+        "risk" : {
+          "privateData" : true,
+          "untrustedContent" : true,
+          "egress" : "NONE"
+        }
+      } ]
+    } ]
+  }
+}

@@ -10,8 +10,8 @@
 // `POST /internal/keyset/protect`: an answer lost after the core rewrote the file would leave main unsure whether to
 // keep the key, and dropping it would lose the keyset.
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, renameSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { writeFileAtomic } from './atomic-file.ts';
 
 /** The part of Electron's `safeStorage` this needs (async API; a fake in tests). */
@@ -112,10 +112,20 @@ export async function planFileKey(home: string, safe: SafeStorageLike | null,
       key = Buffer.from(result, 'base64');
       if (key.length !== FILE_KEY_BYTES) throw new Error('the protected key has the wrong length');
     } catch (e) {
-      // The OS store lost the key (a new Keychain, another account): the core can't open the keyset and says
-      // MASTER_KEY_INVALID; restoring a backup is the way out. The .osk stays: the store may come back.
-      return { fileKey: null, protection: a.off, note: `the protected file key can't be read (${(e as Error).message})`,
-        ...(accessDenied(e) ? { accessFailed: true as const } : {}) };
+      const why = `the protected file key can't be read (${(e as Error).message})`;
+      if (accessDenied(e)) return { fileKey: null, protection: a.off, note: why, accessFailed: true };
+      const keyset = keysetPath(home);
+      if (existsSync(keyset) && encryptedKeyset(keyset)) {
+        // The OS store lost the key (a new Keychain, another account): the core can't open the keyset and says
+        // MASTER_KEY_INVALID; restoring a backup is the way out. The .osk stays: the store may come back.
+        return { fileKey: null, protection: a.off, note: why };
+      }
+      // A master key was restored or created without the lost key (the keyset is cleartext now, or gone): the .osk
+      // protects nothing, and keeping it in place would keep that key in clear text for good. It is kept aside, never
+      // deleted, in case the store comes back, and a new key protects the master key from this start on.
+      const aside = setAside(osk);
+      return { fileKey: await newProtectionKey(home, safe), protection: a.on,
+        note: `${why}; it was kept as ${basename(aside)}, and a new file key protects the master key` };
     }
     let note: string | null = null;
     if (shouldReEncrypt) {
@@ -142,6 +152,17 @@ export async function planFileKey(home: string, safe: SafeStorageLike | null,
   }
   // Encrypted, but its key is gone with the .osk: nothing here opens it; the core says MASTER_KEY_INVALID.
   return { fileKey: null, protection: a.off, note: 'the master key file is encrypted, but its protected file key is missing' };
+}
+
+/**
+ * Renames a protected file key that can't be read to `master.keyset.osk.unreadable-<ms>` (owner-only as it was) and
+ * returns the new path; a reset removes it with the rest of the vault.
+ */
+function setAside(osk: string): string {
+  let aside = `${osk}.unreadable-${Date.now()}`;
+  for (let n = 2; existsSync(aside); n++) aside = `${osk}.unreadable-${Date.now()}${n}`;
+  renameSync(osk, aside);
+  return aside;
 }
 
 /** The core's own test (secrets.internal.crypto.KeysetFile): an OS-protected file is an `encryptedKeyset`. */

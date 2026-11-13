@@ -147,3 +147,22 @@
     </footer>
   }
 </dialog>
+
+<!-- "Set all to…" that lets more than one tool run without approval: Cancel autofocus, the count named. -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #bulkDialog="gwDialog" [attr.aria-labelledby]="bulkConfirm() ? 'connection-bulk-confirm-title' : null" [attr.aria-describedby]="bulkConfirm() ? 'connection-bulk-confirm-description' : null">
+  @if (bulkConfirm(); as c) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg [lucideIcon]="c.mode === 'BYPASS' ? 'shield-off' : 'shield-question-mark'" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="connection-bulk-confirm-title">Let {{ c.count }} tools of <span class="gw-mono">{{ connection() }}</span> run without approval?</h2>
+      <p class="gw-dialog__description" id="connection-bulk-confirm-description">@if (c.mode === 'BYPASS') {In Bypass every call of these tools runs at once, including changes to data. Policy limits still apply.} @else {The server declares that these tools only read. The gateway can't check what an external server does: in Read only every call runs at once and is only logged.}</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <p class="gw-text-small gw-fg-secondary">On {{ c.shown.length === 1 ? 'endpoint' : 'endpoints' }} @for (s of c.shown; track s.endpoint; let last = $last) {<span class="gw-mono">{{ s.endpoint }}</span>{{ last ? '' : ', ' }}}. Only the tools listed here change.</p>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="confirmBulk()">{{ c.mode === 'BYPASS' ? 'Set ' + c.count + ' tools to Bypass' : c.mode === 'DEFAULT' ? 'Restore ' + c.count + ' tools to their defaults' : 'Set ' + c.count + ' tools to Read only' }}</button>
+    </footer>
+  }
+</dialog>

@@ -9,8 +9,8 @@
         <button class="gw-btn gw-btn--primary" type="button" aria-haspopup="menu" [gwMenuTrigger]="addMenu"><svg lucideIcon="plus" class="gw-icon"></svg> Add connector <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
         <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #addMenu="gwMenu" id="menu-add-connector" role="menu" aria-label="Add connector" hidden>
           <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connectors" fragment="templates"><svg lucideIcon="file-code" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">New template<span class="gw-menu__hint">SQL query, SSH runbook or OpenAPI import. No code.</span></span></a>
-          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="openInstall($event)"><svg lucideIcon="puzzle" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Install plugin<span class="gw-menu__hint">Java plugin from a JAR file or a URL</span></span></button>
-          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="openAddServer($event)"><svg lucideIcon="plug" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add MCP server<span class="gw-menu__hint">Any MCP server over stdio or HTTP</span></span></button>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="openInstall($event)"><svg lucideIcon="puzzle" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Install plugin or module<span class="gw-menu__hint">A Java plugin or a connector module, from a JAR file</span></span></button>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="openAddServer()"><svg lucideIcon="plug" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add MCP server<span class="gw-menu__hint">Any MCP server over stdio or HTTP</span></span></button>
         </div>
       </div>
     </div>
@@ -22,7 +22,7 @@
 <section gwHowItWorks [level]="2" summary="Three levels of connectors. Whatever the level, every tool goes through tokens, modes, approvals and audit." stepsLabel="Levels of connectors" persist="connectors-how-it-works">
   <li gwHowItWorksStep icon="package" heading="Built-in">SQL, MongoDB, Redis, SSH, logs, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</li>
   <li gwHowItWorksStep icon="file-code" heading="Templates without code">A named SQL query, an SSH runbook or an OpenAPI file becomes a tool with typed parameters. No restart.</li>
-  <li gwHowItWorksStep icon="puzzle" heading="Plugins and MCP servers">A Java plugin adds a new resource type in its own plugin process; an MCP server runs as its own process. Check the signature first.</li>
+  <li gwHowItWorksStep icon="puzzle" heading="Plugins, modules and MCP servers">A Java plugin or a connector module of your own adds resource types in its own process; an MCP server runs as its own process. Check the signature first.</li>
 </section>
 
 @let n = counts();
@@ -35,7 +35,7 @@
   </div>
 
   <div gwInstalledPanel [views]="installed()" [slow]="slow()" [busyKey]="busyKey()" (action)="onInstalledAction($event)"></div>
-  <div gwCatalogPanel hidden [slow]="slow()" [busyKey]="busyKey()" (action)="onCatalogAction($event)"></div>
+  <div gwCatalogPanel hidden [slow]="slow()" [busyKey]="busyKey()" [checking]="checking()" (action)="onCatalogAction($event)" (check)="checkCatalog()"></div>
   <div gwTemplatesPanel hidden [slow]="slow()" (action)="onTemplateAction($event)"></div>
   <div gwMcpServersPanel hidden [slow]="slow()" (action)="onServerAction($event)"></div>
 </div>
@@ -44,7 +44,6 @@
 <dialog gwPluginInstallDialog gwDialogStatic (checked)="onChecked($event)"></dialog>
 <dialog gwPluginReviewDialog gwDialogStatic></dialog>
 <dialog gwPluginUpdateDialog></dialog>
-<gw-mcp-setup-flow />
 <dialog gwMcpSignInDialog gwDialogStatic></dialog>
 <dialog gwConfirmDialog></dialog>
 <dialog gwTemplateInstallDialog gwDialogStatic></dialog>

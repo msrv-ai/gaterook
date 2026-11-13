@@ -1,0 +1,54 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 77,
+  "result" : {
+    "tools" : [ {
+      "opKey" : "ship",
+      "definition" : {
+        "name" : "neo4j_execute",
+        "title" : "Run Cypher",
+        "description" : "Runs one Cypher statement that may change the graph.",
+        "inputSchema" : {
+          "type" : "object",
+          "additionalProperties" : false,
+          "required" : [ "connection", "cypher" ],
+          "properties" : {
+            "connection" : {
+              "type" : "string"
+            },
+            "cypher" : {
+              "type" : "string"
+            },
+            "params" : {
+              "type" : "object"
+            }
+          }
+        },
+        "annotations" : {
+          "readOnlyHint" : false,
+          "destructiveHint" : false,
+          "idempotentHint" : false,
+          "openWorldHint" : false
+        },
+        "nature" : "MUTATION",
+        "defaultMode" : "APPROVAL",
+        "prodDefaultMode" : "APPROVAL",
+        "resultShape" : "JSON",
+        "risk" : {
+          "privateData" : true,
+          "untrustedContent" : true,
+          "egress" : "NONE"
+        }
+      },
+      "binding" : {
+        "statement" : "ship-order"
+      }
+    } ],
+    "contributions" : [ {
+      "note" : "Orders"
+    } ],
+    "errors" : [ ],
+    "warnings" : [ "The statement changes the graph: every call waits for approval." ],
+    "digest" : "sha256:4be0c1"
+  }
+}

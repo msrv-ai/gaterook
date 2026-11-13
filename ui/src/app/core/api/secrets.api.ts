@@ -1,6 +1,15 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
+import { ApiError, isApiError } from './api-error';
 import { Iso, JsonObject, WithReason } from './types';
+
+/**
+ * Whether a failed Rotate is the core's "Rotation unconfirmed" 409: no clear answer came, so the source may already
+ * use the new value, which the core keeps (state `unconfirmed`) until a later Rotate settles it. Not a refusal.
+ */
+export function rotationUnconfirmed(e: unknown): e is ApiError {
+  return isApiError(e) && e.kind === 'conflict' && e.title === 'Rotation unconfirmed';
+}
 
 /** One of the secrets table's rows; no value, ever (write-only). */
 export interface SecretRow {
@@ -10,12 +19,16 @@ export interface SecretRow {
   readonly ownerKind: 'connection' | 'store' | 'mcp-server' | 'notification' | 'tunnel' | 'audit-export' | string;
   readonly field: string;
   readonly usedBy: string[];
-  /** `local` (encrypted here), or the store of a reference: `vault`, `gcp-sm`, `aws-sm` (step S1). */
+  /** `local` (encrypted here), or the store of a reference: `vault`, `gcp-sm`, `aws-sm`, `azure-kv` (step S1). */
   readonly source: string;
   readonly version: number | null;
   readonly remoteVersion: string | null;
   readonly rotatedAt: Iso | null;
-  /** `stored`, `needs-value`, `testing`; for references `reference`, `short-lived`, `not-connected`, `changed-outside`. */
+  /**
+   * `stored`, `needs-value`, `testing` (a new value failed its test), `unconfirmed` (a rotation at the source got no
+   * clear answer: the source may use the kept new version; Rotate settles it); for references `reference`,
+   * `short-lived`, `not-connected`, `changed-outside`.
+   */
   readonly state: string;
   readonly canRotate: boolean;
   /** Why Rotate is unavailable (shown with `aria-disabled`). */
@@ -85,7 +98,7 @@ export interface SecretReference {
   readonly state: string;
 }
 
-export type SecretStoreKind = 'vault' | 'gcp-sm' | 'aws-sm';
+export type SecretStoreKind = 'vault' | 'gcp-sm' | 'aws-sm' | 'azure-kv';
 
 /** Immediate children of a Vault KV folder, or visible KV mounts for the empty path. No secret values. */
 export interface VaultBrowse {
@@ -122,7 +135,8 @@ export interface SecretStoreSignIn {
 }
 
 /**
- * An external store (S1 `SecretStores.StoreInfo`): Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager.
+ * An external store (S1 `SecretStores.StoreInfo`): Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager, Azure Key
+ * Vault.
  * `state`: `connected` (its last test passed), `failing` or `not-checked`; `issues` — connections it issues
  * short-lived credentials for (dynamic users, SSH certificates); `verified` false — changed outside GateRook.
  */
@@ -206,7 +220,7 @@ export interface MasterKeyStatus {
   readonly protectsBy?: MasterKeyProtects[];
   /**
    * The secret references, which don't need the key and keep working with a new one: how many, and their sources
-   * (`vault`, `gcp-sm`, `aws-sm`) each once.
+   * (`vault`, `gcp-sm`, `aws-sm`, `azure-kv`) each once.
    */
   readonly references?: { readonly count: number; readonly sources: string[] };
 }
@@ -234,7 +248,10 @@ export class SecretsApi {
     return this.api.put(ApiClient.path`/api/secrets/${id}/value`, request);
   }
 
-  /** 202 `{jobId}`, or 409 with the reason the source can't rotate it. */
+  /**
+   * 202 `{jobId}`, or 409 with the reason the source can't rotate it, or "Rotation unconfirmed"
+   * ({@link rotationUnconfirmed}) when the outcome is unknown and the new value is kept.
+   */
   rotate(id: string, body: WithReason = {}): Promise<{ readonly jobId: string }> {
     return this.api.post(ApiClient.path`/api/secrets/${id}/rotate`, body);
   }

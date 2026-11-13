@@ -15,6 +15,24 @@ const REGION = '[a-z]{2}(?:-[a-z]+)+-\\d+';
 const API_AWS = new RegExp(`^([a-z0-9-]+)\\.(${REGION})\\.api\\.aws$`);
 const AMAZONAWS = new RegExp(`^(?:[a-z0-9-]+\\.)*?([a-z0-9-]+)\\.(${REGION})\\.amazonaws\\.com$`);
 
+/** One or more DNS labels, then `googleapis.com`: the hosts of Google's own APIs. */
+const GOOGLE_API_HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+googleapis\.com$/;
+
+/**
+ * Whether a Google token may go to `url`, as the core decides it: HTTPS on one of Google's API hosts
+ * (`https://bigquery.googleapis.com/mcp`), on the default port, without user info. Code other people deploy runs under
+ * other domains (`run.app`, a custom domain), where a token would reach whoever deployed it.
+ */
+export function googleApiUrl(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  return u.protocol === 'https:' && !u.username && !u.password && (u.port === '' || u.port === '443') && GOOGLE_API_HOST.test(u.hostname.toLowerCase());
+}
+
 export interface AwsTarget {
   readonly service: string;
   readonly region: string;

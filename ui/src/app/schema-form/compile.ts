@@ -27,6 +27,8 @@ export interface Condition {
   readonly negate: boolean;
   /** A required string activates optional settings after it reaches this length (for example a bastion host). */
   readonly minLength?: number;
+  /** A required list activates a requirement once it holds this many items (Databricks: catalogs need a default). */
+  readonly minItems?: number;
 }
 
 export interface FieldOption {
@@ -45,8 +47,23 @@ export interface SchemaNode {
   readonly title: string;
   readonly description: string | null;
   readonly required: boolean;
+  /**
+   * Branch conditions under which the field is required although the branch that declares it doesn't say so: a
+   * `required` of another `if`/`then` branch (Kubernetes: a kubeconfig file requires the Context both kubeconfig modes
+   * declare). Each entry holds when all of its conditions do.
+   */
+  readonly requiredWhen: readonly (readonly Condition[])[];
   /** "Optional" after the label: not required and nothing filled in for the user. */
   readonly optional: boolean;
+  /**
+   * `x-advanced`: `true` puts an optional field under the collapsed Advanced settings, `false` keeps it where the schema
+   * places it; `null` lets the form decide ({@link isAdvanced}).
+   */
+  readonly advanced: boolean | null;
+  /** `readOnly` (on the field or an object around it): set by Test connection, shown only once it has a value. */
+  readonly readOnly: boolean;
+  /** `x-required-env`: environments where the connector requires the field although the schema can't say so (prod). */
+  readonly requiredEnv: readonly string[];
   /** Identifiers, hosts, paths: the kit sets config values in the mono face. */
   readonly mono: boolean;
   readonly schema: JsonObject;
@@ -211,8 +228,12 @@ function orderedKeys(s: JsonObject, props: JsonObject): string[] {
   return [...order.filter((k) => keys.includes(k)), ...keys.filter((k) => !order.includes(k))];
 }
 
-/** A branch condition on a discriminator: `{properties: {kind: {const: 'a'}}}` → kind is 'a'. */
-function conditionOf(test: JsonValue | undefined, parent: readonly string[], negate: boolean): Condition | null {
+/**
+ * A branch condition on a discriminator: `{properties: {kind: {const: 'a'}}}` → kind is 'a'. With `nested`, an `if` may
+ * name a member of an object instead (`{properties: {credentials: {properties: {source: {enum: […]}}}}}`, Azure's
+ * tenant for a service principal), when none of its own properties decides.
+ */
+function conditionOf(test: JsonValue | undefined, parent: readonly string[], negate: boolean, nested = false): Condition | null {
   if (!isObject(test) || !isObject(test['properties'])) return null;
   for (const [key, cond] of Object.entries(test['properties'])) {
     if (!isObject(cond)) continue;
@@ -222,6 +243,15 @@ function conditionOf(test: JsonValue | undefined, parent: readonly string[], neg
       && Array.isArray(test['required']) && test['required'].includes(key)) {
       return { path: [...parent, key], values: [], negate, minLength: cond['minLength'] };
     }
+    if (nested && cond['type'] === 'array' && typeof cond['minItems'] === 'number'
+      && Array.isArray(test['required']) && test['required'].includes(key)) {
+      return { path: [...parent, key], values: [], negate, minItems: cond['minItems'] };
+    }
+  }
+  if (!nested) return null;
+  for (const [key, cond] of Object.entries(test['properties'])) {
+    const inner = isObject(cond) ? conditionOf(cond, [...parent, key], negate, true) : null;
+    if (inner) return inner;
   }
   return null;
 }
@@ -295,8 +325,10 @@ function compileNode(
   when: readonly Condition[],
   inheritedSecret: string | null,
   within: readonly (readonly string[])[],
+  inheritedReadOnly = false,
 ): SchemaNode {
   const { schema: s, seen: next } = deref(raw, root, seen);
+  const readOnly = inheritedReadOnly || s['readOnly'] === true;
   const path = key === null ? [...parent] : [...parent, key];
   const kind = kindOf(s);
   const ownSecret = str(s['x-gateway-secret']);
@@ -307,7 +339,16 @@ function compileNode(
   const children: SchemaNode[] = [];
   const has = (k: string, depth: number) => children.some((c) => c.key === k && c.when.length === depth);
   const add = (k: string, child: JsonValue | undefined, req: boolean, cond: readonly Condition[]) => {
-    if (isObject(child)) children.push(compileNode(k, child, path, req, root, next, cond, ownSecret ?? inheritedSecret, inner));
+    if (isObject(child)) children.push(compileNode(k, child, path, req, root, next, cond, ownSecret ?? inheritedSecret, inner, readOnly));
+  };
+  // A branch's `required` may name a field another branch or the object itself declares: required while it holds.
+  const branchRequired = new Map<string, Condition[][]>();
+  const requireIn = (branch: JsonObject, conds: readonly Condition[]) => {
+    const declared = isObject(branch['properties']) ? branch['properties'] : {};
+    for (const k of requiredOf(branch)) {
+      if (k in declared) continue;
+      branchRequired.set(k, [...(branchRequired.get(k) ?? []), [...conds]]);
+    }
   };
   if (kind === 'object') {
     const props = isObject(s['properties']) ? s['properties'] : {};
@@ -331,19 +372,21 @@ function compileNode(
     };
     const addConditionals = (source: JsonObject, inherited: readonly Condition[]) => {
       for (const c of [source, ...(Array.isArray(source['allOf']) ? source['allOf'] : [])].filter(isObject)) {
-        const ifCond = conditionOf(c['if'], path, false);
+        const ifCond = conditionOf(c['if'], path, false, true);
         if (!ifCond) continue;
         for (const [branch, negate] of [
           ['then', false],
           ['else', true],
         ] as const) {
           const b = c[branch];
-          if (!isObject(b) || !isObject(b['properties'])) continue;
+          if (!isObject(b)) continue;
+          requireIn(b, [...inherited, { ...ifCond, negate }]);
+          if (!isObject(b['properties'])) continue;
           const breq = requiredOf(b);
           for (const [k, child] of Object.entries(b['properties'])) {
             if (has(k, inherited.length) || !isObject(child)) continue;
             const node = compileNode(k, child, path, breq.has(k), root, next, [...inherited, { ...ifCond, negate }],
-              ownSecret ?? inheritedSecret, inner);
+              ownSecret ?? inheritedSecret, inner, readOnly);
             children.splice(chosenBy(ifCond.path), 0, node);
           }
         }
@@ -377,11 +420,13 @@ function compileNode(
           when,
           inheritedSecret,
           inner,
+          readOnly,
         ),
       );
     }
     branches.forEach((b, i) => {
       const cond = conds[i];
+      requireIn(b, cond ? [...when, cond] : when);
       const bprops = b['properties'];
       if (!isObject(bprops)) return;
       const breq = requiredOf(b);
@@ -393,6 +438,10 @@ function compileNode(
       addConditionals(b, cond ? [...when, cond] : when);
     });
   }
+  for (let i = 0; i < children.length; i++) {
+    const extra = branchRequired.get(children[i].key);
+    if (extra && !children[i].required) children[i] = { ...children[i], requiredWhen: [...children[i].requiredWhen, ...extra] };
+  }
   const optional = !required && s['default'] === undefined && kind !== 'checkbox' && kind !== 'object' && kind !== 'number';
   const secret = kind === 'secret' ? (ownSecret ?? (inheritedSecret === 'login' ? 'value' : inheritedSecret) ?? 'value') : ownSecret;
   return {
@@ -403,7 +452,11 @@ function compileNode(
     title: str(s['title']) ?? key ?? '',
     description: str(s['description']),
     required,
+    requiredWhen: [],
     optional,
+    advanced: s['x-advanced'] === true ? true : s['x-advanced'] === false ? false : null,
+    readOnly,
+    requiredEnv: Array.isArray(s['x-required-env']) ? s['x-required-env'].filter((e): e is string => typeof e === 'string') : [],
     mono: kind === 'text' || kind === 'number' || kind === 'tags',
     schema: s,
     unit: str(s['x-unit']),
@@ -439,7 +492,11 @@ export function rootSection(fields: readonly SchemaNode[], title: string, rows: 
     title,
     description: null,
     required: true,
+    requiredWhen: [],
     optional: false,
+    advanced: null,
+    readOnly: false,
+    requiredEnv: [],
     mono: false,
     schema: {},
     unit: null,
@@ -590,14 +647,51 @@ export function setAt(model: JsonObject, path: readonly string[], value: JsonVal
   return { ...model, [head]: rest.length ? setAt(isObject(child) ? child : {}, rest, value) : value };
 }
 
+/** Whether one branch condition holds for this model. */
+export function conditionHolds(c: Condition, model: JsonValue): boolean {
+  const v = getAt(model, c.path);
+  const hit = c.minItems !== undefined ? Array.isArray(v) && v.length >= c.minItems
+    : c.minLength === undefined ? c.values.some((x) => x === v)
+      : typeof v === 'string' && [...v].length >= c.minLength;
+  return c.negate ? !hit : hit;
+}
+
 /** Whether a node shows for this model: all of its branch conditions hold. */
 export function isVisible(node: SchemaNode, model: JsonValue): boolean {
-  return node.when.every((c) => {
-    const v = getAt(model, c.path);
-    const hit = c.minLength === undefined ? c.values.some((x) => x === v)
-      : typeof v === 'string' && [...v].length >= c.minLength;
-    return c.negate ? !hit : hit;
-  });
+  return node.when.every((c) => conditionHolds(c, model));
+}
+
+/** Whether the field is required for this model: by its branch, or by another branch's `required` that holds. */
+export function isRequired(node: SchemaNode, model: JsonValue): boolean {
+  return node.required || node.requiredWhen.some((conds) => conds.every((c) => conditionHolds(c, model)));
+}
+
+/** Logins pair a user with its password: the user stays next to it, never under Advanced. */
+const LOGIN_KEY = /^(user|username|login|accessKeyId|clientId|applicationId)$/;
+
+/**
+ * Whether the form may show a field under the collapsed Advanced settings: `x-advanced` when the schema says, else every
+ * field that isn't always required, isn't a credential (a secret, the user of a login) and doesn't decide which other
+ * fields show. A field required only in some cases (by a sign-in mode, another field, the environment) is one too: the
+ * form keeps it in sight while it is required ({@link SchemaForm.needed}). Display only: the config keeps the field
+ * where the schema puts it.
+ */
+export function isAdvanced(node: SchemaNode, form: CompiledForm): boolean {
+  if (node.kind === 'object') return false;
+  if (node.advanced !== null) return node.advanced;
+  if (node.readOnly) return true;
+  if (node.required || node.kind === 'secret' || node.secret === 'login') return false;
+  const siblings = (test: (n: SchemaNode) => boolean) => form.all.some((n) => n !== node && test(n)
+    && samePath(n.path.slice(0, -1), node.path.slice(0, -1)));
+  if (LOGIN_KEY.test(node.key) && siblings((n) => n.kind === 'secret')) return false;
+  // A port belongs next to its host (Host · Port), even when it has a default.
+  if (node.key === 'port' && siblings((n) => n.key === 'host')) return false;
+  return !decides(node, form);
+}
+
+/** Whether another field shows only for some values of this one (Sign in with, an endpoint). */
+export function decides(node: SchemaNode, form: CompiledForm): boolean {
+  return form.all.some((n) => n !== node && n.when.some((c) => samePath(c.path, node.path)));
 }
 
 /**
@@ -703,12 +797,24 @@ export function cleanValue(form: CompiledForm, model: JsonObject, filled: Readon
   return isObject(cleaned) ? cleaned : {};
 }
 
-/** "Schema allowlist" → "schema": the noun the tag buttons name ("Remove schema public", "Add schema"). */
+/**
+ * The noun the tag buttons, placeholder and messages name ("Remove schema public", "Add a data folder"): the items'
+ * own title, else the list's title up to its first plural word, made singular ("Data folders" → "data folder", "Base
+ * URLs" → "base URL", "Keys the agent may access" → "key"), else its first word ("Schema allowlist" → "schema").
+ */
 export function tagNoun(node: SchemaNode): string {
   const items = node.schema['items'];
   const title = isObject(items) ? str(items['title']) : null;
   if (title) return title.toLowerCase();
-  return (node.title.split(/\s+/)[0] ?? 'value').toLowerCase().replace(/s$/, '');
+  const words = node.title.split(/\s+/).filter((w) => w.length > 0);
+  const plural = words.findIndex((w) => /^[A-Za-z]+s$/.test(w) && !/(ss|us|is)$/i.test(w));
+  const phrase = (plural >= 0 ? words.slice(0, plural + 1) : words.slice(0, 1)).map((w, i) => {
+    const word = /^[A-Z0-9]{2,}s?$/.test(w) ? w : w.toLowerCase(); // URLs, GET, IPs keep their capitals
+    if (i !== plural) return word;
+    if (/ies$/.test(word)) return `${word.slice(0, -3)}y`;
+    return /(ss|ch|sh|x|z|us)es$/.test(word) ? word.slice(0, -2) : word.slice(0, -1);
+  });
+  return phrase.join(' ') || 'value';
 }
 
 /** The example a number error offers ("Enter a whole number, for example 5432"). */

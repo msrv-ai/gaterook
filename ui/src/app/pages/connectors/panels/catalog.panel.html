@@ -51,13 +51,23 @@
           <p class="gw-alert__body">These are the entries of the last index that did. Nothing from the new one is offered.@if (problem()) { {{ problem() }}}</p>
         </div>
       </div>
-    } @else if (problem() && views()!.length) {
+    } @else if (problem() && entries()!.length) {
       <!-- Review 2026-10-26: the core says why the last check failed (K6 `problem`); the entries are the last good index. -->
       <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
         <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
         <div class="gw-alert__content">
           <p class="gw-alert__title">The catalog couldn't be checked</p>
           <p class="gw-alert__body">{{ problem() }} These are the entries of the last index GateRook verified.</p>
+        </div>
+      </div>
+    }
+    @if (listProblem() && modules().length) {
+      <!-- GateRook's list of connector modules couldn't be read again: its cards are those of the last list. -->
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">GateRook's list of connectors couldn't be checked</p>
+          <p class="gw-alert__body">{{ listProblem() }} These are the connectors of the last list GateRook verified.</p>
         </div>
       </div>
     }
@@ -80,25 +90,32 @@
         </div>
         <p class="gw-text-small gw-fg-muted gw-tabular" id="catalog-count" role="status">{{ countText() }}</p>
       </div>
-      @if (views()!.length) {
-        <!-- Without entries the empty card below offers it, once. -->
-        <div class="gw-toolbar__end">
+      <div class="gw-toolbar__end">
+        <!-- Both signed lists are checked at once, not when they are six hours old: what was just published shows up,
+             and a first start without the network gets its lists. -->
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-busy]="checking() ? 'true' : null" [attr.aria-disabled]="checking() ? 'true' : null" (click)="checking() || check.emit()">@if (checking()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>} Check now<span class="gw-sr-only"> for changes in the catalog</span></button>
+        @if (views()!.length) {
+          <!-- Without entries the empty card below offers it, once. -->
           <button class="gw-btn gw-btn--sm" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon gw-icon--sm"></svg> Install from file or URL</button>
-        </div>
-      }
+        }
+      </div>
     </div>
 
     <ul class="gw-grid gw-grid--3" id="catalog-grid" aria-label="Catalog" [hidden]="!shown().length">
       @for (c of shown(); track c.key) {
         <li>
           <article gwConnectorCard [card]="c.card" confirmUnsigned="false" [busy]="busyKey() === c.key" (act)="fromCard(c)">
+            <!-- One of GateRook's own modules: what choosing it costs, as its card in Add connection says. The block
+                 holds the note and nothing else, not even a line break: whitespace is kept, and a second node would
+                 keep the note out of the card's slot. -->
+            @if (c.note) {<p class="gw-text-caption gw-fg-muted" gwConnectorCardNote>{{ c.note }}</p>}
             <div class="gw-card__actions" gwConnectorCardActions>
               @switch (c.action) {
                 @case ('open-server') {
-                  <a class="gw-btn gw-btn--sm" routerLink="/connectors" fragment="mcp-servers">Open<span class="gw-sr-only"> {{ c.entry.installed }} in MCP servers</span></a>
+                  <a class="gw-btn gw-btn--sm" routerLink="/connectors" fragment="mcp-servers">Open<span class="gw-sr-only"> {{ c.entry?.installed }} in MCP servers</span></a>
                 }
                 @case ('add-connection') {
-                  <a class="gw-btn gw-btn--sm" routerLink="/connections/new" [queryParams]="{ type: c.entry.id }">Add connection<span class="gw-sr-only"> for {{ c.entry.name }}</span></a>
+                  <a class="gw-btn gw-btn--sm" routerLink="/connections/new" [queryParams]="{ type: c.card.type }">Add connection<span class="gw-sr-only"> for {{ c.card.name }}</span></a>
                 }
               }
             </div>
@@ -115,14 +132,14 @@
             <h3 class="gw-empty__title">Nothing in the catalog matches</h3>
             <p class="gw-empty__text">Write a template for it, or put an existing MCP server behind the gateway.</p>
             <div class="gw-empty__actions"><button class="gw-btn" type="button" gwSearchClear="#catalog-search"><svg lucideIcon="x" class="gw-icon"></svg> Clear search</button></div>
-          } @else if (problem()) {
-            <!-- No index was ever accepted: the core says why (no catalog in this build, unreachable, a bad signature). -->
+          } @else if (emptyProblem()) {
+            <!-- Nothing was ever accepted: the core says why (no catalog in this build, unreachable, a bad signature). -->
             <h3 class="gw-empty__title">The catalog isn't available</h3>
-            <p class="gw-empty__text">{{ problem() }} A plugin you have as a file can still be checked and installed.</p>
+            <p class="gw-empty__text">{{ emptyProblem() }} A plugin you have as a file can still be checked and installed.</p>
             <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon"></svg> Install from file or URL</button></div>
           } @else {
             <h3 class="gw-empty__title">The catalog is empty</h3>
-            <p class="gw-empty__text">Its index lists no plugins, templates or MCP servers for this core. Write a template, or install a plugin from a file or a URL.</p>
+            <p class="gw-empty__text">It lists no connectors, plugins, templates or MCP servers that this core doesn't have yet. Write a template, or install a plugin from a file or a URL.</p>
             <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon"></svg> Install from file or URL</button></div>
           }
         </div>

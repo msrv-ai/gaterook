@@ -1,5 +1,5 @@
 import { ConnectionRow } from '../../core/api/connections.api';
-import { EndpointStart, EndpointSummary, StartFrom, TokenRow } from '../../core/api/endpoints.api';
+import { EndpointDeleted, EndpointStart, EndpointSummary, StartFrom, TokenRow } from '../../core/api/endpoints.api';
 import { OAuthGrant, TunnelState } from '../../core/api/tunnel.api';
 import { Env } from '../../core/api/types';
 import { duration } from '../../core/time/time-format';
@@ -311,8 +311,10 @@ export function deleteFacts(e: EndpointSummary, tokens: readonly TokenRow[] | nu
   const waiting = e.approvalsWaiting;
   const parts: string[] = [];
   if (clients.length) {
-    const prod = e.env === 'prod' ? ' to the prod connections' : '';
-    parts.push(`${andList(clients)} ${clients.length === 1 ? 'loses' : 'lose'} access${prod} at once`);
+    // Deleting disconnects them as Disconnect does: their entries leave their configs, their access ends.
+    const one = clients.length === 1;
+    const prod = e.env === 'prod' ? ` and ${one ? 'loses' : 'lose'} access to the prod connections` : '';
+    parts.push(`${andList(clients)} ${one ? 'is' : 'are'} disconnected${prod} at once`);
   }
   if (revokes) parts.push('its tokens are revoked');
   if (waiting) parts.push(waiting === 1 ? 'the request waiting for approval is denied' : `the ${waiting} requests waiting for approval are denied`);
@@ -329,18 +331,25 @@ export function deleteFacts(e: EndpointSummary, tokens: readonly TokenRow[] | nu
   else tokenText = e.tokens.active ? `${plural(e.tokens.active, 'active token')} (revoked)` : 'None stored';
   return {
     description,
-    clients: clientNames.length ? clientNames.join(', ') : 'None',
+    clients: clientNames.length ? `${clientNames.join(', ')} (disconnected)` : 'None',
     tokens: tokenText,
     waiting: waiting ? `${plural(waiting, 'approval request')} (denied)` : null,
   };
 }
 
-export function deletedToast(slug: string, result: { readonly tokensRevoked: readonly string[]; readonly rejectedApprovals: number }): ToastText {
+/**
+ * The toast after Delete, on the Endpoints list and the endpoint's page: the AI apps the core disconnected, what it
+ * revoked and denied, then what is left for the person in an app (Claude Desktop keeps an installed extension).
+ */
+export function deletedToast(slug: string, result: EndpointDeleted): ToastText {
+  const { clients, notes } = result;
   const facts: string[] = [];
   if (result.tokensRevoked.length) facts.push(`${plural(result.tokensRevoked.length, 'token')} revoked`);
   if (result.rejectedApprovals) facts.push(`${plural(result.rejectedApprovals, 'waiting request')} denied`);
+  const lead = clients.length ? `${andList(clients)} ${clients.length === 1 ? 'is' : 'are'} disconnected. ` : '';
   const tail = facts.length ? ` ${facts.join(', ')}.` : '';
-  return { tone: 'success', title: `Endpoint ${slug} deleted`, body: `Its URL stops answering. The audit log keeps every call.${tail}` };
+  const todo = notes.map((n) => ` ${n}`).join('');
+  return { tone: 'success', title: `Endpoint ${slug} deleted`, body: `${lead}Its URL stops answering. The audit log keeps every call.${tail}${todo}` };
 }
 
 export function createdToast(slug: string, connections: number): ToastText {

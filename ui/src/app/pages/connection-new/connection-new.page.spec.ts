@@ -6,10 +6,13 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { CONNECTOR_FORMS } from '../../../testing/connector-schemas';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, SuggestRequest, Suggested, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
+import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
+import { ConnectorModules, ModulesApi } from '../../core/api/modules.api';
+import { McpProfile, McpRegistryServer, McpServerReview, McpServerSource, McpServerStarted, McpServersApi, PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { JsonObject, ToolMode } from '../../core/api/types';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
@@ -18,6 +21,8 @@ import { Announcer } from '../../kit/announcer';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
+import { clickhouseCheck } from '../connectors/connectors.fixtures';
+import { busyMonth } from './connection-calls.fixtures';
 import { ConnectionNewPage } from './connection-new.page';
 
 /**
@@ -68,7 +73,7 @@ const CATALOG: ConnectorCatalog = {
       name: 'Databases',
       cards: [
         { type: 'postgres', variant: null, name: 'PostgreSQL', icon: 'database', description: 'Read queries, schema, EXPLAIN. Writes wait for approval.', kind: 'built-in', version: null, signed: null, tools: 3, toolsFrom: null, connections: 3, available: true, reason: null, presetConfig: null },
-        { type: 'clickhouse', variant: null, name: 'ClickHouse', icon: 'database', description: 'Analytics.', kind: 'plugin', version: '1.0.0', signed: true, tools: 6, toolsFrom: null, connections: 0, available: false, reason: 'Not installed. Install it from the catalog in Connectors first.', presetConfig: null },
+        { type: 'clickhouse', variant: null, name: 'ClickHouse', icon: 'database', description: 'Analytics.', kind: 'plugin', version: '1.0.0', signed: true, tools: 6, toolsFrom: null, connections: 0, available: false, reason: 'Not installed yet. Continue reviews it and installs it from the catalog.', presetConfig: null, catalogRef: 'clickhouse@1.0.0' },
       ],
     },
   ],
@@ -217,6 +222,8 @@ class FakeCore {
     projects: [{ projectId: 'example-dev', displayName: 'Example development' }], discoveryComplete: true,
   } });
   pendingProjects: Promise<TestOutcome> | null = null;
+  suggestRequests: SuggestRequest[] = [];
+  nextSuggestions: Suggested | ApiError = { fields: {}, notes: [] };
   fileRequests: (TestDraftRequest & { readonly path: string })[] = [];
   nextFiles: TestOutcome | ApiError = outcome({ ok: true, details: { path: '/var/log', parent: '/var',
     entries: [{ name: 'app.log', path: '/var/log/app.log', type: 'file', size: 20 }], truncated: false } });
@@ -232,6 +239,14 @@ class FakeCore {
   detail: ConnectionDetail | ApiError = structuredClone(DETAIL);
   spec: ConnectionFormSpec = structuredClone(SPEC);
   catalog: ConnectorCatalog | ApiError = structuredClone(CATALOG);
+  pluginChecks: string[] = [];
+  formTypes: string[] = [];
+  /** A form that hasn't arrived yet: the request that installs a connector module and waits for it. */
+  pendingForm: Promise<ConnectionFormSpec> | null = null;
+  /** What `GET /api/modules` answers. */
+  modules: ConnectorModules = { channel: { configured: true, checkedAt: null, offline: false, problem: null }, modules: [] };
+  nextPluginCheck: PluginCheck | ApiError = clickhouseCheck(true);
+  pluginInstalls: { stagingId: string; acknowledgeUnsigned: boolean }[] = [];
   replaced: { id: string; value: string; reason: string | null | undefined }[] = [];
   references: { id: string; uri: string; store: string | null | undefined; reason: string | null | undefined }[] = [];
   referenceFails: ApiError[] = [];
@@ -243,6 +258,31 @@ class FakeCore {
   endpointTools: ToolRow[] = [];
   modes: { slug: string; toolKey: string; connection: string | null; mode: ToolMode; version: number }[] = [];
   lastBackupAt: string | null = null;
+  /** `GET /api/insights` for the edit view's "Calls, last 30 days", and what it was asked. */
+  insights: Insights | ApiError = busyMonth(NOW);
+  insightQueries: InsightsQuery[] = [];
+  /** GateRook's verified MCP profiles, what the Official MCP Registry holds and was asked, the servers reviewed and started. */
+  mcpProfiles: McpProfile[] = [];
+  registryServers: McpRegistryServer[] = [];
+  registrySearches: string[] = [];
+  /** The registry the core searches (its answer names it) and a failure its next search answers with. */
+  registryHost = 'registry.modelcontextprotocol.io';
+  registryFails: ApiError | null = null;
+  mcpReviews: McpServerSource[] = [];
+  nextMcpReview: McpServerReview = {
+    argv: ['npx', '-y', '@modelcontextprotocol/server-filesystem@2026.1.14', '/srv/docs'],
+    resolvedCommand: 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs',
+    node: '24.10.0',
+    env: [],
+    notPinned: false,
+    catalogEntry: null,
+    protocol: '2025-11-25',
+    sandbox: 'sandbox-exec',
+    name: 'docs',
+    transport: 'stdio',
+  };
+  mcpStarted: (McpServerSource & { readonly acknowledge: true })[] = [];
+  nextMcpStart: McpServerStarted = { name: 'docs', state: 'running', tools: 3 };
 }
 
 const row = (name: string, mode: ToolMode): ToolRow => ({
@@ -265,12 +305,56 @@ let core: FakeCore;
 beforeEach(() => {
   now.set(NOW);
   core = new FakeCore();
+  const plugins: Partial<PluginsApi> = {
+    check: vi.fn(async (source: { readonly url: string } | { readonly catalog: string }) => {
+      core.pluginChecks.push('catalog' in source ? source.catalog : source.url);
+      if (core.nextPluginCheck instanceof ApiError) throw core.nextPluginCheck;
+      return structuredClone(core.nextPluginCheck);
+    }),
+    ensureRuntime: vi.fn(async () => undefined),
+    install: vi.fn(async (stagingId: string, acknowledgeUnsigned = false) => {
+      core.pluginInstalls.push({ stagingId, acknowledgeUnsigned });
+      // The core now offers the installed plugin's type: the card is usable and no longer installs.
+      if (!(core.catalog instanceof ApiError)) {
+        core.catalog = { ...core.catalog, groups: core.catalog.groups.map((g) => ({
+          ...g, cards: g.cards.map((c) => c.catalogRef ? { ...c, available: true, reason: null, catalogRef: null } : c),
+        })) };
+      }
+      return {};
+    }),
+  };
+  const mcp: Partial<McpServersApi> = {
+    profiles: vi.fn(async () => structuredClone(core.mcpProfiles)),
+    searchRegistry: vi.fn(async (search: string) => {
+      core.registrySearches.push(search);
+      const fail = core.registryFails;
+      core.registryFails = null;
+      if (fail) throw fail;
+      const servers = core.registryServers.filter((s) => `${s.name} ${s.title ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+      return { registry: core.registryHost, servers: structuredClone(servers), nextCursor: null };
+    }),
+    review: vi.fn(async (source: McpServerSource) => {
+      core.mcpReviews.push(structuredClone(source));
+      return structuredClone(core.nextMcpReview);
+    }),
+    create: vi.fn(async (source: McpServerSource & { readonly acknowledge: true }) => {
+      core.mcpStarted.push(structuredClone(source));
+      return structuredClone(core.nextMcpStart);
+    }),
+  };
+  const modules: Partial<ModulesApi> = {
+    list: vi.fn(async () => structuredClone(core.modules)),
+  };
   const types: Partial<ConnectorTypesApi> = {
     catalog: vi.fn(async () => {
       if (core.catalog instanceof ApiError) throw core.catalog;
       return structuredClone(core.catalog);
     }),
-    form: vi.fn(async () => structuredClone(core.spec)),
+    form: vi.fn(async (type: string) => {
+      core.formTypes.push(type);
+      if (core.pendingForm) return core.pendingForm;
+      return structuredClone(core.spec);
+    }),
     get: vi.fn(async () => structuredClone(TYPE)),
     previewTools: vi.fn(async (type: string, config: JsonObject, env: string) => {
       core.toolRequests.push(structuredClone({ type, config, env }));
@@ -280,6 +364,11 @@ beforeEach(() => {
     }),
   };
   const connections: Partial<ConnectionsApi> = {
+    suggest: vi.fn(async (r: SuggestRequest) => {
+      core.suggestRequests.push(structuredClone(r));
+      if (core.nextSuggestions instanceof ApiError) throw core.nextSuggestions;
+      return structuredClone(core.nextSuggestions);
+    }),
     projects: vi.fn(async (r: TestDraftRequest) => {
       core.projectRequests.push(structuredClone(r));
       if (core.pendingProjects) return core.pendingProjects;
@@ -320,7 +409,7 @@ beforeEach(() => {
       return { ...core.detail, usedBy: [], badges: [], secretSource: 'encrypted', host: null };
     }),
     list: vi.fn(async () =>
-      (core.empty ? { items: [], facets: {}, total: 0 } : { items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app' }], facets: {}, total: 1 }) as never,
+      (core.empty ? { items: [], facets: {}, total: 0 } : { items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app', usedBy: ['dev'] }], facets: {}, total: 1 }) as never,
     ),
     update: vi.fn(async (_name: string, r: UpdateConnectionRequest) => {
       core.updates.push(structuredClone(r));
@@ -372,6 +461,13 @@ beforeEach(() => {
   };
   const masterKey: Partial<MasterKeyApi> = { status: vi.fn(async () => ({ lastBackupAt: core.lastBackupAt }) as MasterKeyStatus) };
   const approvals: Partial<ApprovalsApi> = { list: vi.fn(async () => ({ status: 'pending', items: [PENDING], nextCursor: null, pending: 1, counts: {} }) as never) };
+  const insights: Partial<InsightsApi> = {
+    get: vi.fn(async (query?: InsightsQuery) => {
+      core.insightQueries.push(structuredClone(query ?? {}));
+      if (core.insights instanceof ApiError) throw core.insights;
+      return structuredClone(core.insights);
+    }),
+  };
   @Component({ template: '' })
   class Elsewhere {}
   TestBed.configureTestingModule({
@@ -393,6 +489,10 @@ beforeEach(() => {
       { provide: SecretsApi, useValue: secrets },
       { provide: ApprovalsApi, useValue: approvals },
       { provide: MasterKeyApi, useValue: masterKey },
+      { provide: InsightsApi, useValue: insights },
+      { provide: PluginsApi, useValue: plugins },
+      { provide: ModulesApi, useValue: modules },
+      { provide: McpServersApi, useValue: mcp },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
   });
@@ -499,22 +599,271 @@ function cloudLogging(): void {
   }] }], installed: [] };
 }
 
-describe('Redis production connections', () => {
-  it('adds an External MCP server through Add MCP server, which reviews, signs in and ends on an endpoint', async () => {
+describe('setup helpers', () => {
+  it('asks the core what this computer knows and offers it under the field', async () => {
+    core.nextSuggestions = { fields: { '/connection/host': { value: null, source: 'this computer', complete: true,
+      options: [{ value: 'localhost', label: null, detail: 'A PostgreSQL server answers on port 5432' }] } },
+    notes: ['A PostgreSQL server answers on localhost:5432.'] };
+    const p = await open('/connections/new#step-2');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await p.settle();
+    expect(core.suggestRequests.length).toBeGreaterThan(0);
+    expect(core.suggestRequests[0]).toMatchObject({ type: 'postgres', env: 'dev', scope: 'local' });
+    expect(core.suggestRequests[0].existing).toBeUndefined();
+    const line = p.q('#cf-connection-host-found-line')!;
+    expect(text(line)).toContain('Found on this computer:');
+    p.button('localhost', line).click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('localhost');
+    expect(text(p.q('#cf-helpers'))).toContain('A PostgreSQL server answers on localhost:5432.');
+  });
+
+  it('offers nothing new, and asks nothing, when the core refuses a lookup', async () => {
+    core.nextSuggestions = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?', detail: 'x',
+      confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/new#step-2');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await p.settle();
+    expect(core.suggestRequests.length).toBeGreaterThan(0);
+    expect(p.q('#cf-helpers')).toBeNull();
+    expect(p.q('dialog[open]')).toBeNull();
+  });
+});
+
+describe('Add connection: MCP servers', () => {
+  type Opened = Awaited<ReturnType<typeof open>>;
+  const titles = (p: Opened) => Array.from(p.el.querySelectorAll('#type-picker .gw-connector-card__group-title')).map((h) => text(h));
+  const values = (p: Opened) => Array.from(p.el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]')).map((r) => r.value);
+  const status = (p: Opened) => text(p.el.querySelector('#step-1 search [role=status]'));
+  const isMcp = (value: string) => value === 'mcp-server' || value.startsWith('mcp-server:');
+  const mcpField = (p: Opened, suffix: string) => p.q<HTMLInputElement>(`#step-2-mcp [id$="${suffix}"]`)!;
+  /** Typing waits for the registry: it is asked a moment after the last key. */
+  const search = async (p: Opened, query: string) => {
+    await p.type('type-search', query);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await p.settle();
+  };
+  const show = async (p: Opened, kind: 'all' | 'connectors' | 'mcp') => {
+    p.q<HTMLInputElement>(`#step-1 .gw-segmented input[value="${kind}"]`)!.click();
+    await p.settle();
+  };
+  const SUPABASE: McpProfile = {
+    id: 'supabase', name: 'Supabase', publisher: 'Supabase', category: 'Databases', description: 'Supabase’s own server, read only.',
+    documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', checked: '2026-11-11',
+    transport: 'http', url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true', headers: [], command: [],
+    placeholders: [{ name: 'project_ref', description: 'Your project’s reference.' }], pins: [], signIn: 'OAuth in your browser.',
+    notes: [], tools: [],
+  };
+
+  it('lists the MCP servers after the connector types, External MCP server first; Show narrows the list to one kind', async () => {
+    core.mcpProfiles = [SUPABASE];
+    const p = await open();
+    const groups = titles(p);
+    const mcpAt = groups.indexOf('Any MCP server');
+    expect(mcpAt).toBeGreaterThan(0);
+    expect(groups.slice(mcpAt)).toEqual(['Any MCP server', 'Verified MCP servers', 'Popular MCP servers']);
+    const all = values(p);
+    const firstMcp = all.findIndex(isMcp);
+    expect(all[firstMcp]).toBe('mcp-server');
+    expect(all.slice(firstMcp).every(isMcp)).toBe(true);
+    // A vendor with a verified profile shows once, as its verified card.
+    expect(all).toContain('mcp-server:profile.supabase');
+    expect(all).not.toContain('mcp-server:featured.com-supabase-mcp');
+    expect(all).toContain('mcp-server:featured.io-github-github-github-mcp-server');
+    expect(text(p.q('#type-picker input[value="mcp-server:profile.supabase"]')!.closest('label'))).toContain('Verified profile');
+    const types = firstMcp;
+    const servers = all.length - firstMcp;
+    expect(status(p)).toBe(`${types} connector types and ${servers} MCP servers`);
+
+    await show(p, 'mcp');
+    expect(titles(p)).toEqual(['Any MCP server', 'Verified MCP servers', 'Popular MCP servers']);
+    expect(values(p)).toHaveLength(servers);
+    expect(status(p)).toBe(`${servers} MCP servers`);
+    await show(p, 'connectors');
+    expect(titles(p)).toEqual(groups.slice(0, mcpAt));
+    expect(status(p)).toBe(`${types} connector types`);
+    // The connector types alone never ask the registry.
+    await search(p, 'post');
+    expect(core.registrySearches).toEqual([]);
+  });
+
+  it('opens on the MCP servers with nothing chosen for Add MCP server (?show=mcp)', async () => {
+    const p = await open('/connections/new?show=mcp');
+    expect(titles(p)).toEqual(['Any MCP server', 'Popular MCP servers']);
+    expect(values(p)[0]).toBe('mcp-server');
+    expect(p.page().selected()).toBeNull();
+    expect(text(p.q('#step-1 .gw-form__note'))).toBe('Choose a server, or enter one by hand with External MCP server.');
+  });
+
+  it('searches the Official MCP Registry from three characters and adds its servers last', async () => {
+    core.registryServers = [{
+      name: 'io.github.example/docs-mcp', title: 'Docs MCP', description: 'Search the team’s docs.', version: '1.4.0', status: 'active',
+      remotes: [{ type: 'streamable-http', url: 'https://docs.example.test/mcp', headers: [], variables: [] }], packages: [],
+    }];
+    const p = await open();
+    await search(p, 'do');
+    expect(core.registrySearches).toEqual([]);
+    await search(p, 'docs');
+    expect(core.registrySearches).toContain('docs');
+    expect(titles(p).at(-1)).toBe('Official MCP Registry');
+    expect(values(p).at(-1)).toBe('mcp-server:registry.io-github-example-docs-mcp');
+    expect(status(p)).toMatch(/; 1 in the Official MCP Registry$/);
+  });
+
+  it('reads a pasted MCP configuration as one card, chosen, never sent to the registry, and Configure starts from it', async () => {
+    const p = await open();
+    await search(p, '{"mcpServers":{"docs":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem@2026.1.14","/srv/docs"]}}}');
+    expect(titles(p)).toEqual(['From your paste']);
+    expect(values(p)).toEqual(['mcp-server:paste']);
+    expect(p.page().selected()).toBe('mcp-server:paste');
+    expect(status(p)).toBe('Read from your paste: one card, chosen');
+    expect(core.registrySearches).toEqual([]);
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(mcpField(p, '-name').value).toBe('docs');
+    expect(mcpField(p, '-command').value).toBe('npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+  });
+
+  it('reads a pasted PostgreSQL connection string into Configure, without its password', async () => {
+    const p = await open();
+    await search(p, 'postgres://app_rw:s3cret@db.dev.internal:6432/orders');
+    expect(titles(p)).toEqual(['From your paste']);
+    expect(values(p)).toEqual(['postgres:paste']);
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('db.dev.internal');
+    expect(p.q<HTMLInputElement>('#cf-connection-port')!.value).toBe('6432');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('app_rw');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('');
+  });
+
+  it('adds an External MCP server in the wizard: Configure, the review that starts it, then its endpoint', async () => {
+    // The core's own External MCP server card isn't repeated: MCP servers have their section after the connector types.
     const card = { ...structuredClone(CATALOG.groups[0].cards[0]), type: 'mcp-server', name: 'External MCP server', icon: 'plug', description: 'Put any MCP server behind modes, approvals and audit.', tools: null, connections: 0 };
     core.catalog = { groups: [{ name: 'HTTP and MCP', cards: [card] }], installed: [] };
     const p = await open();
-    expect(p.q('#step-1')?.textContent).toContain('An MCP server is added in Connectors › MCP servers');
+    expect(text(p.q('#step-1 .gw-alert__title'))).toBe('No connector types');
+    expect(titles(p)).toEqual(['Any MCP server', 'Popular MCP servers']);
+    p.q<HTMLInputElement>('#type-picker input[value="mcp-server"]')!.click();
+    await p.settle();
     p.button('Continue').click();
     await p.settle();
-    expect(TestBed.inject(Router).url).toBe('/connectors?add=mcp-server#mcp-servers');
+    expect(TestBed.inject(Router).url).toBe('/connections/new');
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(text(p.q('#step-2-mcp-title'))).toBe('Configure your MCP server');
+    expect(p.steps()).toEqual(['complete:Choose, completed External MCP server', 'current:2 Configure', 'upcoming:3 Review', 'upcoming:4 Add to endpoint']);
+
+    await p.type(mcpField(p, '-name').id, 'docs');
+    await p.type(mcpField(p, '-command').id, 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    // The review runs nothing: the core only reads what would run.
+    expect(core.mcpReviews).toHaveLength(1);
+    expect(core.mcpStarted).toEqual([]);
+    expect(p.visible()).toEqual(['step-3-mcp']);
+    expect(text(p.q('#step-3-mcp-title'))).toBe('Review docs');
+
+    const start = p.button('Start MCP server docs', p.q('#step-3-mcp')!);
+    expect(start.getAttribute('aria-disabled')).toBe('true');
+    p.q<HTMLInputElement>('#step-3-mcp input[type=checkbox][id$="-ack"]')!.click();
+    await p.settle();
+    start.click();
+    await p.settle();
+    // Starting saves it, tools Off: the wizard can't go back past this point, and Cancel goes.
+    expect(core.mcpStarted).toHaveLength(1);
+    expect(p.visible()).toEqual(['step-4-mcp']);
+    expect(text(p.q('#step-4-mcp-title'))).toBe('Add docs to an endpoint');
+    expect(p.q('.gw-page-header__actions a')).toBeNull();
+
+    p.button('Add to endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.added).toEqual(['dev']);
+    expect(TestBed.inject(Router).url).toBe('/connections/docs');
   });
 
-  it('sends a link to the External MCP server type straight to Add MCP server', async () => {
-    await open('/connections/new?type=mcp-server');
-    expect(TestBed.inject(Router).url).toBe('/connectors?add=mcp-server#mcp-servers');
+  const LINEAR_ENTRY: McpRegistryServer = {
+    name: 'app.linear/linear', title: 'Linear', description: 'Issues, projects and cycles.', version: '1.0.2', status: 'active',
+    remotes: [{ type: 'streamable-http', url: 'https://mcp.linear.app/mcp', headers: [], variables: [] }], packages: [],
+  };
+
+  it('opens a search result from Connectors on its Configure, from the registry the core searches (?registryServer=)', async () => {
+    core.registryHost = 'registry.example.test';
+    core.registryServers = [{ ...LINEAR_ENTRY, name: 'io.github.example/docs-mcp', title: 'Docs MCP', status: 'deprecated' }];
+    const p = await open('/connections/new?registryServer=io.github.example/docs-mcp');
+    expect(core.registrySearches).toEqual(['io.github.example/docs-mcp']);
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    const origin = p.q('#step-2-mcp [id$="-origin"]')!;
+    expect(text(origin.querySelector('.gw-alert__title'))).toBe('Filled in from the MCP registry at registry.example.test: Docs MCP');
+    expect(text(origin)).toContain('Its publisher marked this entry deprecated.');
   });
 
+  it('keeps a Popular shortcut to the Official MCP Registry: another registry’s entry never stands in (?registry=)', async () => {
+    core.registryHost = 'registry.example.test';
+    core.registryServers = [LINEAR_ENTRY];
+    const p = await open('/connections/new?registry=app.linear/linear');
+    expect(p.visible()).toEqual(['step-1']);
+    expect(p.page().selected()).toBe('mcp-server:featured.app-linear-linear');
+    expect(text(p.q('#type-picker'))).toContain(
+      'Linear can’t be set up from the registry: This shortcut requires the Official MCP Registry. Search your configured registry or enter the server by hand.',
+    );
+  });
+
+  it('tries a Popular pick again after its registry lookup failed, and Configure fills from the official entry', async () => {
+    core.registryServers = [LINEAR_ENTRY];
+    core.registryFails = new ApiError('network', 0, {});
+    const p = await open('/connections/new?show=mcp');
+    p.q<HTMLInputElement>('#type-picker input[value="mcp-server:featured.app-linear-linear"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-1']);
+    expect(text(p.q('#type-picker'))).toContain('Linear can’t be set up from the registry:');
+    p.button('Continue').click();
+    await p.settle();
+    expect(core.registrySearches).toEqual(['app.linear/linear', 'app.linear/linear']);
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(text(p.q('#step-2-mcp [id$="-origin"] .gw-alert__title'))).toBe('Filled in from the Official MCP Registry: Linear');
+  });
+
+  it('keeps what Configure holds when the review goes Back, and reviews it again', async () => {
+    const p = await open('/connections/new?type=mcp-server');
+    await p.type(mcpField(p, '-name').id, 'docs');
+    await p.type(mcpField(p, '-command').id, 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3-mcp']);
+    p.button('Back', p.q('#step-3-mcp')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(mcpField(p, '-name').value).toBe('docs');
+    expect(mcpField(p, '-command').value).toBe('npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    expect(core.mcpReviews).toHaveLength(2);
+    expect(core.mcpStarted).toEqual([]);
+    expect(p.visible()).toEqual(['step-3-mcp']);
+  });
+
+  it('opens a link to the External MCP server type on its Configure, in the wizard (?type=mcp-server)', async () => {
+    const p = await open('/connections/new?type=mcp-server');
+    expect(TestBed.inject(Router).url).toBe('/connections/new?type=mcp-server');
+    expect(p.visible()).toEqual(['step-2-mcp']);
+    expect(p.page().selected()).toBe('mcp-server');
+    expect(text(p.q('#step-2-mcp-title'))).toBe('Configure your MCP server');
+  });
+
+  it('offers the services that exist already when it comes from Overview’s Add service (?endpoint=)', async () => {
+    const p = await open('/connections/new?endpoint=stage-readonly');
+    const alert = p.q('#existing-services')!;
+    expect(text(alert)).toContain('1 service you already have isn’t on stage-readonly yet.');
+    const link = alert.querySelector<HTMLAnchorElement>('a')!;
+    expect([text(link), link.getAttribute('href')]).toEqual(['Connect existing services', '/connections?notConnectedTo=stage-readonly']);
+  });
+});
+
+describe('Redis production connections', () => {
   it('tests and saves Without TLS with a warning and no confirmation', async () => {
     core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'] };
     core.catalog = { groups: [{ name: 'Databases', cards: [{
@@ -534,6 +883,9 @@ describe('Redis production connections', () => {
     p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
     await p.settle();
 
+    // Auto by default, TLS on prod: the choice sits under Advanced settings.
+    p.q<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
+    await p.settle();
     const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
     expect(tls.tagName).toBe('SELECT');
     expect(tls.closest('[hidden]')).toBeNull();
@@ -571,7 +923,7 @@ describe('Redis production connections', () => {
 describe('connection-specific tool preview', () => {
   const gcpTools = [
     tool({ name: 'gcp_logging_search', description: 'Search Google Cloud Logging using Logs Explorer filters.' }),
-    tool({ name: 'gcp_logging_tail', description: 'Read new Google Cloud Logging entries.', defaultMode: 'off' }),
+    tool({ name: 'gcp_logging_tail', description: 'Read new Google Cloud Logging entries.' }),
   ];
 
   it('uses the configured connector tools in every endpoint card and mutation hint', async () => {
@@ -583,7 +935,7 @@ describe('connection-specific tool preview', () => {
     expect(text(p.q('#pv-rows'))).toContain('gcp_logging_search');
     expect(text(p.q('#pv-rows'))).toContain('gcp_logging_tail');
     expect(text(p.q('#step-4'))).not.toMatch(/sql_execute|opensearch_|Loki|CloudWatch/);
-    expect(text(p.q('#pv-rows .gw-card__description'))).toBe('2 tools · 1 read only · 1 off');
+    expect(text(p.q('#pv-rows .gw-card__description'))).toBe('2 tools · 2 read only');
   });
 
   it('does not substitute a category tool list when discovery fails and allows retry', async () => {
@@ -833,9 +1185,11 @@ describe('Add connection: wizard', () => {
     p.button('Continue', p.q('#cf-form')!).click();
     await p.settle();
     expect(p.visible()).toEqual(['step-3']);
-    expect(core.discoveries).toHaveLength(1);
+    // Prod moves the SSL mode from Auto to verify-full: the list is loaded again with it, the choice kept.
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.discoveries[1]).toMatchObject({ env: 'prod', config: { connection: { sslMode: 'verify-full' } } });
     expect(core.tests.map((request) => request.env)).toEqual(testInDev ? ['dev', 'prod'] : ['prod']);
-    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'] });
+    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'], sslMode: 'verify-full' });
 
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
@@ -845,20 +1199,21 @@ describe('Add connection: wizard', () => {
     expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
   });
 
-  it.each([false, 'auto'])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
+  // Auto, the default, becomes TLS on prod; a transport the person chose (Without TLS) stays as chosen.
+  it.each(['auto', false])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
     mongoDb();
     const p = await open('/connections/new#step-2');
     await p.type('cf-name', 'prod-mongo');
     await p.type('cf-connection-host', 'mongo.example.test');
     await p.type('cf-credentials-user', 'reader');
     await p.type('cf-credentials-password', 'local-password');
-    if (initialTls === 'auto') {
+    if (initialTls === false) {
       const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
-      tls.value = 'auto';
+      tls.value = 'false';
       tls.dispatchEvent(new Event('change', { bubbles: true }));
       await p.settle();
     }
-    const productionTls = initialTls === 'auto' ? 'auto' : true;
+    const productionTls = initialTls === 'auto' ? true : false;
     p.button('Load databases').click();
     await p.settle();
     expect(core.discoveries[0].config['connection']).toMatchObject({ tls: initialTls });
@@ -977,17 +1332,236 @@ describe('Add connection: wizard', () => {
     expect(core.tests).toEqual([]);
   });
 
-  it('opens on Choose type with the catalog by group, the first usable type picked and how many use it', async () => {
+  it('opens on Choose with the catalog by group, the first usable type picked and how many use it', async () => {
     const { el, steps, visible } = await open();
     expect(visible()).toEqual(['step-1']);
-    expect(steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Add to endpoint']);
-    const radios = Array.from(el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]'));
-    expect(radios.map((r) => [r.value, r.checked, r.getAttribute('aria-disabled')])).toEqual([
+    expect(steps()).toEqual(['current:1 Choose', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Add to endpoint']);
+    const radios = Array.from(el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]'));
+    // ClickHouse isn't installed but the signed catalog offers it: it can be chosen, and Continue installs it.
+    expect(radios.filter((r) => !r.value.includes(':')).map((r) => [r.value, r.checked, r.getAttribute('aria-disabled')])).toEqual([
       ['postgres', true, null],
-      ['clickhouse', false, 'true'],
+      ['clickhouse', false, null],
+      // External MCP server leads the MCP section, after the connector types; it is never the first choice.
+      ['mcp-server', false, null],
     ]);
+    expect(radios.some((r) => r.value === 'postgres:supabase')).toBe(true);
     expect(text(el.querySelector('#step-1 .gw-form__note'))).toBe('3 connections use PostgreSQL');
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it('groups the types by category with vendor marks, the MCP servers after them; the search filters both and Enter picks a lone match', async () => {
+    const pg = CATALOG.groups[0].cards[0];
+    core.catalog = { groups: [
+      { name: 'Databases', cards: [
+        structuredClone(pg),
+        { ...structuredClone(pg), type: 'mongodb', name: 'MongoDB', description: 'Find and aggregate.', connections: 0 },
+        structuredClone(CATALOG.groups[0].cards[1]),
+      ] },
+      { name: 'Remote access', cards: [
+        { ...structuredClone(pg), type: 'ssh', name: 'SSH', icon: 'terminal', description: 'Runbooks.', connections: 0 },
+      ] },
+    ], installed: [] };
+    const p = await open();
+    const titles = () => Array.from(p.el.querySelectorAll('#type-picker .gw-connector-card__group-title')).map((h) => text(h));
+    const radios = () => Array.from(p.el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]')).map((r) => r.value);
+    const types = () => radios().filter((v) => v !== 'mcp-server' && !v.startsWith('mcp-server:'));
+    const status = () => text(p.el.querySelector('#step-1 search [role=status]'));
+    // Three characters ask the Official MCP Registry a moment after the last key; its answer ends the status.
+    const search = async (query: string) => {
+      await p.type('type-search', query);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await p.settle();
+    };
+    // The base types first, then the services that speak a base type's protocol, then the MCP servers.
+    expect(titles()).toEqual(['SQL databases', 'NoSQL databases', 'Data warehouses', 'Remote access', 'PostgreSQL-compatible',
+      'MongoDB-compatible', 'Any MCP server', 'Popular MCP servers']);
+    const mark = p.el.querySelector<HTMLImageElement>('#step-1 input[value="postgres"] ~ .gw-choice-card__mark img')!;
+    expect(mark.getAttribute('src')).toBe('assets/integrations/postgresql.svg');
+    expect(mark.getAttribute('alt')).toBe('');
+    expect(p.el.querySelector('#step-1 input[value="ssh"] ~ .gw-choice-card__icon')).not.toBeNull();
+    const total = types().length;
+    const all = radios().length;
+    expect(status()).toBe(`${total} connector types and ${all - total} MCP servers`);
+
+    // A compatible service's name finds its own card; "sql" finds the SQL databases and their family, never NoSQL.
+    await search('cockroach');
+    expect(titles()).toEqual(['PostgreSQL-compatible']);
+    expect(radios()).toEqual(['postgres:cockroachdb']);
+    expect(status()).toBe('1 connector type and 0 MCP servers match “cockroach”; 0 in the Official MCP Registry');
+    await search('sql');
+    expect(titles()).toEqual(['SQL databases', 'PostgreSQL-compatible']);
+    expect(radios()).not.toContain('mongodb');
+    // An MCP server's own words find it beside the connectors: "postgres" finds Supabase's and Neon's servers too.
+    await search('postgres');
+    expect(radios()).toEqual(expect.arrayContaining(['postgres', 'mcp-server:featured.com-supabase-mcp', 'mcp-server:featured.com-neon-mcp']));
+
+    // Enter never submits the step: with one usable match it picks it.
+    await search('ssh');
+    const input = document.getElementById('type-search') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await p.settle();
+    expect(p.page().selected()).toBe('ssh');
+    expect(p.visible()).toEqual(['step-1']);
+
+    await search('zzz');
+    expect(p.q<HTMLElement>('#type-picker')!.hidden).toBe(true);
+    expect(text(p.el.querySelector('#step-1 .gw-empty__title'))).toBe('Nothing matches “zzz”');
+    p.button('Clear search').click();
+    await p.settle();
+    expect(radios()).toHaveLength(all);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('a compatible service opens its base connector with the service’s starting values', async () => {
+    const p = await open();
+    const supabase = p.q<HTMLInputElement>('#step-1 input[value="postgres:supabase"]')!;
+    const card = supabase.closest('label')!;
+    expect(text(card.querySelector('.gw-choice-card__title'))).toBe('Supabase');
+    expect(text(card.querySelector('.gw-choice-card__meta'))).toBe('PostgreSQL connector · 3 tools');
+    expect(card.querySelector('.gw-choice-card__mark img')!.getAttribute('src')).toBe('assets/integrations/supabase.svg');
+    // A service without a mark of its own shows the base type's icon, never the base type's mark.
+    const greenplum = p.q<HTMLInputElement>('#step-1 input[value="postgres:greenplum"]')!.closest('label')!;
+    expect(greenplum.querySelector('.gw-choice-card__mark, .gw-choice-card__icon')).not.toBeNull();
+    supabase.click();
+    await p.settle();
+    // No connection count of its own: the base type's count isn't the service's.
+    expect(p.el.querySelector('#step-1 .gw-form__note')).toBeNull();
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.formTypes.at(-1)).toBe('postgres');
+    const start = (p.page() as unknown as { startConfig(): unknown }).startConfig();
+    expect(start).toEqual({ connection: { sslMode: 'verify-full' } });
+  });
+
+  it('names a plugin’s tools in its review, the last one right before the comma', async () => {
+    const check = clickhouseCheck(true);
+    core.nextPluginCheck = { ...check, report: { ...check.report, tools: [
+      { name: 'ch_query', declared: { readOnlyHint: true } }, { name: 'ch_execute', declared: { readOnlyHint: false } }] } };
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+    const review = document.querySelector<HTMLDialogElement>('dialog.gw-dialog[open]')!;
+    const tools = Array.from(review.querySelectorAll('.gw-kv__row')).find((r) => text(r.querySelector('dt')) === 'Tools')!;
+    expect(tools.querySelector('dd')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('ch_query ch_execute, Off until you '
+      + 'add them to an endpoint. There reads start as Read only and the others as Approval: the catalog key signed this build.');
+  });
+
+  it('a catalog plugin that isn’t installed is reviewed and installed on Continue, then Configure opens on it', async () => {
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
+    await p.settle();
+    expect(text(p.el.querySelector('#step-1 .gw-form__note'))).toBe(
+      "The ClickHouse plugin isn't installed yet: Continue shows what it is and installs it from the catalog.");
+    p.button('Continue').click();
+    await p.settle();
+    expect(core.pluginChecks).toEqual(['clickhouse@1.0.0']);
+    const review = document.querySelector<HTMLDialogElement>('dialog.gw-dialog[open]')!;
+    expect(text(review.querySelector('.gw-dialog__title'))).toBe('Install ClickHouse plugin');
+    expect(p.visible()).toEqual(['step-1']);
+    p.button('Install ClickHouse plugin', review).click();
+    await p.settle();
+    expect(core.pluginInstalls).toEqual([{ stagingId: 'stg-1', acknowledgeUnsigned: false }]);
+    expect(review.open).toBe(false);
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.formTypes.at(-1)).toBe('clickhouse');
+  });
+
+  /** A type of a connector module that isn't installed: a built-in card that downloads when it is chosen. */
+  function cassandraModule(state = 'available'): void {
+    const module = { id: 'cassandra', version: '1.0.0', state, step: null, sizeBytes: 9_871_234, installed: false, message: null };
+    core.catalog = { groups: [{ name: 'Databases', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+      type: 'cassandra', name: 'Cassandra', kind: 'built-in', version: '1.0.0', tools: 3, connections: 0, module,
+    }] }], installed: [] };
+    core.spec = { ...structuredClone(SPEC), type: 'cassandra', name: 'Cassandra' };
+  }
+
+  it('says of a type of the person’s own module, installed from a file, that it is theirs and unsigned', async () => {
+    const module = { id: 'shop', version: '1.2.0', state: 'ready', step: null, sizeBytes: 2_700_000, installed: true, message: null, signed: false, listedVersion: null };
+    core.catalog = { groups: [{ name: 'Databases', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+      type: 'orders', name: 'Orders', kind: 'built-in', version: '1.0.0', tools: 2, connections: 0, module,
+    }] }], installed: [] };
+    const p = await open();
+    const card = p.q<HTMLInputElement>('#step-1 input[value="orders"]')!;
+    expect(text(card.closest('.gw-choice-card'))).toContain('Your module, unsigned · 2 tools');
+    expect(text(card.closest('.gw-choice-card'))).not.toContain('Built-in');
+  });
+
+  it('a type of a connector module downloads on Continue with no question, and says which step it is at', async () => {
+    cassandraModule();
+    let arrive!: (spec: ConnectionFormSpec) => void;
+    core.pendingForm = new Promise((done) => { arrive = done; });
+    const p = await open();
+    const card = p.q<HTMLInputElement>('#step-1 input[value="cassandra"]')!;
+    expect(text(card.closest('.gw-choice-card'))).toContain('Built-in · 3 tools · 9.4 MB download');
+    card.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+
+    expect(document.querySelector('dialog.gw-dialog[open]'), 'nothing to review or confirm').toBeNull();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.formTypes.at(-1)).toBe('cassandra');
+    const notice = p.q('#module-download')!;
+    expect(notice.getAttribute('role')).toBe('status');
+    expect(text(notice)).toBe('Getting Cassandra ready Downloading Cassandra (9.4 MB). This happens once.');
+
+    TestBed.inject(EventStream).emit('module.state', { id: 'other', version: '1.0.0', step: 'installing', sizeBytes: 1 });
+    TestBed.inject(EventStream).emit('module.state', { id: 'cassandra', version: '1.0.0', step: 'verifying', sizeBytes: 9_871_234 });
+    await p.settle();
+    expect(text(p.q('#module-download'))).toBe('Getting Cassandra ready Checking the download of Cassandra.');
+    TestBed.inject(EventStream).emit('module.state', { id: 'cassandra', version: '1.0.0', step: 'runtime', sizeBytes: 9_871_234 });
+    await p.settle();
+    expect(text(p.q('#module-download'))).toContain('Preparing the Java runtime that Cassandra runs on. This happens once.');
+
+    core.pendingForm = null;
+    arrive(structuredClone(core.spec));
+    await p.settle();
+    expect(p.q('#module-download')).toBeNull();
+    expect(text(p.q('#step-2-title'))).toBe('Configure Cassandra');
+    expect(document.getElementById('cf-connection-host')).not.toBeNull();
+  });
+
+  it('shows the types of GateRook’s modules as soon as the core has their list, while the page is open', async () => {
+    // The core reads GateRook's list in the background after its start: a page opened before that has no such card.
+    const p = await open();
+    expect(p.q('#step-1 input[value="cassandra"]')).toBeNull();
+    const catalog = vi.mocked(TestBed.inject(ConnectorTypesApi).catalog);
+    const before = catalog.mock.calls.length;
+
+    cassandraModule();
+    TestBed.inject(EventStream).emit('module.list', { modules: 8 });
+    await p.settle();
+    expect(catalog.mock.calls.length).toBe(before + 1);
+    const card = p.q<HTMLInputElement>('#step-1 input[value="cassandra"]')!;
+    expect(text(card.closest('.gw-choice-card'))).toContain('Built-in · 3 tools · 9.4 MB download');
+  });
+
+  it('a connector module that doesn’t arrive says why in the core’s words, and Try again asks for it again', async () => {
+    cassandraModule();
+    core.pendingForm = Promise.reject(new ApiError('not-found', 404, { title: 'Connector not found', detail: 'There is no connector type cassandra.' }));
+    core.pendingForm.catch(() => undefined);
+    core.modules = { ...core.modules, modules: [{ id: 'cassandra', name: 'Cassandra', version: '1.0.0', state: 'failed', step: null,
+      sizeBytes: 9_871_234, message: 'Cassandra can’t be downloaded from github.com: no route to host', types: [], installed: false }] };
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="cassandra"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+
+    const alert = p.q('#step-2 .gw-alert--danger')!;
+    expect(text(alert.querySelector('.gw-alert__title'))).toBe("Cassandra didn't download");
+    expect(text(alert.querySelector('.gw-alert__body'))).toBe('Cassandra can’t be downloaded from github.com: no route to host');
+    expect(p.q('#module-download')).toBeNull();
+
+    core.pendingForm = null;
+    p.button('Try again', alert).click();
+    await p.settle();
+    expect(core.formTypes.filter((t) => t === 'cassandra')).toHaveLength(2);
+    expect(p.q('#step-2 .gw-alert--danger')).toBeNull();
+    expect(text(p.q('#step-2-title'))).toBe('Configure Cassandra');
   });
 
   it('Continue opens Configure: the form from the schema, focus on the step title, "Step 2 of 4: Configure"', async () => {
@@ -999,7 +1573,7 @@ describe('Add connection: wizard', () => {
     expect(text(p.q('#step-2-title'))).toBe('Configure PostgreSQL');
     expect(document.activeElement?.id).toBe('step-2-title');
     expect(announce).toHaveBeenCalledWith('Step 2 of 4: Configure');
-    expect(p.steps()[0]).toBe('complete:Choose type, completed PostgreSQL');
+    expect(p.steps()[0]).toBe('complete:Choose, completed PostgreSQL');
     expect(document.getElementById('cf-connection-host')).not.toBeNull();
   });
 
@@ -1025,7 +1599,7 @@ describe('Add connection: wizard', () => {
         type: 'postgres',
         env: 'dev',
         config: {
-          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'verify-full' },
+          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'auto' },
           credentials: { user: 'app_rw' },
           advanced: { poolSize: 2, defaultSchema: 'public', connectTimeoutMs: 5000, discoveryDatabase: 'postgres' },
         },
@@ -1078,6 +1652,22 @@ describe('Add connection: wizard', () => {
     expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
     expect(text(p.q('#step-3 .gw-status'))).toBe('Connected · PostgreSQL 16.4 · 12 ms');
     expect((p.page().form()!.value().config['connection'] as JsonObject)['hostKey']).toBe('ssh-ed25519 AAAA');
+  });
+
+  it('a host key on an unsaved draft: Trust pins the key, then the wizard tests the patched draft itself', async () => {
+    core.nextTest = HOST_KEY;
+    const p = await open();
+    await toTest(p);
+    // The core keeps no credentials of an unsaved draft, so it returns the patched config without a retest.
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: { connection: { hostKey: 'ssh-ed25519 AAAA' } }, retest: null });
+    core.nextTest = OK;
+    const tests = core.tests.length;
+    p.button('Trust this key and test again', p.q('#step-3')!).click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
+    expect(core.tests).toHaveLength(tests + 1);
+    expect((core.tests.at(-1)!.config['connection'] as JsonObject)['hostKey']).toBe('ssh-ed25519 AAAA');
+    expect(text(p.q('#step-3 .gw-status'))).toBe('Connected · PostgreSQL 16.4 · 12 ms');
   });
 
   it('a refused draft (422) is a failed test whose field shows the error back in Configure', async () => {
@@ -1291,7 +1881,8 @@ describe('Add connection: wizard', () => {
     core.catalog = structuredClone(CATALOG);
     p.button('Try again').click();
     await p.settle();
-    expect(p.el.querySelectorAll('#step-1 input[type=radio]')).toHaveLength(2);
+    const base = Array.from(p.el.querySelectorAll<HTMLInputElement>('#type-picker input[type=radio]')).filter((r) => !r.value.includes(':'));
+    expect(base.map((r) => r.value)).toEqual(['postgres', 'clickhouse', 'mcp-server']);
   });
 });
 
@@ -1307,7 +1898,7 @@ describe('Add connection: duplicate', () => {
     expect((document.getElementById('cf-name') as HTMLInputElement).value).toBe('dev-db-copy');
     expect((document.getElementById('cf-connection-host') as HTMLInputElement).value).toBe('db.dev.internal');
     expect((document.getElementById('cf-credentials-password') as HTMLInputElement).value).toBe('');
-    expect(p.steps()[0]).toBe('complete:Choose type, completed PostgreSQL');
+    expect(p.steps()[0]).toBe('complete:Choose, completed PostgreSQL');
   });
 });
 
@@ -1869,14 +2460,93 @@ describe('Connection: edit view', () => {
     expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Healthy · 12 ms');
     expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)).toEqual([
       'Health check, last 24 hours 12ms Between 10 ms and 15 ms · checked every minute',
+      'Calls, last 30 days 412 +18% vs previous 30 days 3 errors · 2 denied by policy · 1 waiting for approval',
       'Used by 1endpoint 3 tools on dev · Claude Desktop and Codex',
     ]);
+    expect(core.insightQueries).toEqual([{ q: 'connection:dev-db', from: new Date(NOW - 30 * 86_400_000).toISOString(), to: new Date(NOW).toISOString() }]);
+    expect(text(p.q('#connection-tools-tab'))).toBe('Tools 3 tools');
     expect(Array.from(p.el.querySelectorAll('#used-by tbody tr')).map((r) => text(r.querySelector('th')))).toEqual(['sql_list_schemas', 'sql_query', 'sql_execute']);
     expect(p.el.querySelector('#used-by tbody a.gw-btn')?.getAttribute('href')).toBe('/activity?q=connection:dev-db%20tool:sql_list_schemas%20endpoint:dev');
     expect(text(p.q('#step-2-title'))).toBe('Settings');
     expect(p.el.querySelector('.gw-stepper')).toBeNull();
-    expect((document.getElementById('cf-name') as HTMLInputElement).readOnly).toBe(true);
+    expect((document.getElementById('cf-name') as HTMLInputElement).readOnly).toBe(false);
+    expect(text(p.q('#cf-name-hint'))).toContain('Renaming applies from the next call: endpoints, policies and secret names follow, and past calls keep the old name.');
     expect(text(p.q('.gw-secret[data-state=stored]'))).toContain('version 3');
+  });
+
+  it('counts each tool once in the Tools tab, and keeps the page when the calls do not load', async () => {
+    core.detail = { ...structuredClone(DETAIL), usedBy: [...DETAIL.usedBy, { tool: 'sql_query', endpoint: 'stage-readonly', mode: 'READ_ONLY' }] };
+    core.insights = new ApiError('server', 500, { title: 'The core failed', detail: 'Insights could not be computed.' });
+    const p = await open('/connections/dev-db');
+    expect(text(p.q('#connection-tools-tab .gw-tabs__count'))).toBe('3 tools');
+    expect(Array.from(p.el.querySelectorAll('#used-by tbody tr'))).toHaveLength(3);
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)).toEqual([
+      'Health check, last 24 hours 12ms Between 10 ms and 15 ms · checked every minute',
+      "Calls, last 30 days The calls didn't load. Try again to load the calls of dev-db",
+      'Used by 2endpoints 4 tools on dev and stage-readonly · Claude Desktop and Codex',
+    ]);
+    core.insights = busyMonth(NOW);
+    p.button('Try again').click();
+    await p.settle();
+    expect(text(p.q('.gw-stat:nth-child(2) .gw-stat__value'))).toBe('412');
+  });
+
+  it('renames the connection with its settings and opens it under the new name', async () => {
+    const p = await open('/connections/dev-db');
+    vi.mocked(TestBed.inject(ConnectionsApi).update).mockImplementationOnce(async (_name, r) => {
+      core.updates.push(structuredClone(r));
+      core.detail = { ...structuredClone(DETAIL), name: r.name!, version: DETAIL.version + 1,
+        secrets: [{ ...DETAIL.secrets[0], name: `${r.name}/password` }] };
+      return {} as never;
+    });
+    await p.type('cf-name', 'dev-reader');
+    expect(text(p.q('#cf-name-hint'))).toContain('Saving renames dev-db from the next call');
+    expect(text(p.q('#cf-name-hint'))).toContain('past calls keep dev-db.');
+
+    p.button('Save changes').click();
+    await p.settle();
+
+    expect(TestBed.inject(ConnectionsApi).update).toHaveBeenCalledWith('dev-db', expect.objectContaining({ name: 'dev-reader' }));
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).toMatchObject({ name: 'dev-reader', version: DETAIL.version, env: 'dev' });
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Connection dev-db renamed to dev-reader' });
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-reader');
+    await p.settle();
+    expect(text(p.q('h1'))).toBe('Edit connection dev-reader');
+    expect((document.getElementById('cf-name') as HTMLInputElement).value).toBe('dev-reader');
+    expect(text(p.q('#cf-name-hint'))).toContain('Renaming applies from the next call');
+  });
+
+  it('sends no name when the name stays', async () => {
+    const p = await open('/connections/dev-db');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).not.toHaveProperty('name');
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+  });
+
+  it('says under the Name that another connection has it, and stays on the connection', async () => {
+    core.updateFails = [new ApiError('conflict', 409, { title: 'Name in use', detail: 'A connection named qa-db already exists.' })];
+    const p = await open('/connections/dev-db');
+    await p.type('cf-name', 'qa-db');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(text(p.q('#cf-name-err'))).toBe('A connection named qa-db already exists.');
+    expect(document.activeElement?.id).toBe('cf-name');
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+    await p.type('cf-name', 'qa-db-2');
+    expect(p.q('#cf-name-err')).toBeNull();
+  });
+
+  it('refuses a new name that is not a slug before anything is sent', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-name', 'Dev DB');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(text(p.q('#cf-name-err'))).toContain('Dev DB is not a slug.');
+    expect(core.updates).toEqual([]);
   });
 
   it('shows an attached connection with no tools without claiming its endpoint is missing', async () => {
@@ -1885,7 +2555,8 @@ describe('Connection: edit view', () => {
       items: [{ name: 'search-dev', host: 'search.example.test:9200', usedBy: ['dev'] }], facets: {}, total: 1,
     } as never);
     const p = await open('/connections/search-dev');
-    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toBe('Used by 1endpoint 0 tools on dev · Claude Desktop and Codex');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[2]).toBe('Used by 1endpoint 0 tools on dev · Claude Desktop and Codex');
+    expect(text(p.q('#connection-tools-tab .gw-tabs__count'))).toBe('0 tools');
     p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
     await p.settle();
     expect(text(p.q('#used-by .gw-empty__title'))).toBe('No tools available');
@@ -1899,7 +2570,7 @@ describe('Connection: edit view', () => {
       items: [{ name: 'dev-db', usedBy: [] }], facets: {}, total: 1,
     } as never);
     const p = await open('/connections/dev-db');
-    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toContain('Used by 0endpoints');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[2]).toContain('Used by 0endpoints');
     expect(text(p.q('#used-by .gw-empty__title'))).toBe('Not on an endpoint yet');
     expect(p.q<HTMLAnchorElement>('#used-by .gw-empty__actions a')!.getAttribute('href')).toBe('/endpoints');
   });
@@ -1912,7 +2583,7 @@ describe('Connection: edit view', () => {
     const toolsTab = p.q<HTMLButtonElement>('#connection-tools-tab')!;
     const form = p.q<HTMLFormElement>('#cf-form')!;
     expect(text(settingsTab)).toBe('Settings');
-    expect(text(toolsTab)).toBe('Tools');
+    expect(text(toolsTab)).toBe('Tools 3 tools');
     expect(settings.hidden).toBe(false);
     expect(tools.hidden).toBe(true);
     expect(settings.contains(p.q('#delete-connection'))).toBe(true);
@@ -2336,18 +3007,18 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(TestBed.inject(ToastService).toasts().at(-1)?.body).toBe('Added to endpoint default with its tools. Next: connect your AI app.');
   });
 
-  it('keeps production writes Off when the first connection joins the empty default endpoint', async () => {
+  it('keeps production writes in Approval when the first connection joins the empty default endpoint', async () => {
     useDefault();
     const p = await open();
     await toEndpoint(p, 'prod');
     expect(text(p.q('#pv-default-t'))).toBe('qa-db environment prod on endpoint default');
-    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 off');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 approval');
     p.button('Save connection').click();
     await p.settle();
     expect(core.endpointsCreated).toEqual([]);
     expect(core.added).toEqual(['default']);
-    expect(core.modes).toEqual([{ slug: 'default', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
-    expect(text(p.q('#fr-done'))).toContain('sql_execute is off: prod is read only by default');
+    expect(core.modes).toEqual([]);
+    expect(text(p.q('#fr-done'))).toContain('sql_execute waits for your approval');
   });
 
   it.each(['known', 'discovered'] as const)('uses a separate prod endpoint when the default has %s live access across the prod boundary', async (when) => {
@@ -2361,7 +3032,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     await p.settle();
     expect(core.endpointsCreated).toEqual([{ slug: 'prod', startFrom: 'empty' }]);
     expect(core.added).toEqual(['prod']);
-    expect(core.modes).toEqual([{ slug: 'prod', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(core.modes).toEqual([]);
     expect(kv('#fr-done')[0]?.[1]).toContain('prod · http://127.0.0.1:7465/mcp/prod');
     expect(p.steps()[3]).toBe('complete:Create endpoint, completed Endpoint prod');
   });
@@ -2376,8 +3047,10 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     );
     const cancel = p.q<HTMLAnchorElement>('.gw-page-header__actions a')!;
     expect([text(cancel), cancel.getAttribute('href')]).toEqual(['Cancel and go back to Overview', '/overview']);
-    expect(text(p.q('#step-1 .gw-section__description'))).toBe('The type decides what you fill in next and what your AI apps can do with it.');
-    expect(p.steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
+    expect(text(p.q('#step-1 .gw-section__description'))).toBe(
+      'A database, a cloud, a service or an MCP server. What you choose decides what you fill in next and what your AI apps can do with it.',
+    );
+    expect(p.steps()).toEqual(['current:1 Choose', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
   });
 
   it("Configure in plain words; the secret stays encrypted here unless its field's menu picks a store", async () => {
@@ -2449,7 +3122,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     // Every step done, no panel left, the header's Cancel gone; the card has the focus and the ways on.
     expect(p.visible()).toEqual([]);
     expect(p.steps()).toEqual([
-      'complete:Choose type, completed PostgreSQL',
+      'complete:Choose, completed PostgreSQL',
       'complete:Configure, completed qa-db · dev',
       'complete:Test, completed Connected · 12 ms',
       'complete:Create endpoint, completed Endpoint dev',
@@ -2483,23 +3156,23 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     ]);
   });
 
-  it('prod: the endpoint is prod and its tools that would wait for approval start Off', async () => {
+  it('prod: the endpoint is prod and its tools keep their defaults, changes waiting for approval', async () => {
     core.lastBackupAt = '2026-10-20T09:00:00Z';
     const p = await open();
     await toEndpoint(p, 'prod');
     expect(text(p.q('#pv-title + .gw-form__description'))).toBe(
-      'Reads run at once. sql_execute is off: prod is read only by default. You can change the modes later.',
+      'Reads run at once. Anything that changes data, like sql_execute, waits for your approval. You can change the modes later.',
     );
     expect(text(p.q('#pv-prod-t'))).toBe('qa-db environment prod on endpoint prod');
-    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 off');
-    expect(text(p.q('#step-4 .gw-tool-policy-list__row[data-mode="off"] .gw-tool-policy-list__mode-note'))).toBe('Off on prod: read only by default');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 approval');
+    expect(p.q('#step-4 .gw-tool-policy-list__row[data-mode="off"]')).toBeNull();
     p.button('Save connection').click();
     await p.settle();
     expect(core.endpointsCreated).toEqual([{ slug: 'prod', startFrom: 'empty' }]);
     expect(core.added).toEqual(['prod']);
-    expect(core.modes).toEqual([{ slug: 'prod', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(core.modes).toEqual([]);
     expect(kv('#fr-done').slice(1)).toEqual([
-      ['Tools', 'sql_list_schemas and sql_query run at once (read only); sql_execute is off: prod is read only by default'],
+      ['Tools', 'sql_list_schemas and sql_query run at once (read only); sql_execute waits for your approval'],
       // The key has a backup: no need to ask for one.
       ['Password', 'Encrypted with a key kept on this computer.'],
     ]);
@@ -2524,6 +3197,91 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     const p = await open();
     expect(text(p.q('#page-title'))).toBe('Add connection');
     expect(p.steps()[3]).toBe('upcoming:4 Add to endpoint');
+  });
+
+  /** External MCP server on the first run: Configure, then the review that starts it. */
+  async function startMcp(p: Awaited<ReturnType<typeof open>>) {
+    const field = (suffix: string) => p.q<HTMLInputElement>(`#step-2-mcp [id$="${suffix}"]`)!;
+    await p.type(field('-name').id, 'docs');
+    await p.type(field('-command').id, 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    p.q<HTMLInputElement>('#step-3-mcp input[type=checkbox][id$="-ack"]')!.click();
+    await p.settle();
+    p.button('Start MCP server docs', p.q('#step-3-mcp')!).click();
+    await p.settle();
+  }
+
+  it('creates the first endpoint for a first MCP server, named after its environment, then the ready card', async () => {
+    vi.mocked(TestBed.inject(EndpointsApi).tools).mockResolvedValue([
+      { group: 'docs', connection: 'docs', env: null, tools: [row('read_file', 'READ_ONLY'), row('write_file', 'APPROVAL')] },
+    ]);
+    const p = await open('/connections/new?type=mcp-server');
+    expect(text(p.q('#page-title'))).toBe('Add your first connection');
+    expect(text(p.q('.gw-page-header__description'))).toContain('An MCP server is saved when it first connects.');
+    await startMcp(p);
+    expect(p.visible()).toEqual(['step-4-mcp']);
+    expect(text(p.q('#step-4-mcp-title'))).toBe('Make docs available to your AI apps');
+    expect(p.steps()[3]).toBe('current:4 Create endpoint');
+    expect(kv('#step-4-mcp')[0]).toEqual(['Name', 'dev']);
+    // The server is saved: Cancel would undo nothing.
+    expect(p.q('.gw-page-header__actions a')).toBeNull();
+    p.button('Create endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([{ slug: 'dev', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['dev']);
+    expect(p.visible()).toEqual([]);
+    expect(text(p.q('#fr-done-t'))).toBe('docs is ready');
+    expect(text(p.q('#fr-done .gw-card__description'))).toBe('Saved and started. Your AI apps can use it as soon as you connect one.');
+    expect(kv('#fr-done').map(([key]) => key)).toEqual(['Endpoint', 'Tools']);
+    expect(kv('#fr-done')[0]?.[1]).toContain('dev · http://127.0.0.1:7465/mcp/dev · created');
+    expect(p.steps()).toEqual([
+      'complete:Choose, completed External MCP server',
+      'complete:Configure, completed docs · dev',
+      'complete:Review, completed Started · 3 tools',
+      'complete:Create endpoint, completed Endpoint dev',
+    ]);
+    expect(TestBed.inject(Router).url).toBe('/connections/new?type=mcp-server');
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      title: 'MCP server docs started', body: 'Endpoint dev created with its tools. Next: connect your AI app.',
+    });
+  });
+
+  it('puts a first MCP server on the empty default endpoint, its tools previewed there', async () => {
+    useDefault();
+    core.previews.set('default', {
+      connection: 'docs', env: 'dev', warnings: [], refusal: null,
+      tools: [{ toolKey: 'docs:read_file', tool: 'read_file', mode: 'READ_ONLY', locked: null, declaredBy: 'server' }],
+    } as ConnectionPreview);
+    const p = await open('/connections/new?type=mcp-server');
+    await startMcp(p);
+    expect(p.steps()[3]).toBe('current:4 Add to endpoint');
+    expect(text(p.q('#step-4-mcp [id$="-first-t"] + .gw-form__description'))).toContain('Endpoint default is already set up.');
+    expect(text(p.q('#step-4-mcp table'))).toContain('read_file');
+    p.button('Add to endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([]);
+    expect(core.added).toEqual(['default']);
+    expect(text(p.q('#fr-done-t'))).toBe('docs is ready');
+    expect(kv('#fr-done')[0]?.[1]).toContain('default · http://127.0.0.1:7465/mcp/default · connection added');
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.body).toBe('Added to endpoint default with its tools. Next: connect your AI app.');
+  });
+
+  it('keeps a first MCP server’s last step when its endpoint can’t be created, and tries again', async () => {
+    core.createEndpointFails = new ApiError('unprocessable', 422, { detail: 'The endpoint name is reserved.' });
+    const p = await open('/connections/new?type=mcp-server');
+    await startMcp(p);
+    p.button('Create endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.added).toEqual([]);
+    expect(p.visible()).toEqual(['step-4-mcp']);
+    expect(text(p.q('#step-4-mcp [role=alert]'))).toContain('dev: The endpoint name is reserved.');
+    core.createEndpointFails = null;
+    p.button('Create endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([{ slug: 'dev', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['dev']);
+    expect(text(p.q('#fr-done-t'))).toBe('docs is ready');
   });
 });
 

@@ -19,7 +19,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 100000,
-      "description": "INSERT, UPDATE, DELETE, MERGE or DDL. PostgreSQL: up to 20 statements, run in one transaction. MySQL, Oracle and SQL Server: one statement. Oracle DDL commits implicitly. A person approves the exact text."
+      "description": "INSERT, UPDATE, DELETE, MERGE or DDL. PostgreSQL: up to 20 statements, run in one transaction. MySQL, Oracle, SQL Server and SQLite: one statement. Oracle DDL commits implicitly. A person approves the exact text."
     },
     "note": {
       "type": "string",

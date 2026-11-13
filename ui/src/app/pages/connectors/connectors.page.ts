@@ -8,11 +8,10 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs, selectFromFragment } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
-import { InstalledView, installedViews, plural, v } from './connectors-view';
+import { CatalogView, InstalledView, catalogOffer, installedViews, joinAnd, listsCheckToast, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
-import { GwMcpSetupFlow } from './mcp-setup-flow';
 import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
 import { GwPluginReviewDialog } from './dialogs/plugin-review.dialog';
@@ -31,7 +30,8 @@ export const SKELETON_DELAY_MS = 300;
  * can reach and the tools each brings, and the three ways to add one without rebuilding — a template, a plugin or an
  * MCP server.
  *
- * - Header: "Add connector" (the page's one primary) — New template (Templates tab), Install plugin, Add MCP server.
+ * - Header: "Add connector" (the page's one primary) — New template (Templates tab), Install plugin or module (a
+ *   JAR from this computer: a plugin, or a connector module, GateRook's own or the person's), Add MCP server.
  * - How it works: the three levels of connectors, folded and remembered.
  * - Tabs Installed / Catalog / Templates / MCP servers with their counts; `#installed|catalog|templates|mcp-servers`
  *   deep-links a tab (the app's fragment follower).
@@ -60,7 +60,6 @@ export const SKELETON_DELAY_MS = 300;
     GwPluginInstallDialog,
     GwPluginReviewDialog,
     GwPluginUpdateDialog,
-    GwMcpSetupFlow,
     GwMcpSignInDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
@@ -81,15 +80,12 @@ export class ConnectorsPage {
   private readonly doc = inject(DOCUMENT);
   private readonly fragment = toSignal(this.route.fragment);
 
-  /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
+  /** `?add=mcp-server` (an older link to Add MCP server): Add connection, on its MCP servers. */
   readonly add = input<string | null>(null);
-  /** Overview's service chooser opens the matching real MCP source form. */
-  readonly source = input<string | null>(null);
 
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
   private readonly updateDialog = viewChild.required(GwPluginUpdateDialog);
-  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
   private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
@@ -99,6 +95,8 @@ export class ConnectorsPage {
   protected readonly slow = signal(false);
   /** The card whose action waits for the core (Update's preview, Install's check, Turn on). */
   protected readonly busyKey = signal<string | null>(null);
+  /** The Catalog's Check now waits for the core. */
+  protected readonly checking = signal(false);
 
   protected readonly installed = computed<InstalledView[] | null>(() => {
     const types = this.data.types.value();
@@ -109,12 +107,24 @@ export class ConnectorsPage {
   /** Tab counts, once their list answered (the kit's "Installed 12 · Catalog 5 · Templates 7 · MCP servers 1"). */
   protected readonly counts = computed(() => ({
     installed: this.installed()?.length ?? null,
-    catalog: this.data.catalog.value()?.entries.length ?? null,
+    catalog: this.catalogCount(),
     templates: this.data.templates.value()?.length ?? null,
     servers: this.data.connections.value() ? this.data.servers().length : null,
   }));
 
   protected readonly plural = plural;
+
+  /**
+   * What the Catalog offers: GateRook's own modules that aren't installed, and the signed catalog's entries. Known
+   * once the catalog answered, as the panel shows its cards only then.
+   */
+  private catalogCount(): number | null {
+    return this.data.catalog.value() ? this.catalogOffer().length : null;
+  }
+
+  private catalogOffer(): CatalogView[] {
+    return catalogOffer(this.data.types.value()?.groups, this.data.catalog.value());
+  }
 
   constructor() {
     void this.data.start();
@@ -136,17 +146,7 @@ export class ConnectorsPage {
     });
     effect(() => {
       if (this.add() !== 'mcp-server') return;
-      const source = this.source();
-      untracked(() =>
-        afterNextRender(
-          () => {
-            this.mcpSetup().open(null, source === 'registry' || source === 'url' ? source : 'manual');
-            // Once: a reload or Back doesn't open it again.
-            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null, source: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
-          },
-          { injector: this.injector },
-        ),
-      );
+      untracked(() => void this.router.navigate(['/connections/new'], { queryParams: { show: 'mcp' }, replaceUrl: true }));
     });
     // The core came back (it was away, or another instance answers): everything may be stale.
     let wasRunning = this.core.running();
@@ -174,8 +174,9 @@ export class ConnectorsPage {
     this.installDialog().open(this.triggerOf(e));
   }
 
-  protected openAddServer(e: Event): void {
-    this.mcpSetup().open(this.triggerOf(e));
+  /** Add MCP server: Add connection, on its MCP servers (External MCP server first, then the catalog). */
+  protected openAddServer(): void {
+    void this.router.navigate(['/connections/new'], { queryParams: { show: 'mcp' } });
   }
 
   // ── Plugins ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -221,6 +222,10 @@ export class ConnectorsPage {
           },
           a.opener,
         );
+      case 'uninstall-module':
+        return this.uninstallModule(view, a.opener);
+      case 'replace-module':
+        return this.replaceModule(view, a.opener);
       case 'turn-on':
         return this.turnOn(view);
       case 'keep':
@@ -244,6 +249,69 @@ export class ConnectorsPage {
           a.opener,
         );
     }
+  }
+
+  /** Every card of the module behind `view`: a module may add several connector types. */
+  private moduleCards(view: InstalledView): InstalledView[] {
+    const id = view.module?.id;
+    return id ? (this.installed() ?? []).filter((x) => x.module?.id === id) : [];
+  }
+
+  /** Removing the person's own module takes all of its connector types; the core refuses while connections use one. */
+  private uninstallModule(view: InstalledView, opener: HTMLElement | null): void {
+    const module = view.module;
+    if (!module) return;
+    const cards = this.moduleCards(view);
+    const names = cards.map((x) => x.name);
+    const connections = cards.reduce((n, x) => n + x.connections, 0);
+    const what = names.length > 1 ? `the connector types ${joinAnd(names)}` : `the connector type ${view.name}`;
+    this.confirmDialog().ask(
+      {
+        tone: 'danger',
+        icon: 'trash-2',
+        title: `Uninstall module ${module.id}?`,
+        description: [
+          {
+            text: connections
+              ? `${plural(connections, 'connection')} ${connections === 1 ? 'uses' : 'use'} it: remove ${connections === 1 ? 'that connection' : 'those connections'} first, or the module stays. Uninstalling unloads its code, deletes its package and removes ${what}.`
+              : `Its code is unloaded, its package deleted and ${what} removed. No connection uses it, so nothing stops working. Install it from its file again to use it.`,
+            code: false,
+          },
+        ],
+        confirm: `Uninstall module ${module.id}`,
+        run: async () => {
+          await this.data.uninstallModule(module.id);
+          this.toasts.show({ tone: 'success', title: `Module ${module.id} uninstalled`, body: 'Past calls stay in Activity.' });
+        },
+      },
+      opener,
+    );
+  }
+
+  /** Back to GateRook's build of a module the person had their own build of: its tools are GateRook's own again. */
+  private replaceModule(view: InstalledView, opener: HTMLElement | null): void {
+    const module = view.module;
+    if (!module?.listedVersion) return;
+    const to = v(module.listedVersion);
+    this.confirmDialog().ask(
+      {
+        tone: 'warning',
+        icon: 'replace',
+        title: `Replace your ${view.name} module with GateRook's ${to}?`,
+        description: [
+          {
+            text: `GateRook downloads its own build, which its signed list has, and switches to it. Requests that wait for approval on its connections are rejected. Each tool keeps the mode it has; GateRook's list updates the module from then on.`,
+            code: false,
+          },
+        ],
+        confirm: `Use GateRook's ${to}`,
+        run: async () => {
+          await this.data.replaceOwnModule(module.id);
+          this.toasts.show({ tone: 'success', title: `GateRook's ${view.name} ${to} is installing`, body: 'Its card follows the download. Calls go on with your module until then.' });
+        },
+      },
+      opener,
+    );
   }
 
   private async openUpdate(key: string, id: string, to: string, connections: number, tools: number | null, opener: HTMLElement | null): Promise<void> {
@@ -310,6 +378,24 @@ export class ConnectorsPage {
 
   // ── Catalog ───────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Check now: the core checks both signed lists at once instead of when they are six hours old, and a toast says
+   * what the check found. The panel shows the rest: the cards, when the lists were checked, and why one couldn't be.
+   */
+  protected async checkCatalog(): Promise<void> {
+    if (this.checking()) return;
+    const before = this.catalogOffer();
+    this.checking.set(true);
+    try {
+      const found = await this.data.checkLists();
+      this.toasts.show(listsCheckToast(before, this.catalogOffer(), found.catalog, found.modules));
+    } catch (e) {
+      this.toasts.show({ tone: 'danger', title: "The catalog wasn't checked", body: failureText(e) });
+    } finally {
+      this.checking.set(false);
+    }
+  }
+
   protected async onCatalogAction(a: CatalogAction): Promise<void> {
     const view = a.view;
     if (a.type === 'install-file' || !view) {
@@ -317,6 +403,8 @@ export class ConnectorsPage {
       return;
     }
     const e = view.entry;
+    // One of GateRook's own modules has no entry and nothing to install by hand: its card links to Add connection.
+    if (!e) return;
     switch (a.type) {
       case 'install-plugin':
         return this.runBusy(
@@ -337,24 +425,9 @@ export class ConnectorsPage {
         this.templateInstallDialog().show(e, a.opener);
         return;
       case 'install-server':
-        return this.runBusy(
-          view.key,
-          async () => {
-            const source = { catalog: `${e.id}@${e.version}` } as const;
-            const review = await this.data.reviewServer(source);
-            this.mcpSetup().showReviewed({
-              review,
-              source,
-              name: review.name || e.id,
-              transport: review.transport ?? 'stdio',
-              target: '',
-              variables: [],
-              opener: a.opener,
-            });
-          },
-          `${e.name} wasn't reviewed`,
-          'This build of the gateway core can’t run MCP servers yet.',
-        );
+        // Add connection sets it up: its environment, the review of what runs, then its endpoints.
+        void this.router.navigate(['/connections/new'], { queryParams: { catalog: `${e.id}@${e.version}` } });
+        return;
       default:
         return;
     }
@@ -412,17 +485,23 @@ export class ConnectorsPage {
 
   // ── MCP servers ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** A server to add opens Add connection on its Configure (the catalog cards) or on the MCP servers (Add MCP server). */
   protected onServerAction(a: McpServerAction): void {
     if (a.type === 'use-registry') {
-      this.mcpSetup().openRegistryResult(a.opener, a.result);
+      // The result the person chose, from the registry it was found in; a Popular shortcut trusts only the official one.
+      void this.router.navigate(['/connections/new'], { queryParams: { registryServer: a.result.server.name } });
       return;
     }
     if (a.type === 'add-registry') {
-      this.mcpSetup().openRegistry(a.opener, a.registryName);
+      void this.router.navigate(['/connections/new'], { queryParams: { registry: a.registryName } });
+      return;
+    }
+    if (a.type === 'add-profile') {
+      void this.router.navigate(['/connections/new'], { queryParams: { profile: a.profile.id } });
       return;
     }
     if (a.type === 'add' || !a.server) {
-      this.mcpSetup().open(a.opener);
+      this.openAddServer();
       return;
     }
     const s = a.server;

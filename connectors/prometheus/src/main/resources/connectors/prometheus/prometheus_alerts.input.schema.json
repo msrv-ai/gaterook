@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "firing",
+        "pending",
+        "any"
+      ],
+      "default": "any",
+      "description": "Only firing or only pending alerts. Default: both."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Most alerts to return; the endpoint caps it."
+    }
+  }
+}

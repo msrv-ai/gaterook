@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "catalog": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "A catalog; leave it out for the connection's default catalog."
+    },
+    "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "A schema; leave it out for the connection's default schema."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 50,
+      "description": "Most tables to return."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

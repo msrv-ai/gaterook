@@ -1,0 +1,14 @@
+# Rules of the test services' Prometheus: one recording rule and one alert that always fires, for
+# prometheus_rules and prometheus_alerts of PrometheusIT.
+groups:
+  - name: gw-it
+    interval: 5s
+    rules:
+      - record: gw_it:up:sum
+        expr: sum(up)
+      - alert: GwItAlwaysFiring
+        expr: vector(1)
+        labels:
+          severity: test
+        annotations:
+          summary: Fires so that the integration test sees an alert.

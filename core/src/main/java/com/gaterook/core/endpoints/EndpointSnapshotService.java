@@ -1,0 +1,356 @@
+package com.gaterook.core.endpoints;
+
+import com.gaterook.connector.api.ConnectorManifest;
+import com.gaterook.connector.api.ToolCall;
+import com.gaterook.connector.api.ToolDefinition.Mode;
+import com.gaterook.core.connections.ConnectionChanged;
+import com.gaterook.core.connections.ConnectionConfigs;
+import com.gaterook.core.connections.ConnectionRemoved;
+import com.gaterook.core.connections.ConnectionService;
+import com.gaterook.core.connectors.ConnectorRegistry;
+import com.gaterook.core.connectors.ConnectorType;
+import com.gaterook.core.connectors.ConnectorTypeChanged;
+import com.gaterook.core.endpoints.internal.EndpointRows;
+import com.gaterook.core.endpoints.internal.TemporaryBypass;
+import com.gaterook.core.endpoints.internal.ToolPairs;
+import com.gaterook.core.endpoints.internal.persistence.EndpointAccess;
+import com.gaterook.core.endpoints.internal.persistence.EndpointConnectionEntity;
+import com.gaterook.core.endpoints.internal.persistence.EndpointConnectionRepository;
+import com.gaterook.core.endpoints.internal.persistence.EndpointEntity;
+import com.gaterook.core.endpoints.internal.persistence.EndpointRepository;
+import com.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
+import com.gaterook.core.endpoints.internal.persistence.EndpointToolRepository;
+import com.gaterook.core.platform.IntegrityAlerts;
+import com.gaterook.core.platform.MasterKeyChanged;
+import com.gaterook.core.policy.PairView;
+import com.gaterook.core.policy.PolicyChanged;
+import com.gaterook.core.templates.TemplateChanged;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.JsonNode;
+
+/**
+ * Builds and caches {@link EndpointSnapshot}s (ARCHITECTURE.md §5 step 4). Every row the snapshot reads is verified
+ * against its MAC; one that doesn't verify blocks the endpoint ("Changed outside GateRook"). Invalidation is
+ * synchronous after commit: the change that triggered it is visible to the very next call.
+ */
+@Service
+public class EndpointSnapshotService {
+
+  private final EndpointRepository endpoints;
+  private final EndpointConnectionRepository wiring;
+  private final EndpointToolRepository tools;
+  private final EndpointRows rows;
+  private final ConnectionConfigs connections;
+  private final ConnectorRegistry registry;
+  private final ToolPairs pairs;
+  private final IntegrityAlerts alerts;
+  private final ApplicationEventPublisher publisher;
+  private final TransactionTemplate readTx;
+  private final Clock clock;
+  private final Map<String, EndpointSnapshot> cache = new ConcurrentHashMap<>();
+  private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong();
+
+  public EndpointSnapshotService(EndpointRepository endpoints, EndpointConnectionRepository wiring,
+      EndpointToolRepository tools, EndpointRows rows, ConnectionConfigs connections, ConnectorRegistry registry,
+      ToolPairs pairs, IntegrityAlerts alerts, ApplicationEventPublisher publisher,
+      PlatformTransactionManager transactions, Clock clock) {
+    this.endpoints = endpoints;
+    this.wiring = wiring;
+    this.tools = tools;
+    this.rows = rows;
+    this.connections = connections;
+    this.registry = registry;
+    this.pairs = pairs;
+    this.alerts = alerts;
+    this.publisher = publisher;
+    this.clock = clock;
+    this.readTx = new TransactionTemplate(transactions);
+    this.readTx.setReadOnly(true);
+  }
+
+  /** Rechecks a user pause immediately before a queued resource operation. */
+  public boolean requireAvailable(String endpointId, String connection)
+      throws com.gaterook.connector.api.ConnectorException {
+    EndpointSnapshot current = get(endpointId).orElseThrow(() ->
+        com.gaterook.connector.api.ConnectorException.unavailable("Endpoint was deleted. Nothing ran.", null));
+    String reason = current.disabledReason(connection);
+    if (reason != null) throw com.gaterook.connector.api.ConnectorException.unavailable(reason, null);
+    return true;
+  }
+
+  public Optional<EndpointSnapshot> get(String endpointId) {
+    EndpointSnapshot cached = cache.get(endpointId);
+    if (cached != null && !expired(cached)) {
+      return Optional.of(cached);
+    }
+    if (cached != null) {
+      evict(endpointId);
+      publisher.publishEvent(new EndpointCatalogInvalidated(endpointId));
+    }
+    // Inside a caller's transaction the rows may hold what it hasn't committed (and may roll back), or a database
+    // snapshot older than a change whose eviction already ran (SQLite fixes a read transaction's view at its first
+    // statement): such a snapshot serves the caller and is never cached.
+    boolean joined = TransactionSynchronizationManager.isActualTransactionActive();
+    long generationAtStart = generation.get();
+    Optional<EndpointSnapshot> built = readTx.execute(s -> endpoints.findById(endpointId).map(this::build));
+    // A change that committed while this was being built has already evicted: don't put the old view back.
+    if (!joined) {
+      built.ifPresent(snapshot -> {
+        synchronized (cache) {
+          if (generation.get() == generationAtStart) {
+            cache.put(endpointId, snapshot);
+          }
+        }
+      });
+    }
+    return built;
+  }
+
+  /**
+   * The endpoint as its rows say right now, every row verified again, never from or into the cache: what a change
+   * checks before it copies or signs again what it read (duplicate, split, read-only switch). Call it before the
+   * change touches any row, or the change itself reads as an edit made outside the core.
+   */
+  public Optional<EndpointSnapshot> uncached(String endpointId) {
+    return readTx.execute(s -> endpoints.findById(endpointId).map(this::build));
+  }
+
+  public Optional<EndpointSnapshot> bySlug(String slug) {
+    boolean inWrite = TransactionSynchronizationManager.isActualTransactionActive()
+        && !TransactionSynchronizationManager.isCurrentTransactionReadOnly();
+    for (EndpointSnapshot s : inWrite ? java.util.List.<EndpointSnapshot>of() : cache.values()) {
+      if (s.slug().equals(slug)) {
+        return get(s.id());
+      }
+    }
+    return readTx.execute(st -> endpoints.findBySlug(slug).map(e -> e.getId())).flatMap(this::get);
+  }
+
+  private boolean expired(EndpointSnapshot snapshot) {
+    Instant now = clock.instant();
+    return snapshot.pairs().stream().anyMatch(p -> p.bypassUntil() != null && !now.isBefore(p.bypassUntil()));
+  }
+
+  // ── Invalidation ────────────────────────────────────────────────────────────────────────────────────────────
+
+  @TransactionalEventListener
+  public void onEndpointChanged(EndpointChanged e) {
+    evict(e.endpointId());
+    publisher.publishEvent(new EndpointCatalogInvalidated(e.endpointId()));
+  }
+
+  @TransactionalEventListener
+  public void onEndpointRemoved(EndpointRemoved e) {
+    evict(e.endpointId());
+    publisher.publishEvent(new EndpointCatalogInvalidated(e.endpointId()));
+  }
+
+  @TransactionalEventListener
+  public void onConnectionChanged(ConnectionChanged e) {
+    evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
+  }
+
+  @TransactionalEventListener
+  public void onConnectionRemoved(ConnectionRemoved e) {
+    evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
+  }
+
+  @TransactionalEventListener
+  public void onPolicyChanged(PolicyChanged e) {
+    evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
+  }
+
+  @TransactionalEventListener
+  public void onTemplateChanged(TemplateChanged e) {
+    evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
+  }
+
+  @TransactionalEventListener
+  public void onConnectorTypeChanged(ConnectorTypeChanged e) {
+    evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
+  }
+
+  /** New derived keys: every MAC must be checked again. */
+  @EventListener
+  public void onMasterKeyChanged(MasterKeyChanged e) {
+    invalidateAll();
+  }
+
+  public void invalidateAll() {
+    evictAll();
+    // Key changes also arrive before commit. Preserve immediate MAC-cache invalidation, but never tell clients
+    // about an uncommitted change or a transaction that later rolls back.
+    if (TransactionSynchronizationManager.isActualTransactionActive()
+        && TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+          // A concurrent reader could have cached the old committed state after the initial eviction.
+          evictAll();
+          publisher.publishEvent(new EndpointCatalogInvalidated(null));
+        }
+      });
+    } else {
+      publisher.publishEvent(new EndpointCatalogInvalidated(null));
+    }
+  }
+
+  private void evict(String endpointId) {
+    synchronized (cache) {
+      generation.incrementAndGet();
+      cache.remove(endpointId);
+    }
+  }
+
+  private void evictAll() {
+    synchronized (cache) {
+      generation.incrementAndGet();
+      cache.clear();
+    }
+  }
+
+  // ── Building ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  private EndpointSnapshot build(EndpointEntity e) {
+    String blocked = null;
+    if (!rows.verify(e)) {
+      blocked = "endpoint row";
+    }
+    boolean readOnly = e.getAccess() == EndpointAccess.READ_ONLY;
+    Map<String, EndpointToolEntity> byKey = new HashMap<>();
+    List<EndpointSnapshot.CorePair> core = new ArrayList<>();
+    for (EndpointToolEntity t : tools.findByEndpointId(e.getId())) {
+      if (blocked == null && !rows.verify(t)) {
+        blocked = "tool " + t.getToolKey();
+      }
+      if (t.getConnectionId() == null) {
+        if (CoreTools.WITH_MODE.contains(t.getToolKey())) {
+          Mode mode = readOnly ? ToolPairs.clampReadOnly(CoreTools.withMode(t.getToolKey()), t.getMode())
+              : t.getMode();
+          core.add(new EndpointSnapshot.CorePair(t.getId(), t.getVersion(), t.getToolKey(), mode, t.getMode()));
+        }
+      } else {
+        byKey.put(t.getConnectionId() + "\0" + t.getToolKey(), t);
+      }
+    }
+    List<EndpointSnapshot.Wired> wired = new ArrayList<>();
+    List<ToolPairs.Member> members = new ArrayList<>();
+    for (EndpointConnectionEntity w : wiring.findByEndpointIdOrderByAddedAtAscIdAsc(e.getId())) {
+      if (blocked == null && !rows.verify(w)) {
+        blocked = "connection wiring";
+      }
+      Optional<ConnectionConfigs.Stored> stored = connections.byId(w.getConnectionId());
+      if (stored.isEmpty()) {
+        continue;
+      }
+      ConnectorType type = registry.type(stored.get().config().type()).orElse(null);
+      if (type == null) {
+        continue;
+      }
+      ConnectorManifest manifest = type.manifest();
+      String problem = !stored.get().verified() ? stored.get().name() + " was changed outside GateRook"
+          : ConnectionService.needsSetup(stored.get().config()) ? "Needs setup: complete " + stored.get().name()
+              + " in GateRook before enabling access"
+          : !type.usable() ? manifest.name() + " is switched off" : null;
+      wired.add(new EndpointSnapshot.Wired(stored.get().config(), manifest, problem, stored.get().enabled()));
+      members.add(new ToolPairs.Member(stored.get().config(), manifest, problem == null));
+    }
+    // One EndpointView per connector type: same-named pairs of one type carry one definition (report 06 §3.1).
+    Map<String, List<ToolPairs.Offered>> offeredById = pairs.offered(members, e.getSlug(), e.getEnv());
+    List<EndpointSnapshot.Pair> out = new ArrayList<>();
+    for (EndpointSnapshot.Wired w : wired) {
+      if (ConnectionService.needsSetup(w.config())) continue;
+      ConnectorManifest manifest = w.manifest();
+      String problem = w.problem();
+      String connectionId = w.config().id();
+      List<JsonNode> contributions = pairs.contributions(connectionId);
+      for (ToolPairs.Offered offered : offeredById.get(connectionId)) {
+        EndpointToolEntity row = byKey.get(connectionId + "\0" + offered.toolKey());
+        Mode storedMode = row == null ? Mode.OFF : row.getMode();
+        boolean confirmed = row != null && confirmed(row.getRoConfirmation(), offered);
+        Mode mode = storedMode;
+        // An external server's tool runs without a person only with the definition its mode was set for. The stored
+        // mode follows when the core has reconciled the endpoint (ARCHITECTURE.md §7.5); until then it is Approval.
+        String held = null;
+        if ((mode == Mode.READ_ONLY || mode == Mode.BYPASS) && !ToolPairs.reviewed(row, offered)) {
+          held = (row != null && row.getReviewedDefinition() != null
+              ? "The definition of " + offered.definition().name() + " changed since it was set to "
+              : "No definition of " + offered.definition().name() + " is recorded for ")
+              + ToolPairs.label(mode) + ", so it doesn't run without a person until you set the mode again for the "
+              + "definition it has now.";
+          mode = Mode.APPROVAL;
+        }
+        // A temporary bypass is bound to the definition it was granted for, not to the row's reviewed one.
+        Instant bypassUntil = problem == null
+            ? TemporaryBypass.activeUntil(row, e, w.config(), offered, readOnly, clock.instant()) : null;
+        if (bypassUntil != null) {
+          mode = Mode.BYPASS;
+          held = null;
+        }
+        if (mode == Mode.READ_ONLY && offered.needsReadOnlyConfirmation() && !confirmed) {
+          mode = Mode.APPROVAL;
+        }
+        if (mode == Mode.READ_ONLY && !offered.definition().readOnlyModeAllowed()) {
+          mode = Mode.APPROVAL;
+        }
+        if (readOnly) {
+          mode = ToolPairs.clampReadOnly(offered.definition(), mode);
+        }
+        if (problem != null) {
+          mode = Mode.OFF;
+        }
+        JsonNode overrides = row == null ? null : rows.tree(row.getOverrides());
+        ToolCall.TemplateBinding binding = offered.template() == null ? null : new ToolCall.TemplateBinding(
+            offered.template().templateId(), offered.template().version(), offered.compiled().opKey(),
+            offered.compiled().binding());
+        PairView view = new PairView(e.getId(), e.getSlug(), e.getEnv(), readOnly, connectionId,
+            w.config().name(), w.config().env(), manifest, offered.definition(), offered.toolKey(), mode,
+            rows.tree(e.getSettings()).path("limits"), overrides);
+        out.add(new EndpointSnapshot.Pair(row == null ? null : row.getId(), row == null ? 0 : row.getVersion(),
+            offered.toolKey(), offered.definition(), manifest, w.config(), mode, storedMode, overrides,
+            offered.declaredBy(), confirmed, offered.provenanceVersion(), binding, view, contributions, bypassUntil,
+            held));
+      }
+    }
+    if (blocked != null) {
+      alerts.report("endpoint", e.getId(), e.getSlug(), blocked);
+    }
+    return new EndpointSnapshot(e.getId(), e.getSlug(), e.getDescription(), e.getEnv(), readOnly, e.isEnabled(),
+        e.getInstructions(), rows.tree(e.getSettings()), e.isPublished(), e.isOauthEnabled(),
+        e.getRiskDismissed() == null ? null : rows.tree(e.getRiskDismissed()), e.getVersion(), List.copyOf(wired),
+        List.copyOf(out), List.copyOf(core), blocked == null ? null : "Changed outside GateRook (" + blocked + ")");
+  }
+
+  /**
+   * A Read only confirmation counts while it names the tool's current definition and the version of what declared it
+   * ({@link ToolPairs.Offered#provenanceVersion}: the plugin's, the upstream MCP server's), report 11: a new server
+   * version takes the confirmation away, a new gateway version doesn't.
+   */
+  static boolean confirmed(Map<String, Object> confirmation, ToolPairs.Offered offered) {
+    if (confirmation == null || offered.provenanceVersion() == null) {
+      return false;
+    }
+    return ToolPairs.definitionHash(offered.definition()).equals(confirmation.get("definitionHash"))
+        && offered.provenanceVersion().equals(confirmation.get("version"));
+  }
+}

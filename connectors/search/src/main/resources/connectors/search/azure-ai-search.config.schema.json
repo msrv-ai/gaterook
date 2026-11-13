@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Azure AI Search",
+  "type": "object",
+  "x-card": {
+    "description": "Indexes and documents of an Azure AI Search service: full-text, filtered and vector search, documents by key. Document writes and deletes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "endpoint"
+  ],
+  "properties": {
+    "endpoint": {
+      "type": "string",
+      "title": "Service endpoint",
+      "format": "uri",
+      "minLength": 8,
+      "maxLength": 300,
+      "pattern": "^https://[a-z0-9][a-z0-9-]{0,58}[a-z0-9]?\\.search\\.(windows\\.net|azure\\.us|azure\\.cn)/?$",
+      "examples": [
+        "https://contoso-search.search.windows.net"
+      ],
+      "description": "The service's URL: https://<service>.search.windows.net (or .search.azure.us for Azure Government, .search.azure.cn for Azure China)."
+    },
+    "auth": {
+      "title": "Sign in with",
+      "enum": [
+        "apiKey",
+        "entraId"
+      ],
+      "default": "apiKey",
+      "x-enumTitles": [
+        "API key",
+        "Microsoft Entra ID"
+      ],
+      "description": "Entra ID needs role-based access on the service (Keys: Role-based access control, or Both) and roles for the identity: Search Index Data Reader to search, Search Index Data Contributor to write too."
+    },
+    "indexes": {
+      "type": "array",
+      "title": "Indexes",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "examples": [
+        [
+          "hotels",
+          "kb-*"
+        ]
+      ],
+      "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+    }
+  },
+  "patternProperties": {
+    "^(apiKey|tenantId|credentials|trustedCli)$": {}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "auth": {
+            "const": "entraId"
+          }
+        },
+        "required": [
+          "auth"
+        ]
+      },
+      "then": {
+        "required": [
+          "credentials"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "title": "Tenant (directory) ID",
+            "maxLength": 253,
+            "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+            "examples": [
+              "contoso.onmicrosoft.com"
+            ],
+            "description": "The directory ID or domain of the service's tenant. Required for a device sign-in or a service principal; with the Azure CLI, empty uses its default tenant."
+          },
+          "credentials": {
+            "type": "object",
+            "title": "Credentials",
+            "required": [
+              "source"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "title": "Sign in with",
+                "enum": [
+                  "cli",
+                  "deviceCode",
+                  "clientSecret",
+                  "clientCertificate"
+                ],
+                "default": "cli",
+                "x-enumTitles": [
+                  "Azure CLI sign-in on this computer (az login)",
+                  "Sign in with a code in the browser",
+                  "Service principal with a client secret",
+                  "Service principal with a certificate"
+                ]
+              },
+              "clientId": {
+                "type": "string",
+                "title": "Application (client) ID",
+                "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+                "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+              }
+            },
+            "patternProperties": {
+              "^(clientSecret|certificate)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "clientSecret"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "clientId",
+                    "clientSecret"
+                  ],
+                  "properties": {
+                    "clientSecret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Client secret",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "clientCertificate"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "clientId",
+                    "certificate"
+                  ],
+                  "properties": {
+                    "certificate": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 20000,
+                      "minLength": 1,
+                      "title": "Certificate and private key (PEM)",
+                      "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "trustedCli": {
+            "type": "string",
+            "title": "Allowed Azure CLI command",
+            "readOnly": true,
+            "x-person-only": true,
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "credentials": {
+                  "properties": {
+                    "source": {
+                      "enum": [
+                        "deviceCode",
+                        "clientSecret",
+                        "clientCertificate"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                }
+              },
+              "required": [
+                "credentials"
+              ]
+            },
+            "then": {
+              "required": [
+                "tenantId"
+              ]
+            }
+          }
+        ]
+      },
+      "else": {
+        "required": [
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "title": "API key",
+            "minLength": 1,
+            "maxLength": 4096,
+            "writeOnly": true,
+            "x-gateway-secret": "value",
+            "format": "password",
+            "description": "Stored encrypted by GateRook. A query key searches and reads documents only; listing and describing indexes and writes need an admin key."
+          }
+        }
+      }
+    }
+  ]
+}

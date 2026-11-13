@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "collection",
+    "records"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The collection (an index on Pinecone, a class on Weaviate). vector_list_collections lists them."
+    },
+    "namespace": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Pinecone: the namespace (empty: the default one). Weaviate: the tenant of a multi-tenant collection. Milvus: the partition. Not used by Qdrant and Chroma."
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "description": "The records to write; a record with an existing id replaces it. A person approves the exact records.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "description": "A record id: text, or an integer where the store's ids are integers (Qdrant, Milvus with Int64 keys)."
+          },
+          "vector": {
+            "description": "The record's vector, or its named vectors as {\"name\": [...]} (Qdrant, Weaviate, Milvus). Leave out on Pinecone indexes with integrated embedding: they embed the document.",
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20000,
+                "items": {
+                  "type": "number"
+                }
+              },
+              {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 16,
+                "additionalProperties": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 20000,
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "maxProperties": 200,
+            "description": "The record's fields (payload, properties, scalar fields)."
+          },
+          "document": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "Chroma: the record's document. Pinecone with integrated embedding: the text it embeds."
+          }
+        }
+      }
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

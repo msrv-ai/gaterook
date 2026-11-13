@@ -1,10 +1,12 @@
 # Connector SPI design reference
 
-This interface sketch preserves the architectural contract used to develop the connectors. The current compilable definitions in [connector-api](../connector-api/src/main/java/ai/msrv/gaterook/connector/) are authoritative if signatures differ. See [architecture](ARCHITECTURE.md#3-connector-spi) for execution and security boundaries.
+This interface sketch preserves the architectural contract used to develop the connectors. The current compilable definitions in [connector-api](../connector-api/src/main/java/com/gaterook/connector/) are authoritative if signatures differ. See [architecture](ARCHITECTURE.md#3-connector-spi) for execution and security boundaries.
+
+To write a connector against this SPI and deliver it as a module, see [how a connector module is built](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md) in the modules repository: the package, the build, what a module may reach, and a complete example.
 
 ```java
 // ── Connector.java ─────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
 /** One resource type and its tools. Same jar in the native core (built-ins, direct calls) and in the plugin host
  *  (plugins, GPP/1 via the core's RemoteConnector). Blocking, virtual-thread friendly, reacts to interrupt;
  *  no own thread pools, no System.exit/setProperty, no JVM-wide defaults; files only under ctx.workDir().
@@ -25,6 +27,13 @@ public interface Connector extends AutoCloseable {
       throws ConnectorException { return PreparedAction.approval(describeAction(call, cfg), null); }
   /** Persists nothing; may stop with needsConfirmation (host key, certificate, exec plugin). */
   TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx);
+  /** Setup helpers (Suggestions): LOCAL = this computer and what was typed, no network but loopback, a few ms;
+   *  SERVICE = signs in like test and lists what the account may use. Draft may be incomplete; saves nothing, never
+   *  asks for trust or runs a credential command (a note instead). Values per field pointer, notes on what's next.
+   *  Plugins: connector/suggest over GPP/1 with a test's params and the scope; LOCAL reaches only a host that already
+   *  runs (no JVM start while the person types), a host without the method offers nothing. */
+  default Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope)
+      throws ConnectorException { return Suggestions.none(); }
   default HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     TestResult t = test(cfg, secrets, ctx);
     return t.ok() ? HealthResult.healthy(t.latencyMs()) : HealthResult.unreachable(t.error() == null ? "Unreachable" : t.error().message());
@@ -64,17 +73,20 @@ public interface Connector extends AutoCloseable {
   default void onConnectionRemoved(String connectionId) {}  @Override default void close() {}
 }
 // ── ConnectorManifest.java ─────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
 /** Catalog card + connection form + Policies section. Stored in the DB for plugins, so tools/list never starts a host.
  *  Plugins use builder(): the canonical constructor may grow. */
 public record ConnectorManifest(String id /* "postgres" */, String version, Kind kind, String name, String icon /* Lucide */,
     String group /* Databases | Remote access | Logs | Kubernetes | Cloud | HTTP and MCP */, String description,
-    JsonNode configSchema /* 2020-12 + x-…, writeOnly = secret */, JsonNode policySchema /* or null */,
+    JsonNode configSchema /* 2020-12 + x-…, writeOnly = secret, x-person-only = only the person sets it */, JsonNode policySchema /* or null */,
     List<ToolDefinition> tools, RequiredAccess access /* "Needs access to" */, boolean dynamicTools /* MCP servers */,
     String connectorApi) {
   public enum Kind { BUILT_IN, PLUGIN, MCP_SERVER }
-  public record RequiredAccess(List<String> hosts, List<String> commands, List<String> files) {
-    public static RequiredAccess none() { return new RequiredAccess(List.of(), List.of(), List.of()); }
+  /** hosts: HTTP(S) through ctx.egress(); tcp: host:port of the connector's own TCP connections, such as a plugin's JDBC
+   *  driver ("{connection.host}:{connection.port}"), which the plugin host's TCP gate allows and nothing else. */
+  public record RequiredAccess(List<String> hosts, List<String> commands, List<String> files, List<String> tcp) {
+    public RequiredAccess(List<String> hosts, List<String> commands, List<String> files) { this(hosts, commands, files, List.of()); }
+    public static RequiredAccess none() { return new RequiredAccess(List.of(), List.of(), List.of(), List.of()); }
   }
   public static Builder builder(String id, String version, Kind kind) { return new Builder(id, version, kind); }
   public static final class Builder {
@@ -95,7 +107,7 @@ public record ConnectorManifest(String id /* "postgres" */, String version, Kind
   }
 }
 // ── ToolDefinition.java ────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import tools.jackson.databind.JsonNode;
 /** `connection` in inputSchema is a placeholder: the core fills its enum per endpoint for its own checks and names the
  *  connections in the description; MCP clients get no enum. outputSchema only for pure READ. */
 public record ToolDefinition(String name /* ^[a-z][a-z0-9_]{0,63}$ */, String title, String description,
@@ -135,7 +147,7 @@ public record ToolDefinition(String name /* ^[a-z][a-z0-9_]{0,63}$ */, String ti
   }
 }
 // ── ToolCall.java ──────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.ObjectNode;
+package com.gaterook.connector.api; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.ObjectNode;
 /** One call after schema validation; the core removed `connection` from the arguments and resolved it. */
 public record ToolCall(String callId, String tool, String connection, ObjectNode arguments, TemplateBinding template) {
   public record TemplateBinding(String templateId, int version, String opKey, JsonNode binding) {}  // version is in the digest
@@ -143,8 +155,11 @@ public record ToolCall(String callId, String tool, String connection, ObjectNode
   public int integer(String field, int dflt) { JsonNode n = arguments.get(field); return n == null || n.isNull() ? dflt : n.asInt(dflt); }
 }
 // ── Classification.java ────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
-/** DENY carries the rule id shown in Activity ("prod.sql.block_ddl") and a text for the agent; facts are non-secret. */
+package com.gaterook.connector.api; import tools.jackson.databind.JsonNode;
+/** DENY carries the rule id shown in Activity ("prod.sql.block_ddl") and a text for the agent; facts are non-secret.
+ *  A plugin's rule id is kept in its own namespace (its PolicyView's rulePrefix; another id is put inside it, and one
+ *  that isn't lower-case words, digits, dashes, underscores and dots becomes "<rulePrefix>.plugin-rule"); its reason
+ *  and hint have invisible characters made visible and are clipped to 500 characters. */
 public record Classification(Kind kind, String ruleId, String reason, String hint, JsonNode facts) {
   public enum Kind { READ, MUTATION, DENY }
   public static Classification read() { return new Classification(Kind.READ, null, null, null, null); }
@@ -153,9 +168,14 @@ public record Classification(Kind kind, String ruleId, String reason, String hin
   public static Classification deny(String ruleId, String reason, String hint) { return new Classification(Kind.DENY, ruleId, reason, hint, null); }
 }
 // ── PolicyView.java ────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.JsonNodeFactory;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.JsonNodeFactory;
 /** The connector's policy section merged by the core (environment → connection → endpoint → tool, only stricter wins). */
 public record PolicyView(Env env, String rulePrefix /* "prod.sql" */, JsonNode section, Limits limits) {
+  /** A merged list whose sources had nothing in common holds only this: no name matches it. */
+  public static final String NOTHING = "\u0000none";
+  /** In a list whose schema says "x-empty": "connector-default", narrowed by the core from an empty list: keep only
+   *  the listed names that an empty list allows too (x-empty "all", the default, or "none" never carry it). */
+  public static final String WITHIN_DEFAULT = "\u0000within-default";
   public PolicyView { if (section == null) section = JsonNodeFactory.instance.objectNode(); }
   public String rule(String id) { return rulePrefix + "." + id; }
   public boolean flag(String key, boolean dflt) { JsonNode n = section.get(key); return n == null || n.isNull() ? dflt : n.asBoolean(dflt); }
@@ -167,14 +187,14 @@ public record PolicyView(Env env, String rulePrefix /* "prod.sql" */, JsonNode s
   }
 }
 // ── Env.java ───────────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api;
+package com.gaterook.connector.api;
 public enum Env {
   DEV, STAGE, PROD;
   public String id() { return name().toLowerCase(java.util.Locale.ROOT); }
   public static Env of(String id) { return valueOf(id.toUpperCase(java.util.Locale.ROOT)); }
 }
 // ── Limits.java ────────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.time.Duration;
+package com.gaterook.connector.api; import java.time.Duration;
 /** Effective limits of one call = min(environment policy, connection, endpoint, tool override), computed by the core. */
 public record Limits(int maxRows /* dev 1,000 · prod 100 */, int maxLines /* logs: 1,000 · 200 */, long maxResponseBytes /* 512 KB */,
     long maxRequestBytes, long maxOutputBytes /* ssh stdout 256 KB */, long maxStderrBytes /* 64 KB */, int maxCellChars /* 8 KB */,
@@ -184,7 +204,7 @@ public record Limits(int maxRows /* dev 1,000 · prod 100 */, int maxLines /* lo
   //   commandCallTimeout(boolean approved) = max(toolTimeout, min(commandTimeout + 2.5 s, approved ? 10 min : 55 s))
 }
 // ── ActionPreview.java ─────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
 /** What the approver sees. `text` is exactly what runs (SQL as sent, wire command of a runbook, HTTP request with ‹masked›
  *  auth headers, unified diff): never a paraphrase, never normalized; the UI escapes invisible/confusable characters.
  *  `payload` = canonical request stored with the approval and executed after it (ExecContext.approvedPayload()). */
@@ -203,7 +223,7 @@ public record ActionPreview(Kind kind, String language /* sql|sh|json|yaml|http|
   public ActionPreview withPayload(JsonNode v) { return new ActionPreview(kind, language, text, target, summary, fields, impact, warnings, auditFacets, v, extra); }
 }
 // ── PreparedAction.java ────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import tools.jackson.databind.JsonNode;
 /** APPROVAL: exact action + opaque state kept in the request and passed to execute() (k8s rv + sha256 of the dry-run);
  *  REJECT: error for the agent, no request (conflict, validation, paused); NO_CHANGE: "unchanged", no request. */
 public record PreparedAction(Outcome outcome, ActionPreview preview, JsonNode preparedState, String message) {
@@ -213,7 +233,7 @@ public record PreparedAction(Outcome outcome, ActionPreview preview, JsonNode pr
   public static PreparedAction noChange(String messageForAgent) { return new PreparedAction(Outcome.NO_CHANGE, null, null, messageForAgent); }
 }
 // ── TestResult.java ────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
 /** Latency, version, identity, what the account may really do, clear user-facing hints. needsConfirmation stops the test
  *  before credentials leave; the core applies configPatch (Setup changes) after "Trust" and runs the test again. */
 public record TestResult(boolean ok, long latencyMs, String serverVersion, String identity, Permissions permissions,
@@ -225,7 +245,8 @@ public record TestResult(boolean ok, long latencyMs, String serverVersion, Strin
   public record Hint(Severity severity, String code, String field, String text) {}
   public record Check(String name, boolean ok, long ms, String detail) {}
   public record TestError(String code, String message /* what happened + what to do */, String technical) {}
-  public record Confirmation(String kind /* host-key | tls-cert | exec-plugin */, String text, JsonNode data, JsonNode configPatch) {}
+  public record Confirmation(String kind /* host-key | tls-cert | kubeconfig-cluster | exec-plugin */, String text,
+      JsonNode data, JsonNode configPatch /* must write only x-person-only settings; not checked at run time */) {}
   public static TestResult success(long latencyMs, String serverVersion, String identity, Permissions p) {
     return new TestResult(true, latencyMs, serverVersion, identity, p, List.of(), List.of(), null, null, null, null, null);
   }
@@ -245,14 +266,14 @@ public record TestResult(boolean ok, long latencyMs, String serverVersion, Strin
   public TestResult withDetails(JsonNode v) { return new TestResult(ok, latencyMs, serverVersion, identity, permissions, hints, checks, error, needsConfirmation, metadataUpdate, suggestedPolicyChange, v); }
 }
 // ── HealthResult.java ──────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api;
+package com.gaterook.connector.api;
 public record HealthResult(State state, long latencyMs, String message) {                    // "Healthy · 42 ms", "Slow · 2.4 s"
   public enum State { HEALTHY, DEGRADED, UNREACHABLE }
   public static HealthResult healthy(long ms) { return new HealthResult(ms > 1_000 ? State.DEGRADED : State.HEALTHY, ms, null); }
   public static HealthResult unreachable(String message) { return new HealthResult(State.UNREACHABLE, 0, message); }
 }
 // ── ConnectionConfig.java ──────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
 /** Non-secret config. Secret fields (writeOnly) are only named here (JSON pointers); values live behind SecretResolver.
  *  `version` changes on every edit, secret rotation and policy change: (id, version) is a safe pool key. */
 public record ConnectionConfig(String id, String name, String type, Env env, long version, JsonNode config,
@@ -263,7 +284,7 @@ public record ConnectionConfig(String id, String name, String type, Env env, lon
   public List<String> strings(String ptr) { List<String> out = new ArrayList<>(); for (JsonNode v : config.at(ptr)) out.add(v.asString()); return out; }
 }
 // ── SecretResolver.java ────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.security.PublicKey; import java.time.*; import java.util.*;
+package com.gaterook.connector.api; import java.security.PublicKey; import java.time.*; import java.util.*;
 /** Scoped to one connection and one call, closed by the core. Only writeOnly fields of this connection; every value
  *  handed out is tainted (raw, Base64, URL-encoded, JSON-escaped echoes get masked). Plugins: same API over GPP/1. */
 public interface SecretResolver {
@@ -292,7 +313,7 @@ public interface SecretResolver {
   }
 }
 // ── ExecContext.java ───────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.net.URI; import java.nio.file.Path; import java.time.*; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.net.URI; import java.nio.file.Path; import java.time.*; import java.util.*; import tools.jackson.databind.JsonNode;
 /** Everything a call may know. No identity, no SecretStore, no master key, no other connections.
  *  Cancellation = interrupt of the virtual thread + onCancel callbacks (Statement.cancel(), cursor.close(), signal TERM). */
 public interface ExecContext {
@@ -312,7 +333,8 @@ public interface ExecContext {
   HandleCodec handles();
   boolean acquire(String remoteQuotaKey, int permitsPerMinute);   // shared remote quotas: gcp:<project>, aws:<acct>:<region>:<api>
   Path workDir();                      // ~/.gaterook/connectors/<type>/ ; plugins: plugin-data/<id>/
-  Egress egress();                     // guarded HTTP (allowlist ∩ policy, no metadata/private ranges, no redirects)
+  Egress egress();                     // guarded HTTP (allowlist ∩ policy, no metadata/private ranges, no redirects);
+                                       // a plugin's own sockets: the TCP gate, while the call runs (access.tcp)
   /** Derived credentials (GCP/STS/Vault/exec/OAuth tokens) the connector obtained itself: masked like resolver values. */
   void taint(CharSequence value);
   /** A copy of tree as the core will mask the answer (keys, formats, this call's taint, the env's PII): a filter by values
@@ -333,7 +355,7 @@ public interface ExecContext {
   record EgressResponse(int status, Map<String, List<String>> headers, byte[] body, boolean truncated) {}
 }
 // ── ConnectorException.java ────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api;
+package com.gaterook.connector.api;
 /** The agent gets getMessage() as isError after masking. Only RESOURCE_UNAVAILABLE and TIMEOUT count for the circuit breaker.
  *  OUTCOME_UNKNOWN: the request may have been applied (dropped during COMMIT / after the POST); never retried. */
 public class ConnectorException extends Exception {
@@ -351,13 +373,13 @@ public class ConnectorException extends Exception {
   public static ConnectorException outcomeUnknown(String m, Throwable c) { return new ConnectorException(Kind.OUTCOME_UNKNOWN, m, c); }
 }
 // ── SecretUnavailableException.java ────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api;
+package com.gaterook.connector.api;
 public final class SecretUnavailableException extends ConnectorException {  // "…can't be resolved: AWS Secrets Manager isn't connected."
   private static final long serialVersionUID = 1L;
   public SecretUnavailableException(String message, Throwable cause) { super(Kind.RESOURCE_UNAVAILABLE, message, cause); }
 }
 // ── ToolResult.java ────────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.List; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.ArrayNode;
+package com.gaterook.connector.api; import java.util.List; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.ArrayNode;
 /** Neutral result, no MCP types. The core masks it, cuts it (whole rows/entries), renders text for TABLE/LOGS, fills
  *  maskedCount/resultBytes, writes the audit, then serializes for the call's revision. isError=false for any answer of
  *  the resource (HTTP 4xx, exit code 3): that is data. */
@@ -386,7 +408,7 @@ public record ToolResult(List<Content> content, JsonNode structuredContent, bool
   }
 }
 // ── TemplateKind.java ──────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.List; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.ObjectNode;
+package com.gaterook.connector.api; import java.util.List; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.ObjectNode;
 /** Storage, append-only versions and binding to a connection ("Runs on") are the core's; the kind validates and compiles. */
 public interface TemplateKind {
   String kind();                                       // sql-query | ssh-runbook | openapi
@@ -399,14 +421,14 @@ public interface TemplateKind {
       List<String> errors, List<String> warnings, String digest) { public boolean ok() { return errors.isEmpty(); } }
 }
 // ── EndpointView.java ──────────────────────────────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
+package com.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
 /** What tools(…) may know about an endpoint: its connections of this type, their limits, template contributions. No tokens. */
 public record EndpointView(String slug, Env env, List<ConnectionConfig> connections, Map<String, Limits> limitsByConnection,
     List<Contribution> contributions) {
   public record Contribution(String connectionId, String templateId, int version, JsonNode value) {}
 }
 // ── ResourceDescriptor.java / ApiVersion.java ──────────────────────────────────────────────────────────────────
-package ai.msrv.gaterook.connector.api;
+package com.gaterook.connector.api;
 /** Every URI a connection publishes is under its own prefix (an MCP App's, which needs ui://, under appPrefix): the core
  *  routes a read by that alone, so one connection never answers for another. */
 public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema */, String name, String mimeType, String description) {
@@ -414,6 +436,35 @@ public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema
   public static String prefix(String connection) { return "mcpgw://connections/" + connection + "/"; }
   public static String appPrefix(String connection) { return "ui://gaterook/connections/" + connection + "/"; }
 }
-package ai.msrv.gaterook.connector.api;
-public final class ApiVersion { public static final String CURRENT = "1.0.0"; private ApiVersion() {} }  // plugins: requires.connectorApi
+package com.gaterook.connector.api;
+public final class ApiVersion { public static final String CURRENT = "2.0.0"; private ApiVersion() {} }  // plugins: requires.connectorApi; 1.1: RequiredAccess.tcp; 1.2: ConnectorModule; 2.0: packages under com.gaterook
+
+// ── ConnectorModule.java / ModuleContext.java (1.2) ────────────────────────────────────────────────────────────
+package com.gaterook.connector.api;
+/** The entry point of a connector module (docs/connector-delivery.md): a package of connectors that is delivered apart
+ *  from the application, GateRook's own or one a person built and installs from a file. The module host instantiates
+ *  the manifest's moduleClass once and asks it for its connectors, one per connector type the manifest declares. */
+public interface ConnectorModule extends AutoCloseable {
+  List<Connector> connectors(ModuleContext context);
+  @Override default void close() {}
+}
+public interface ModuleContext { String moduleId(); String moduleVersion(); }
 ```
+
+## Settings only the person makes
+
+A connector marks a property of its `configSchema` with `"x-person-only": true` when the property records a decision that only the person makes, or turns on running a command on the person's computer:
+
+- everything a Test connection patch (`TestResult.Confirmation.configPatch`) writes after the person chose Trust: a pinned SSH host key, a trusted TLS certificate, a trusted Kubernetes cluster or credential command;
+- every setting whose description says that Test connection fills it in, including known-host lines and certificate pins that stand in for that decision;
+- every opt-in that lets the connector run a command with the person's rights, such as the Kubernetes option to run a kubeconfig's credential command.
+
+The mark covers the property and everything inside it, wherever the schema defines it: on the property itself, behind a local `$ref`, in an `allOf`, `anyOf` or `oneOf` branch, in a conditional branch, inside an object or in an array item. It does not change the connection form, a saved config or its validation; the person still edits these settings there.
+
+What the mark does:
+
+- An AI connection import refuses a proposal whose candidate config contains a marked property (HTTP 422, "Leave … out of config"), whatever its value, including `null`, `false` and an empty one. `connection_import_schema` leaves marked properties out of the returned `configSchema` and lists their pointers in `personOnlyFields`; the refusal is made from that same list, so a setting the agent is not offered is a setting a proposal cannot hold, however the schema lays out the mark. Only the person's own Test connection, then Trust, or their edit in the connection form sets them.
+- An endpoint share never carries a marked property. The export leaves it out, with a stored credential inside it, and the connection's share warnings say so. An entry is not refused for still holding one (older GateRook versions exported them, and anyone can edit a file). When its connector can be imported on this computer, the review shows the config without it and names it, and the import drops it whatever its value, before validation, with any shared credential inside it, and asks for no credential of it that the entry lists as omitted; it then creates that connection as a disabled draft with one Setup required item per marked setting. None of the source's decisions is used, and no automatic check (the import's preflight test, a health check) and no tool call reaches the connection until the person completes its setup and enables it; they make their own decisions with Test connection, then Trust, or in the connection form. The share's own warnings decide nothing. An entry whose connector is unavailable here cannot be imported, and the review shows its config as the file holds it, with recognizable secrets masked. The import finds the marks by walking the entry's config along the schema, so a mark behind a `$ref` to a part that contains it (`"#"`) is found however deep the config nests, a mark inside a marked property counts as part of that one, an object given where the schema defines array items is looked into as a list, each member as an item, and a list given where it defines numbered properties is looked into item by item (an item left out there becomes `null`, so that no later item takes its place). When a schema's definitions unfold too deep or too wide for that walk, or a config is so large that the walk would look at more than a million definitions, exporting, reviewing or importing a share with that connection fails (HTTP 422, "… to check for trust settings"); nothing is passed unchecked.
+- Tests derive their expectations from it. The Kubernetes, SSH and HTTP unit tests check that each setting their Trust patch writes is covered by the mark. A schema test checks that each built-in setting whose description says that Test connection fills it in, or that it runs a command with the person's rights, is marked; a test over every built-in connector checks that the import refuses every setting listed in `personOnlyFields`, and another that an endpoint share leaves each of them out and an import of a share holding one creates a draft without it. These checks cover the built-in connectors and rely on that wording, so a connector with a Trust step still has to mark what its patch writes.
+
+A connector or plugin with a Trust step marks what its patch writes. An unmarked setting is something an agent's proposal may set.

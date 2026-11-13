@@ -5,8 +5,10 @@ import { ClientId, ClientsApi, ClientsView, ConnectPreview, ConnectRequest, Conn
 import { ConnectionRow, ConnectionsApi, nextHealth } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import {
+  BulkTool,
   ConnectionPreview,
   EndpointCheck,
+  EndpointDeleted,
   EndpointDetail,
   EndpointRisk,
   EndpointSettings,
@@ -343,7 +345,7 @@ export class EndpointDetailData {
   }
 
   /** One pair's mode or limits; the core answers with every group (a change can move other pairs' locks). */
-  async setMode(change: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly overrides?: JsonObject | null; readonly version: number }): Promise<void> {
+  async setMode(change: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly definitionHash?: string | null; readonly overrides?: JsonObject | null; readonly version: number }): Promise<void> {
     const slug = this.requireSlug();
     try {
       this.groupsSignal.set(await this.endpoints.setMode(slug, change));
@@ -357,10 +359,11 @@ export class EndpointDetailData {
     }
   }
 
-  async bulk(connection: string | null, mode: ToolMode | 'DEFAULT'): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
+  /** "Set all to…" for the tools the list showed (`tools`, with the definitions they showed). */
+  async bulk(connection: string | null, mode: ToolMode | 'DEFAULT', tools: readonly BulkTool[]): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     const slug = this.requireSlug();
     try {
-      return await this.endpoints.bulk(slug, { group: connection as string, mode });
+      return await this.endpoints.bulk(slug, { group: connection as string, mode, tools });
     } finally {
       await Promise.all([this.reloadTools(), this.reloadDetail()]);
     }
@@ -378,7 +381,7 @@ export class EndpointDetailData {
       const row = confirmed.find((g) => g.connection === c.connection)?.tools.find((t) => t.toolKey === c.toolKey);
       this.groupsSignal.set(
         row && row.mode !== 'READ_ONLY'
-          ? await this.endpoints.setMode(slug, { toolKey: c.toolKey, connection: c.connection, mode: 'READ_ONLY', version: row.version })
+          ? await this.endpoints.setMode(slug, { toolKey: c.toolKey, connection: c.connection, mode: 'READ_ONLY', definitionHash: c.definitionHash, version: row.version })
           : confirmed,
       );
     } catch (e) {
@@ -562,7 +565,7 @@ export class EndpointDetailData {
     return s;
   }
 
-  async remove(): Promise<{ readonly clients: string[]; readonly tokensRevoked: string[]; readonly rejectedApprovals: number }> {
+  async remove(): Promise<EndpointDeleted> {
     const slug = this.requireSlug();
     // The dialog is the confirmation: the core wants the slug repeated, as the kit's Delete asks nothing typed.
     const result = await this.endpoints.delete(slug, slug);

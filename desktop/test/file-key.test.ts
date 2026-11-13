@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { keysetPath, oskPath, planFileKey, type SafeStorageLike } from '../src/main/file-key.ts';
@@ -116,6 +116,28 @@ describe('OS protection of the master key file (A14)', () => {
     assert.match(plan.note ?? '', /can't be read/);
     assert.deepEqual(readFileSync(oskPath(h)), before, 'the .osk is kept for when the store comes back');
   });
+
+  for (const keyset of ['cleartext', 'none'] as const) {
+    it(`a key the OS store lost is set aside once a master key was restored or created without it (${keyset})`, async () => {
+      const h = home();
+      await planFileKey(h, fakeSafe(), 'win32');
+      const lost = readFileSync(oskPath(h));
+      if (keyset === 'cleartext') writeFileSync(keysetPath(h), '{"primaryKeyId":1,"key":[{"keyData":{}}]}');
+
+      const plan = await planFileKey(h, fakeSafe({ broken: true }), 'win32');
+
+      assert.equal(plan.fileKey?.length, 32, 'the master key is protected again from this start on');
+      assert.equal(plan.protection, 'os');
+      const aside = readdirSync(h).filter((f) => /^master\.keyset\.osk\.unreadable-\d+$/.test(f));
+      assert.equal(aside.length, 1);
+      assert.deepEqual(readFileSync(join(h, aside[0]!)), lost, 'the unreadable key is kept, not deleted');
+      assert.match(plan.note ?? '', new RegExp(`can't be read .*kept as ${aside[0]}`));
+      assert.notDeepEqual(readFileSync(oskPath(h)), lost);
+      if (process.platform !== 'win32') assert.equal(statSync(oskPath(h)).mode & 0o777, 0o600);
+      const again = await planFileKey(h, fakeSafe(), 'win32');
+      assert.deepEqual(again.fileKey, plan.fileKey, 'the next start reads the new key');
+    });
+  }
 
   it('a failed re-encryption keeps the key that was read', async () => {
     const h = home();

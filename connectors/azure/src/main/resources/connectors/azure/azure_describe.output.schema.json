@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "mode",
+    "rows",
+    "count",
+    "truncated",
+    "nextCursor"
+  ],
+  "properties": {
+    "provider": {
+      "const": "azure"
+    },
+    "mode": {
+      "enum": [
+        "query",
+        "get"
+      ]
+    },
+    "subscriptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "totalRecords": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hiddenByPolicy": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "type": "string"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "masked": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

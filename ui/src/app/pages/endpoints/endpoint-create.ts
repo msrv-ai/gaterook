@@ -34,7 +34,7 @@ export function endpointSlugRules(path: SchemaPath<string>): void {
 
 /** The Start from cards of Create endpoint, ordered by environment. */
 const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly icon: string; readonly title: string; readonly description: string }[] = [
-  { id: 'empty', env: 'dev', icon: 'square-dashed', title: 'Empty', description: 'No connections and every tool off. Add only what the agent needs.' },
+  { id: 'empty', env: 'dev', icon: 'square-dashed', title: 'Empty', description: 'No connections yet. Connections you add bring their tools: reads run at once, changes wait for approval.' },
   {
     id: 'read-only-dev',
     env: 'dev',
@@ -54,7 +54,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
     env: 'prod',
     icon: 'siren',
     title: 'Incident response',
-    description: 'Choose prod connections below. Read tools start on; tools that only change data stay off.',
+    description: 'Choose prod connections below. Read tools start on; anything that changes data waits for approval.',
   },
 ];
 

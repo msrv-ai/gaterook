@@ -73,8 +73,8 @@ describe('connect a store', () => {
       name: 'aws-eu-central-1',
       config: { region: 'eu-central-1', credentials: { source: 'profile', profile: 'acme-stage', roleArn: 'arn:aws:iam::412398765012:role/r', externalId: 'gw-ext-3f9a0e01abff' } },
     });
-    const key = connectRequest('aws-sm', 'a', { ...m, awsSource: 'accessKey', accessKeyId: 'AKIAABCDEFGHIJKLMNOP' }, { '/credentials/secretAccessKey': 's3cr3t' });
-    expect(key.config).toEqual({ region: 'us-east-1', credentials: { source: 'accessKey', accessKeyId: 'AKIAABCDEFGHIJKLMNOP' } });
+    const key = connectRequest('aws-sm', 'a', { ...m, awsSource: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE' }, { '/credentials/secretAccessKey': 's3cr3t' });
+    expect(key.config).toEqual({ region: 'us-east-1', credentials: { source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE' } });
     expect(key.secrets).toEqual({ '/credentials/secretAccessKey': 's3cr3t' });
 
     const vault = connectRequest('vault', 'vault', { ...m, address: 'https://vault.acme.internal/', roleId: 'gaterook', namespace: 'team' }, { '/auth/secretId': 'x' });
@@ -117,5 +117,48 @@ describe('Vault names and token files', () => {
     expect(connectRequest('vault', 'vault', { ...m, tokenSource: 'stored' }, { '/auth/token': 't' })).toEqual({
       kind: 'vault', name: 'vault', config: { address: 'https://vault.acme.internal', auth: { method: 'token' } }, secrets: { '/auth/token': 't' },
     });
+  });
+});
+
+describe('Azure Key Vault', () => {
+  const m = { ...emptyConnectModel(), vault: 'acme-kv', tenantId: 'contoso.onmicrosoft.com', clientId: '0a1b2c3d-1111-4222-8333-444455556666' };
+
+  it('checks the vault, the tenant and the application in the core’s words', () => {
+    expect(fieldProblem('azure-kv', 'vault', m)).toBeNull();
+    expect(fieldProblem('azure-kv', 'vault', { ...m, vault: '' })).toBe('Enter the name of the key vault, for example acme-kv.');
+    expect(fieldProblem('azure-kv', 'vault', { ...m, vault: 'acme-kv.vault.azure.net' })).toMatch(/not its address/);
+    for (const vault of ['kv', 'Acme-kv', '1acme', 'acme-', 'ac--me', 'acme_kv', 'a'.repeat(25)]) {
+      expect(fieldProblem('azure-kv', 'vault', { ...m, vault })).toMatch(/isn't a key vault name/);
+    }
+    expect(fieldProblem('azure-kv', 'vault', { ...m, vault: 'a'.repeat(24) })).toBeNull();
+    expect(fieldProblem('azure-kv', 'tenantId', { ...m, tenantId: '' })).toMatch(/^Enter the tenant/);
+    expect(fieldProblem('azure-kv', 'tenantId', { ...m, tenantId: 'common' })).toMatch(/aren’t tenants/);
+    expect(fieldProblem('azure-kv', 'tenantId', { ...m, tenantId: 'not a tenant' })).toMatch(/isn't a tenant/);
+    expect(fieldProblem('azure-kv', 'tenantId', { ...m, tenantId: '6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d' })).toBeNull();
+    expect(fieldProblem('azure-kv', 'clientId', { ...m, clientId: '' })).toMatch(/^Enter the application/);
+    expect(fieldProblem('azure-kv', 'clientId', { ...m, clientId: 'my-app' })).toMatch(/isn't an application ID/);
+    // Other kinds' fields aren't on its form, nor are its fields on theirs.
+    expect(fieldProblem('azure-kv', 'region', { ...m, region: 'Frankfurt' })).toBeNull();
+    expect(fieldProblem('gcp-sm', 'vault', { ...m, vault: '' })).toBeNull();
+  });
+
+  it('names the store after its vault', () => {
+    expect(storeName('azure-kv', m, [])).toBe('azure-acme-kv');
+    expect(storeName('azure-kv', m, ['azure-acme-kv'])).toBe('azure-acme-kv-2');
+    expect(storeName('azure-kv', { ...m, vault: '' }, [])).toBe('azure-key-vault');
+  });
+
+  it('sends the vault, the cloud, the tenant and the service principal; its secret or certificate goes apart', () => {
+    const secret = connectRequest('azure-kv', 'azure-acme-kv', { ...m, vault: ' acme-kv ' }, { '/credentials/clientSecret': 'cs' });
+    expect(secret).toEqual({
+      kind: 'azure-kv',
+      name: 'azure-acme-kv',
+      config: { vault: 'acme-kv', cloud: 'AzureCloud', tenantId: 'contoso.onmicrosoft.com', credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+      secrets: { '/credentials/clientSecret': 'cs' },
+    });
+    const certificate = connectRequest('azure-kv', 'azure-acme-kv', { ...m, azureCloud: 'AzureUSGovernment', azureSource: 'clientCertificate' }, { '/credentials/certificate': 'pem' });
+    expect(certificate.config).toEqual({ vault: 'acme-kv', cloud: 'AzureUSGovernment', tenantId: 'contoso.onmicrosoft.com', credentials: { source: 'clientCertificate', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } });
+    expect(certificate.secrets).toEqual({ '/credentials/certificate': 'pem' });
+    expect(JSON.stringify(certificate.config)).not.toContain('pem');
   });
 });

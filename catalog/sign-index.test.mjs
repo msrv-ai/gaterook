@@ -41,7 +41,6 @@ const NOW = new Date('2026-10-26T12:00:00.123Z');
 function artifacts() {
   return new Map([
     ['gw-jira-service-desk-1.3.0.jar', Buffer.from('jira 1.3.0 jar')],
-    ['gw-clickhouse-0.6.1.jar', Buffer.from('clickhouse 0.6.1 jar')],
     ['gw-rabbitmq-0.3.0.jar', Buffer.from('rabbitmq 0.3.0 jar')],
     ['fixture-mcp.package-lock.json', LOCKFILE],
   ]);
@@ -60,18 +59,16 @@ test('the source index of this folder signs: every artifact pinned, sequence, ti
   assert.equal(index.generatedAt, '2026-10-26T12:00:00Z');
   assert.equal(index.expiresAt, '2026-11-25T12:00:00Z');
   assert.deepEqual(index.entries.map((e) => `${e.kind}:${e.id}@${e.version}`), [
-    'plugin:jira-service-desk@1.3.0', 'plugin:clickhouse@0.6.1', 'plugin:rabbitmq@0.3.0',
-    'template:pg-slow-queries@1.0.0',
+    'plugin:jira-service-desk@1.3.0', 'plugin:rabbitmq@0.3.0', 'template:pg-slow-queries@1.0.0',
   ]);
-  const clickhouse = index.entries.find((e) => e.id === 'clickhouse');
-  assert.equal(clickhouse.artifact.sha256, sha256(Buffer.from('clickhouse 0.6.1 jar')));
-  assert.equal(clickhouse.artifact.size, 'clickhouse 0.6.1 jar'.length);
+  const jira = index.entries.find((e) => e.id === 'jira-service-desk');
+  assert.equal(jira.artifact.sha256, sha256(Buffer.from('jira 1.3.0 jar')));
+  assert.equal(jira.artifact.size, 'jira 1.3.0 jar'.length);
   assert.equal(index.entries.find((e) => e.id === 'rabbitmq').signed, false);
   assert.deepEqual(index.revoked, []);
   // The kit's cards: names, tool counts, signed or not.
   assert.deepEqual(index.entries.map((e) => [e.name, e.tools, e.signed]), [
-    ['Jira Service Desk', 6, true], ['ClickHouse', 6, true], ['RabbitMQ', 4, false],
-    ['PostgreSQL slow queries', 2, true],
+    ['Jira Service Desk', 6, true], ['RabbitMQ', 4, false], ['PostgreSQL slow queries', 2, true],
   ]);
 });
 
@@ -132,7 +129,7 @@ test('every artifact is pinned: a missing one, an http URL or a lockfile that pi
     /gw-rabbitmq-0\.3\.0\.jar isn't among the built files/);
 
   const insecure = structuredClone(SOURCE);
-  insecure.entries[1].artifact.url = 'http://example.com/gw-clickhouse-0.6.1.jar';
+  insecure.entries[1].artifact.url = 'http://example.com/gw-rabbitmq-0.3.0.jar';
   assert.throws(() => prepareIndex(insecure, { artifacts: artifacts(), sequence: 1, now: NOW }), /https:\/\/ only/);
   assert.equal(artifactName('https://github.com/acme/catalog/releases/latest/download/x.jar?raw=1'), 'x.jar');
 
@@ -144,7 +141,7 @@ test('every artifact is pinned: a missing one, an http URL or a lockfile that pi
     /doesn't pin @example\/catalog-test-server@1\.0\.0/);
 
   const scripts = structuredClone(withMcpFixture());
-  scripts.entries[4].npm.ignoreScripts = false;
+  scripts.entries.find((e) => e.kind === 'mcp-server').npm.ignoreScripts = false;
   assert.throws(() => prepareIndex(scripts, { artifacts: artifacts(), sequence: 1, now: NOW }), /--ignore-scripts/);
 });
 
@@ -159,9 +156,9 @@ test('revocations are kept across releases, checked, and a revoked artifact can\
   ]);
   assert.throws(() => prepareIndex(SOURCE, { artifacts: artifacts(), sequence: 1, now: NOW,
     revoke: [{ sha256: 'xyz', reason: 'r' }] }), /64 hex digits/);
-  const listed = sha256(Buffer.from('clickhouse 0.6.1 jar'));
+  const listed = sha256(Buffer.from('jira 1.3.0 jar'));
   assert.throws(() => prepareIndex(SOURCE, { artifacts: artifacts(), sequence: 1, now: NOW,
-    revoke: [{ sha256: listed, reason: 'bad build' }] }), /clickhouse@0\.6\.1 is revoked/);
+    revoke: [{ sha256: listed, reason: 'bad build' }] }), /jira-service-desk@1\.3\.0 is revoked/);
 });
 
 test('the CLI signs with the key of the environment, verifies, and never writes the key', () => {
@@ -178,7 +175,7 @@ test('the CLI signs with the key of the environment, verifies, and never writes 
     built, '--out', out, '--key-id', 'catalog-test', '--sequence', '5', '--now', NOW.toISOString()],
   { env: { PATH: process.env.PATH, [KEY_ENV]: seed }, encoding: 'utf8' });
   assert.equal(signed.status, 0, signed.stderr);
-  assert.match(signed.stdout, /Signed sequence 5, 4 entries/);
+  assert.match(signed.stdout, /Signed sequence 5, 3 entries/);
   assert.ok(signed.stdout.includes(trustLine('catalog-test', key)));
   const indexBytes = readFileSync(join(out, 'index.json'));
   const sigText = readFileSync(join(out, 'index.json.sig'), 'utf8');
@@ -217,4 +214,48 @@ test('the CLI refuses without a key, with an unknown option, and never overwrite
   assert.match(printed, /gateway\.plugins\.catalog-keys=catalog-test=/);
   assert.ok(!printed.includes('PRIVATE KEY'));
   assert.equal(main(['keygen', '--key-file', file, '--key-id', 'catalog-test'], { stdout: quiet, stderr: quiet }), 1);
+});
+
+const MODULE = {
+  kind: 'module', id: 'cassandra', version: '1.0.0', name: 'Apache Cassandra',
+  requires: { gateway: '>=0.9.2 & <1.0.0', connectorApi: '>=1.2.0 & <2.0.0' },
+  artifact: { url: 'https://github.com/gaterook/gaterook-plugins/releases/download/module-cassandra-1.0.0/cassandra-1.0.0.jar' },
+  types: [{ id: 'cassandra', name: 'Apache Cassandra', group: 'Databases', tools: ['cassandra_query'] }],
+};
+const moduleList = (...entries) => ({ schema: 1, entries });
+
+test('a connector module is pinned to its built package, and a released version keeps the pin it has', () => {
+  const jar = Buffer.from('cassandra 1.0.0');
+  const built = new Map([['cassandra-1.0.0.jar', jar]]);
+  const first = prepareIndex(moduleList(MODULE), { artifacts: built, sequence: 1, now: NOW });
+  assert.equal(first.entries[0].artifact.sha256, createHash('sha256').update(jar).digest('hex'));
+  assert.equal(first.entries[0].artifact.size, jar.length);
+  assert.deepEqual(first.entries[0].types, MODULE.types);
+
+  // The next list keeps 1.0.0 as it was released, without its package at hand, and adds 1.1.0.
+  const next = { ...MODULE, version: '1.1.0', artifact: { url: MODULE.artifact.url.replaceAll('1.0.0', '1.1.0') } };
+  const second = prepareIndex(moduleList(first.entries[0], next), {
+    artifacts: new Map([['cassandra-1.1.0.jar', Buffer.from('cassandra 1.1.0')]]), previous: first, now: NOW,
+  });
+  assert.equal(second.sequence, 2);
+  assert.deepEqual(second.entries[0].artifact, first.entries[0].artifact);
+  assert.equal(second.entries[1].version, '1.1.0');
+
+  // A released version is never listed with other bytes.
+  assert.throws(() => prepareIndex(moduleList(first.entries[0]), {
+    artifacts: new Map([['cassandra-1.0.0.jar', Buffer.from('rebuilt differently')]]), previous: first, now: NOW,
+  }), /released with other bytes/);
+  assert.throws(() => prepareIndex(moduleList(MODULE), { artifacts: new Map(), sequence: 1, now: NOW }),
+    /neither built nor pinned/);
+});
+
+test('a module entry says what it runs with and which connector types and tools it adds', () => {
+  const built = new Map([['cassandra-1.0.0.jar', Buffer.from('x')]]);
+  const refused = (entry, why) => assert.throws(
+    () => prepareIndex(moduleList(entry), { artifacts: built, sequence: 1, now: NOW }), why);
+  refused({ ...MODULE, requires: { gateway: '>=0.9.2' } }, /which application and connector API versions/);
+  refused({ ...MODULE, types: [] }, /lists the connector types it adds/);
+  refused({ ...MODULE, types: [{ id: 'Cassandra', tools: [] }] }, /not a connector type id/);
+  refused({ ...MODULE, types: [{ id: 'cassandra', tools: ['Bad-Name'] }] }, /lists its tool names/);
+  refused({ ...MODULE, kind: 'package' }, /kind is plugin, template, mcp-server or module/);
 });

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "view": {
+      "enum": [
+        "namespaces",
+        "keys",
+        "value"
+      ],
+      "default": "namespaces",
+      "description": "namespaces of the account, keys of a namespace, or the value of one key."
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "The namespace ID, from view namespaces."
+    },
+    "prefix": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Only keys that start with this text."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Most keys."
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "nextCursor of the previous answer."
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "The key whose value to read, for view value."
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Page of the list, from 1."
+    }
+  }
+}

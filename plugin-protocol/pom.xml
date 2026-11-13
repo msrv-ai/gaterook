@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
   </parent>
@@ -19,7 +19,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <!-- Tree model only on the wire: nothing here needs native-image metadata. -->
@@ -85,7 +85,7 @@
                 <goals><goal>compile-no-fork</goal></goals>
                 <configuration>
                   <imageName>plugin-protocol-selftest</imageName>
-                  <mainClass>ai.msrv.gaterook.plugin.protocol.NativeSelfTest</mainClass>
+                  <mainClass>com.gaterook.plugin.protocol.NativeSelfTest</mainClass>
                   <buildArgs>
                     <buildArg>--no-fallback</buildArg>
                     <buildArg>-H:+ReportExceptionStackTraces</buildArg>

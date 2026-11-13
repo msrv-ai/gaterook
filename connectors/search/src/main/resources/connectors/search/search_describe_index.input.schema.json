@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "index"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "index": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The index (a collection on Typesense). search_list_indexes lists them."
+    }
+  }
+}

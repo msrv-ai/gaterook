@@ -1,0 +1,23 @@
+{
+  "id": "sql-oracle",
+  "version": "2.0.1",
+  "name": "Oracle Database",
+  "provider": "GateRook",
+  "license": "Apache-2.0",
+  "description": "Schemas, tables and queries on Oracle Database 19c and later. Writes wait for approval.",
+  "moduleClass": "com.gaterook.connectors.sql.oracle.module.OracleModule",
+  "requires": {
+    "gateway": ">=2.0.0 & <3.0.0",
+    "connectorApi": ">=2.0.0 & <3.0.0"
+  },
+  "access": {
+    "hosts": [],
+    "commands": [],
+    "files": []
+  },
+  "resources": {
+    "maxHeapMb": 256,
+    "maxMetaspaceMb": 128,
+    "maxInFlight": 16
+  }
+}

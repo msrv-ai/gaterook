@@ -53,6 +53,7 @@
       ],
       "properties": {
         "type": {
+          "title": "Authentication",
           "enum": [
             "none",
             "bearer",
@@ -95,6 +96,7 @@
             "properties": {
               "token": {
                 "type": "string",
+                "title": "Token",
                 "writeOnly": true,
                 "x-gateway-secret": "value"
               }
@@ -119,11 +121,15 @@
             "properties": {
               "headerName": {
                 "type": "string",
+                "title": "Header name",
                 "default": "X-API-Key",
-                "pattern": "^[A-Za-z0-9-]{1,64}$"
+                "pattern": "^[A-Za-z0-9-]{1,64}$",
+                "x-advanced": false,
+                "description": "The header the API reads the key from, such as X-API-Key or api-key."
               },
               "apiKey": {
                 "type": "string",
+                "title": "API key",
                 "writeOnly": true,
                 "x-gateway-secret": "value"
               }
@@ -148,11 +154,15 @@
             "properties": {
               "queryName": {
                 "type": "string",
+                "title": "Query parameter name",
                 "default": "api_key",
-                "maxLength": 64
+                "maxLength": 64,
+                "x-advanced": false,
+                "description": "The query parameter the API reads the key from, such as api_key or key."
               },
               "apiKey": {
                 "type": "string",
+                "title": "API key",
                 "writeOnly": true,
                 "x-gateway-secret": "value"
               }
@@ -177,10 +187,13 @@
             "properties": {
               "username": {
                 "type": "string",
-                "maxLength": 256
+                "title": "User",
+                "maxLength": 256,
+                "description": "Empty sends only the password."
               },
               "password": {
                 "type": "string",
+                "title": "Password",
                 "writeOnly": true,
                 "x-gateway-secret": "value",
                 "format": "password"
@@ -249,18 +262,23 @@
       "properties": {
         "caCertificates": {
           "type": "string",
+          "title": "CA certificates",
+          "x-person-only": true,
           "x-widget": "textarea",
           "maxLength": 64000,
           "description": "PEM of an internal CA or of one trusted certificate. Filled by Test connection after you trust it."
         },
         "pins": {
           "type": "array",
+          "title": "Certificate pins",
+          "x-person-only": true,
           "items": {
             "type": "string",
             "pattern": "^sha256/[A-Za-z0-9+/=]{44}$"
           }
         },
         "minVersion": {
+          "title": "Minimum TLS version",
           "enum": [
             "TLSv1.2",
             "TLSv1.3"
@@ -277,12 +295,14 @@
       "properties": {
         "connectTimeoutSeconds": {
           "type": "integer",
+          "title": "Connect timeout",
           "minimum": 1,
           "maximum": 30,
           "default": 5,
           "x-unit": "s"
         },
         "followRedirects": {
+          "title": "Follow redirects",
           "enum": [
             "off",
             "same-origin"
@@ -297,6 +317,7 @@
         },
         "allowPlainHttp": {
           "type": "boolean",
+          "title": "Allow plain HTTP",
           "default": false,
           "x-forbidden-env": [
             "prod"
@@ -305,6 +326,7 @@
         },
         "maxConcurrentCalls": {
           "type": "integer",
+          "title": "Concurrent calls",
           "minimum": 1,
           "maximum": 16,
           "default": 4,
@@ -314,9 +336,11 @@
         },
         "test": {
           "type": "object",
+          "title": "Test request",
           "additionalProperties": false,
           "properties": {
             "method": {
+              "title": "Method",
               "enum": [
                 "GET",
                 "HEAD"
@@ -325,7 +349,9 @@
             },
             "path": {
               "type": "string",
-              "default": "/"
+              "title": "Path",
+              "default": "/",
+              "description": "Under the first base URL. A path that needs the credentials shows that they work."
             }
           }
         }

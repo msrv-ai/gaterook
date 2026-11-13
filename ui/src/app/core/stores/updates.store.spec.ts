@@ -68,6 +68,24 @@ describe('UpdatesStore', () => {
     expect(install).toHaveBeenCalledTimes(2);
   });
 
+  it('names a pre-release as a beta from its offer through a failed installation', async () => {
+    const updates = TestBed.inject(UpdatesStore);
+    push({ state: 'available', version: '0.5.0', beta: true, lastCheckedAt: '2026-10-28T10:00:00Z' });
+    expect(updates.description()).toBe('Download GateRook 0.5.0 beta and restart the app.');
+    let finish!: (error: Error) => void;
+    install.mockImplementation(() => new Promise<void>((_resolve, reject) => { finish = reject; }));
+    const pending = updates.install();
+    expect(updates.state()).toEqual({ state: 'downloading', version: '0.5.0', beta: true, lastCheckedAt: '2026-10-28T10:00:00Z' });
+    expect(updates.description()).toBe('Downloading GateRook 0.5.0 beta. The app will restart when the update is ready.');
+    finish(new Error('Download failed'));
+    await pending;
+    expect(updates.state()).toEqual({ state: 'error', message: 'Download failed', version: '0.5.0', beta: true, lastCheckedAt: '2026-10-28T10:00:00Z' });
+    push({ state: 'downloaded', version: '0.5.0', beta: true });
+    expect(updates.description()).toBe('Restart GateRook to install 0.5.0 beta.');
+    push({ state: 'available', version: '0.4.1' });
+    expect(updates.description()).toBe('Download GateRook 0.4.1 and restart the app.');
+  });
+
   it('preserves a reported error and can retry an already downloaded update', async () => {
     const updates = TestBed.inject(UpdatesStore);
     push({ state: 'downloaded', version: '0.4.1' });

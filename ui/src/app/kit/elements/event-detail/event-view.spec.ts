@@ -5,6 +5,8 @@ import {
   actionMatch,
   approvalPath,
   argumentsJson,
+  callClientText,
+  callerLabel,
   decisionsText,
   durationText,
   errorAlert,
@@ -20,6 +22,7 @@ import {
   titleSource,
   tokenParts,
   traceLine,
+  trafficText,
 } from './event-view';
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
@@ -35,6 +38,23 @@ describe('event-detail view', () => {
 
   it('names a token by its label only, never a value', () => {
     expect(words(tokenParts(DEMO_EVENTS.approved.rows[0], null))).toBe('codex-laptop · short-lived, issued on the fly');
+  });
+
+  it('names who made a call by its credential, and a named token’s client only as what it reports', () => {
+    const named = (detail: EventDetail): EventDetail => ({
+      ...detail,
+      event: { ...detail.event, client: 'claude-desktop', tokenLabel: 'ci-runner' },
+      rows: detail.rows.map((r) => ({ ...r, principalKind: 'local_token', client: 'claude-desktop', tokenLabel: 'ci-runner' })),
+    });
+    const d = named(DEMO_EVENTS.error);
+    expect(callerLabel(d)).toBe('ci-runner');
+    expect(callClientText(d)).toEqual({ mark: null, text: 'Reports itself as Claude Desktop' });
+    expect(errorAlert(d)?.body).toContain('ci-runner got the error.');
+    expect(sizeText(d) ?? '').not.toContain('Claude Desktop');
+    expect(approvalPath(named(DEMO_EVENTS.approved))[0].title).toBe('Requested by ci-runner');
+    // A bridge grant names its client.
+    expect(callerLabel(DEMO_EVENTS.approved)).toBe('Codex');
+    expect(callClientText(DEMO_EVENTS.approved)).toEqual({ mark: 'codex', text: 'Codex' });
   });
 
   it('reads the core’s principal kinds (platform.Caller.Kind, lower case)', () => {
@@ -138,6 +158,18 @@ describe('event-detail view', () => {
     expect(words(resultStatus(DEMO_EVENTS.approved))).toBe('Executed · 1 row updated');
     expect(sizeText(DEMO_EVENTS.error)).toBe('118 B (the error returned to Codex)');
     expect(sizeText(DEMO_EVENTS.denied)).toBeNull();
+  });
+
+  it('traffic: what the call sent (received row) and what went back (completed row)', () => {
+    const sent = (d: EventDetail, bytes: number | null): EventDetail => ({
+      ...d,
+      rows: d.rows.map((r) => (r.phase === 'received' ? { ...r, requestBytes: bytes } : r)),
+    });
+    expect(trafficText(sent(DEMO_EVENTS.error, 96))).toBe('96 B in · 118 B out');
+    expect(trafficText(sent(DEMO_EVENTS.denied, 120))).toBe('120 B in');
+    // A call from before the core counted what was sent: only what went back.
+    expect(trafficText(DEMO_EVENTS.error)).toBe('118 B out');
+    expect(trafficText(DEMO_EVENTS.denied)).toBeNull();
   });
 
   it('splits the time into gateway, people and resource', () => {

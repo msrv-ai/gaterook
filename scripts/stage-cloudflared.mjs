@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Stages the pinned cloudflared for the installers (ARCHITECTURE.md A6, decision 8): reads the same pins the core
-// checks before every start (core/src/main/resources/ai/msrv/gaterook/core/tunnel/binaries.json), downloads each
+// checks before every start (core/src/main/resources/com/gaterook/core/tunnel/binaries.json), downloads each
 // platform's release asset into ~/.cache/mcp-gateway/cloudflared/<version>/, refuses it unless its SHA-256 is the
 // pinned one, takes the agent out of a .tgz (macOS) and checks the agent's own hash, then writes it to
 // desktop/stage/cloudflared/<platform>/cloudflared[.exe] — the layout electron-builder copies to
@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const pinsFile = join(root, 'core/src/main/resources/ai/msrv/gaterook/core/tunnel/binaries.json');
+const pinsFile = join(root, 'core/src/main/resources/com/gaterook/core/tunnel/binaries.json');
 
 function args(argv) {
   const out = { all: false, platforms: [], out: join(root, 'desktop/stage') };

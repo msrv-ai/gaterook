@@ -1,0 +1,17 @@
+{
+  "area": "sql-oracle",
+  "module": "connectors/sql-oracle",
+  "connectorTypes": ["oracle"],
+  "description": "Touches of the Oracle Database connector type for the native smoke (report 15 §6): its driver is in the image and refuses a connection it must refuse, without a server.",
+  "touches": [
+    {
+      "name": "oracle-driver-refused",
+      "connection": {"type": "oracle", "env": "dev",
+        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "FREEPDB1", "sslMode": "disable"},
+                   "credentials": {"user": "GW_READER"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "sql.refused"}
+    }
+  ]
+}

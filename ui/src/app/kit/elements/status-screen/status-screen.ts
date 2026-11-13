@@ -156,10 +156,10 @@ export class GwStatusScreen {
   /** The title's heading level: 1 in the app (it is the page), 2 or 3 inside a documentation section. */
   readonly level = input(1, { transform: numberAttribute });
   /**
-   * The meta line of the page: version, core address and log file under every card. The
-   * element's demo names either the address or the log, by state.
+   * The meta line of the page: version and log file under every card, without the core's address. The element's
+   * demo names either the address or the log, by state.
    */
-  readonly fullMeta = input(false, { transform: booleanAttribute });
+  readonly pageMeta = input(false, { transform: booleanAttribute });
   /** What an action of this screen answered (a failed Restart core, a new key the core refused). */
   readonly notice = input<StatusScreenNotice | null>(null);
   readonly busy = input<StatusScreenBusy>(null);
@@ -187,9 +187,9 @@ export class GwStatusScreen {
     const k = this.view().kind;
     return k === 'unlock-required' ? k : k === 'starting' ? 'starting' : k === 'stopped' ? 'stopped' : 'failed';
   });
-  /** The kit's meta line: under a failure the log, otherwise the address; the page shows both. */
-  protected readonly metaShowsAddress = computed(() => this.view().kind !== 'unlock-required' && (this.fullMeta() || this.dataState() !== 'failed' || this.view().kind === 'unreachable'));
-  protected readonly metaShowsLog = computed(() => this.view().kind !== 'unlock-required' && (this.fullMeta() || (this.dataState() === 'failed' && this.view().kind !== 'unreachable')));
+  /** The kit's meta line: under a failure the log, otherwise the address. The page names the log and never the address. */
+  protected readonly metaShowsAddress = computed(() => this.view().kind !== 'unlock-required' && !this.pageMeta() && (this.dataState() !== 'failed' || this.view().kind === 'unreachable'));
+  protected readonly metaShowsLog = computed(() => this.view().kind !== 'unlock-required' && (this.pageMeta() || (this.dataState() === 'failed' && this.view().kind !== 'unreachable')));
   protected readonly versionText = computed(() => (this.version() ? `GateRook ${this.version()}` : 'GateRook'));
 
   protected readonly steps = computed<readonly StatusStep[]>(() => {

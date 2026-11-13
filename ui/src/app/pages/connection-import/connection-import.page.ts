@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { ConnectionImportsApi, ConnectionImportResult, ConnectionImportSession, ImportCandidate, ImportSelection } from '../../core/api/connection-imports.api';
+import { ConnectionImportsApi, ConnectionImportResult, ConnectionImportSession, ImportCandidate, ImportSelection, ImportSummary } from '../../core/api/connection-imports.api';
 import { ClientId } from '../../core/api/clients.api';
-import { ConnectionsApi, SecretInputs, StoredSecret, TestOutcome } from '../../core/api/connections.api';
+import { ConnectionsApi, SecretInputs, StoredSecret, Suggested, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
 import { SecretsApi } from '../../core/api/secrets.api';
@@ -14,7 +14,7 @@ import { TimeService } from '../../core/time/time.service';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { COPIED_MS } from '../../kit/copy';
 import { GwCodeBlock } from '../../code/code-block';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, SuggestionRequest } from '../../kit/elements/connection-form/connection-form';
 import { GwConnectionTest, TestState } from '../../kit/elements/connection-form/connection-test';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
 import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/cloud-projects';
@@ -26,6 +26,7 @@ import { GwToggle } from '../../kit/disclosure';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { DESCRIPTION_MAX, SLUG_MAX, slugError } from '../endpoints/endpoints-view';
 import { connectionImportPrompt } from './connection-import-prompt';
+import { CredentialSource, choiceReason, credentialSources } from './connection-import-review';
 import { ClientsData } from '../clients/clients.data';
 import { ImportAppConsent, ImportAppPicker, ImportAppSelection } from './import-app-picker';
 import { ImportVaultStores } from './import-vault-stores';
@@ -136,6 +137,36 @@ export class ConnectionImportPage {
     return draft ? [{ ...draft, endpoint }] : [];
   }));
   readonly incompleteAllowed = computed(() => this.selectedDrafts().filter(d => d.allowIncomplete).length);
+  /**
+   * The core's summary of a draft the person changed, by candidate: `null` while it is being asked for or when it could
+   * not be. A candidate not here is still the proposal, and its card shows the summary the core made of it.
+   */
+  readonly changedSummaries = signal<ReadonlyMap<string, ImportSummary | null>>(new Map());
+  readonly summaryUnavailable = signal<ReadonlySet<string>>(new Set());
+  /**
+   * What each card shows without opening the editor: where the draft connects, its settings and its credential sources.
+   * `status` is the text of the card's one live region, which stays in place while it changes so that assistive
+   * technology announces each change: empty for the proposal's own summary, then updating, updated or failed.
+   */
+  readonly reviewCards = computed(() => new Map(this.supportedCandidates().map(candidate => {
+    const sources: readonly CredentialSource[] = credentialSources(candidate.secretSources, this.drafts().get(candidate.id)?.secrets ?? {});
+    const changed = this.changedSummaries();
+    const summary = changed.has(candidate.id) ? changed.get(candidate.id) ?? null : candidate.summary ?? null;
+    const unavailable = this.summaryUnavailable().has(candidate.id);
+    const updating = !summary && !unavailable && changed.has(candidate.id);
+    const name = this.drafts().get(candidate.id)?.name ?? candidate.name;
+    const status = unavailable ? `Could not summarize your changes to ${name}. Open Edit settings to check them.`
+      : updating ? `Updating the summary of ${name} from your changes…`
+      : summary && changed.has(candidate.id) ? `The summary of ${name} shows your changes.` : '';
+    return [candidate.id, {
+      summary,
+      unavailable,
+      updating,
+      status,
+      sources,
+      choose: choiceReason(sources),
+    }] as const;
+  })));
   readonly ready = computed(() => this.selected().size > 0 && this.selectedDrafts().length === this.selected().size
     && this.selectedDrafts().every(draft => this.eligibleEndpointSlugs().has(draft.endpoint))
     && !this.active() && !this.endpointCandidate() && !this.vaultBusy() && !this.expired());
@@ -166,6 +197,7 @@ export class ConnectionImportPage {
   });
   private generation = 0;
   private editing = 0;
+  private readonly summaryRequests = new Map<string, number>();
   private refreshing: object | null = null;
   private readonly cancelledSessions = new Set<string>();
   private readonly cancellingSessions = new Set<string>();
@@ -216,6 +248,7 @@ export class ConnectionImportPage {
     this.active.set(null);
     this.spec.set(null);
     this.drafts.set(new Map());
+    this.resetSummaries();
     this.editorSecrets.set({});
     this.destinations.set(new Map());
     this.preparedReview = null;
@@ -361,7 +394,7 @@ export class ConnectionImportPage {
       this.copiedPrompt.set(null);
       if (this.copyTimer) { clearTimeout(this.copyTimer); this.copyTimer = null; }
       this.preparedReview = null;
-      this.drafts.set(new Map()); this.editorSecrets.set({}); this.editorValue.set(null);
+      this.drafts.set(new Map()); this.resetSummaries(); this.editorSecrets.set({}); this.editorValue.set(null);
       this.destinations.set(new Map()); this.active.set(null); this.spec.set(null);
       const dismissed = session.status === 'awaiting' ? 'cancelled' : 'discarded';
       this.candidateIssues.set(new Map()); this.confirmation.set(null);
@@ -420,12 +453,35 @@ export class ConnectionImportPage {
         config: structuredClone(candidate.config), secrets: {}, allowIncomplete: true });
     }
     this.drafts.set(drafts);
+    this.resetSummaries();
     const productionEndpoints = this.eligibleEndpoints().filter(endpoint => endpoint.env === 'prod');
     const productionEndpoint = productionEndpoints.find(endpoint => endpoint.slug === session.endpoint)
       ?? productionEndpoints[0];
-    this.destinations.set(new Map([...drafts].map(([id, draft]) => [id,
-      draft.env === 'prod' ? productionEndpoint?.slug ?? session.endpoint : session.endpoint,
-    ])));
+    // A candidate that reads a credential from a file or an external store waits for the person to choose where it goes.
+    const prepared = new Map(session.manifest.connections.map(candidate => [candidate.id, candidate]));
+    this.destinations.set(new Map([...drafts]
+      .filter(([id]) => choiceReason(credentialSources(prepared.get(id)?.secretSources, {})) === null)
+      .map(([id, draft]) => [id, draft.env === 'prod' ? productionEndpoint?.slug ?? session.endpoint : session.endpoint])));
+  }
+
+  private resetSummaries(): void {
+    this.summaryRequests.clear();
+    this.changedSummaries.set(new Map());
+    this.summaryUnavailable.set(new Set());
+  }
+
+  /** Asks the core for the card's words about a draft the person changed; the card shows nothing stale meanwhile. */
+  private refreshSummary(candidate: ImportCandidate, draft: ImportSelection): void {
+    const sessionId = this.session()?.id;
+    if (!sessionId) return;
+    const request = (this.summaryRequests.get(candidate.id) ?? 0) + 1;
+    this.summaryRequests.set(candidate.id, request);
+    const current = () => !this.destroy.destroyed && this.session()?.id === sessionId && this.summaryRequests.get(candidate.id) === request;
+    this.changedSummaries.update(known => new Map(known).set(candidate.id, null));
+    this.summaryUnavailable.update(known => { const next = new Set(known); next.delete(candidate.id); return next; });
+    void this.api.summary(sessionId, candidate.id, draft.env, draft.config).then(
+      summary => { if (current()) this.changedSummaries.update(known => new Map(known).set(candidate.id, summary)); },
+      () => { if (current()) this.summaryUnavailable.update(known => new Set(known).add(candidate.id)); });
   }
 
   setDestination(candidate: ImportCandidate, endpoint: string): void {
@@ -557,8 +613,10 @@ export class ConnectionImportPage {
     if ([...this.drafts().values()].some(d => d.candidateId !== candidate.id && d.name === value.name)) { this.fail(new Error('Two selected drafts have the same name. Choose a unique name for each connection.')); return; }
     if (candidate.env === 'prod' && value.env !== 'prod') { this.fail(new Error('This candidate was discovered as production. Keep its production environment.')); return; }
     const drafts = new Map(this.drafts());
-    drafts.set(candidate.id, { candidateId: candidate.id, ...this.withEditorSecrets(value) });
+    const kept = { candidateId: candidate.id, ...this.withEditorSecrets(value) };
+    drafts.set(candidate.id, kept);
     this.drafts.set(drafts);
+    this.refreshSummary(candidate, kept);
     this.clearCandidateIssue(candidate.id);
     this.closeEditor();
   }
@@ -575,9 +633,11 @@ export class ConnectionImportPage {
     if (candidate.env === 'prod' && env !== 'prod') { this.fail(new Error('This candidate was discovered as production. Keep its production environment.')); return; }
     const secrets = current ? this.withEditorSecrets(current).secrets : previous?.secrets ?? {};
     const drafts = new Map(this.drafts());
-    drafts.set(candidate.id, { candidateId: candidate.id, name, env,
-      config: current?.config ?? previous?.config ?? candidate.config, secrets, allowIncomplete: true });
+    const kept: ImportSelection = { candidateId: candidate.id, name, env,
+      config: current?.config ?? previous?.config ?? candidate.config, secrets, allowIncomplete: true };
+    drafts.set(candidate.id, kept);
     this.drafts.set(drafts);
+    this.refreshSummary(candidate, kept);
     this.clearCandidateIssue(candidate.id);
     if (this.active()?.id === candidate.id) this.closeEditor();
     this.notice.set('Available settings kept. Review the import selection; if required setup is missing, it will be saved disabled for you to finish later.');
@@ -621,6 +681,26 @@ export class ConnectionImportPage {
       this.testResult.set(result.retest);
     } catch (e) { this.fail(e); }
     finally { this.busy.set(false); }
+  }
+
+  /**
+   * The setup helpers in the import editor: what this computer knows always; what the service lists only with
+   * credentials typed here, since staged ones are used after the import.
+   */
+  async suggest(request: SuggestionRequest): Promise<void> {
+    const form = this.form();
+    const candidate = this.active();
+    if (!form || !candidate) return;
+    const value = this.withEditorSecrets(request.value);
+    let result: Suggested | null = null;
+    if (request.scope === 'local' || !this.needsRetainedSecrets(value)) {
+      try {
+        result = await this.connections.suggest({ type: candidate.type, ...value, scope: request.scope });
+      } catch {
+        result = null;
+      }
+    }
+    if (form === this.form()) form.completeSuggestions(request.key, request.scope, result);
   }
 
   async discoverDatabases(request: DatabaseDiscoveryRequest): Promise<void> {

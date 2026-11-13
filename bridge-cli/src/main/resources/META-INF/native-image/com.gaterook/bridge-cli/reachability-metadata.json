@@ -1,0 +1,5 @@
+{
+  "resources": [
+    { "glob": "com/gaterook/bridge/build.properties" }
+  ]
+}

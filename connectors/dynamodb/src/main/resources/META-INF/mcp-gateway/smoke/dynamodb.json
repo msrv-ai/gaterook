@@ -1,0 +1,16 @@
+{
+  "area": "dynamodb",
+  "module": "connectors/dynamodb",
+  "connectorTypes": ["dynamodb"],
+  "description": "Touches of the DynamoDB connector for the native smoke (report 15 §6): the PartiQL classifier and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "dynamodb-classify-without-io",
+      "connection": {"type": "dynamodb", "env": "dev",
+        "config": {"region": "eu-central-1", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
+      "call": {"tool": "dynamodb_partiql", "arguments": {"statement": "DELETE FROM \"orders\" WHERE id = 'o-1'"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.dynamodb.query-writes"}
+    }
+  ]
+}

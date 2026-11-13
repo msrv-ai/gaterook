@@ -1,11 +1,12 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { CatalogIndex, McpRegistryPage, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { ConnectorModules, ModulesApi } from '../../core/api/modules.api';
+import { CatalogIndex, McpProfile, McpRegistryPage, McpServersApi, PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
@@ -23,6 +24,10 @@ import {
   connectionRows,
   endpointTools,
   endpoints,
+  installedTypes,
+  moduleCheck,
+  moduleList,
+  ownModuleType,
   rabbitUpdate,
   secretRows,
   sentryReview,
@@ -30,6 +35,7 @@ import {
   templates,
   typeDetail,
   typesCatalog,
+  typesWithListedModules,
 } from './connectors.fixtures';
 import { ConnectorsData } from './connectors.data';
 import { ConnectorsPage, SKELETON_DELAY_MS } from './connectors.page';
@@ -83,6 +89,14 @@ interface Answers {
   rows: () => ConnectionRow[];
   update: () => ReturnType<typeof rabbitUpdate>;
   registry: (search: string, cursor: string | null) => Promise<McpRegistryPage>;
+  profiles: () => Promise<McpProfile[]>;
+  /** What the core finds in a JAR chosen on this computer: a plugin, or a connector module. */
+  fileCheck: () => Promise<PluginCheck>;
+  /** GateRook's connector modules and the state of their signed list. */
+  modules: () => Promise<ConnectorModules>;
+  /** What Check now gets: both lists after the core checked them again. By default the lists as they are. */
+  catalogCheck?: () => Promise<CatalogIndex>;
+  modulesCheck?: () => Promise<ConnectorModules>;
 }
 
 /**
@@ -121,6 +135,22 @@ const stripeRegistryServers: McpRegistryPage['servers'] = [
     remotes: [{ type: 'streamable-http', url: 'https://mcp.stripe.com', headers: [], variables: [] }] },
 ];
 
+/** GateRook's verified profiles as `GET /api/mcp-profiles` answers (§7.5): one whose registry entry is a Popular card. */
+function profilesFixture(): McpProfile[] {
+  const base = { category: 'Cloud platform', checked: '2026-11-11', command: [], headers: [], notes: [], signIn: 'OAuth in your browser.' };
+  return [
+    { ...base, id: 'supabase', name: 'Supabase', publisher: 'Supabase', description: 'Projects, logs and read-only SQL.',
+      documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', transport: 'http',
+      url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true',
+      placeholders: [{ name: 'project_ref', description: 'Your project’s reference, from its dashboard URL.' }],
+      pins: [{ in: 'query', name: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true, Supabase lists its writes too.', set: null }],
+      tools: [] },
+    { ...base, id: 'cloudflare-api', name: 'Cloudflare API', publisher: 'Cloudflare', description: 'The whole Cloudflare API in Code Mode.',
+      documentation: 'https://github.com/cloudflare/mcp', registryName: null, transport: 'http', url: 'https://mcp.cloudflare.com/mcp',
+      placeholders: [], pins: [], tools: [{ tool: 'execute', start: 'approval', kind: 'code', reason: 'It runs JavaScript against the Cloudflare API.' }] },
+  ];
+}
+
 let calls: string[];
 let bodies: Record<string, unknown>;
 let events: FakeEvents;
@@ -139,6 +169,9 @@ function setup(over: Partial<Answers> = {}): void {
     rows: connectionRows,
     update: rabbitUpdate,
     registry: registryPage,
+    profiles: () => Promise.resolve([]),
+    fileCheck: () => Promise.resolve(clickhouseCheck()),
+    modules: () => Promise.resolve(moduleList()),
     ...over,
   };
   const record = (name: string, body?: unknown) => {
@@ -177,9 +210,17 @@ function setup(over: Partial<Answers> = {}): void {
       record('catalog');
       return answers.catalog();
     },
+    refreshCatalog: () => {
+      record('catalog-refresh');
+      return (answers.catalogCheck ?? answers.catalog)();
+    },
     check: (source) => {
       record('check', source);
       return Promise.resolve(clickhouseCheck());
+    },
+    checkFile: (file) => {
+      record(`check-file ${file.name}`);
+      return answers.fileCheck();
     },
     install: (stagingId, ack) => {
       record(`install ${stagingId} ${ack}`);
@@ -243,6 +284,7 @@ function setup(over: Partial<Answers> = {}): void {
       record(`registry ${search}${cursor ? ` after ${cursor}` : ''}`);
       return answers.registry(search, cursor ?? null);
     },
+    profiles: () => answers.profiles(),
     action: (name, action) => {
       record(`server ${action} ${name}`);
       return Promise.resolve({ name, state: 'running', tools: 26, previousTools: 26 });
@@ -283,6 +325,27 @@ function setup(over: Partial<Answers> = {}): void {
       { provide: ConnectorTypesApi, useValue: typesApi },
       { provide: ConnectionsApi, useValue: connections },
       { provide: PluginsApi, useValue: plugins },
+      {
+        provide: ModulesApi,
+        useValue: {
+          list: () => {
+            record('modules');
+            return answers.modules();
+          },
+          refresh: () => {
+            record('modules-refresh');
+            return (answers.modulesCheck ?? answers.modules)();
+          },
+          uninstall: (id: string) => {
+            record(`uninstall-module ${id}`);
+            return Promise.resolve();
+          },
+          replaceOwn: (id: string) => {
+            record(`replace-own ${id}`);
+            return Promise.resolve({} as never);
+          },
+        } satisfies Partial<ModulesApi>,
+      },
       { provide: McpServersApi, useValue: servers },
       { provide: TemplatesApi, useValue: templatesApi },
       {
@@ -349,21 +412,6 @@ function type(input: HTMLInputElement | HTMLTextAreaElement, value: string): voi
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-async function searchMcpRegistry(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, query: string) {
-  button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-  await settle(fixture);
-  const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-  button(add, 'Official MCP Registry').click();
-  await settle(fixture);
-  const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
-  const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
-  type(search, query);
-  search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-  await settle(fixture);
-  return { add, registry, search,
-    results: () => Array.from(registry.querySelectorAll('[aria-label="Servers in the MCP registry"] article')) };
-}
-
 async function searchInlineRegistry(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, query: string) {
   const region = el.querySelector<HTMLElement>('section[gwMcpRegistrySearch]')!;
   const search = region.querySelector<HTMLInputElement>('input[type="search"]')!;
@@ -371,6 +419,15 @@ async function searchInlineRegistry(fixture: ComponentFixture<ConnectorsPage>, e
   region.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   await settle(fixture);
   return { region, search, results: () => Array.from(region.querySelectorAll('article')) };
+}
+
+/**
+ * Router.navigate, stubbed: the page's links to Add connection, which has no route here. Returns the navigations to
+ * `/connections/new` so far, as `[commands, extras]`.
+ */
+function navigations(): () => unknown[][] {
+  const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+  return () => navigate.mock.calls.filter(([commands]) => Array.isArray(commands) && commands[0] === '/connections/new');
 }
 
 function choose(select: HTMLSelectElement, value: string): void {
@@ -557,6 +614,159 @@ describe('Connectors page: Installed', () => {
   });
 });
 
+describe('Connectors page: a connector module from a file', () => {
+  /** Opens Install plugin or module from the page's menu, chooses `name` and has the core check it. */
+  async function checkFile(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, name: string): Promise<HTMLDialogElement> {
+    button(el.querySelector('#menu-add-connector'), 'Install plugin or module').click();
+    await settle(fixture);
+    const install = el.querySelector<HTMLDialogElement>('dialog[gwPluginInstallDialog]')!;
+    expect(install.open).toBe(true);
+    expect(text(install.querySelector('.gw-dialog__title'))).toBe('Install plugin or module');
+    expect(text(install.querySelector('.gw-file-drop__hint'))).toBe('One plugin JAR, up to 50 MB, or one connector module, up to 150 MB');
+    const input = install.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { value: [new File(['jar'], name)], configurable: true });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle(fixture);
+    button(install, 'Check package').click();
+    await settle(fixture);
+    expect(calls).toContain(`check-file ${name}`);
+    expect(install.open).toBe(false);
+    return el.querySelector<HTMLDialogElement>('dialog[gwPluginReviewDialog]')!;
+  }
+
+  const rowsOf = (dialog: HTMLElement) =>
+    Array.from(dialog.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))] as const);
+
+  it('reviews the person’s own module as unsigned code and installs it only with their word', async () => {
+    setup({ fileCheck: () => Promise.resolve(moduleCheck()) });
+    const { fixture, el } = await render();
+    const dialog = await checkFile(fixture, el, 'shop-1.2.0.jar');
+    expect(dialog.open).toBe(true);
+    expect(dialog.classList).toContain('gw-dialog--danger');
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Install unsigned connector module Shop?');
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toContain("GateRook didn't sign this package");
+    expect(text(document.activeElement)).toBe('Cancel');
+    const rows = rowsOf(dialog);
+    const row = (key: string) => rows.find(([k]) => k === key)?.[1];
+    expect(row('Signature')).toBe("Unsigned Not in GateRook's signed list of connector modules");
+    expect(row('Package')).toBe('shop-1.2.0.jar · 2.6 MB');
+    expect(row('Manifest')).toBe('id shop, version 1.2.0');
+    expect(row('Adds')).toBe('Orders: orders_list orders_cancel');
+    expect(rows.map(([, value]) => value)).toContain('Shipments: shipments_list');
+    expect(row('Tools')).toContain('3 Declared by shop, not verified. On an endpoint each starts as Approval; Read only needs your confirmation per tool.');
+    expect(row('Tools')).toContain('What you approve is the call\'s arguments');
+    expect(row('Needs access to')).toBe('The host of each connection, port 443');
+    expect(row('Updates')).toContain("None from GateRook's list");
+    expect(row('Replaces')).toBeUndefined();
+    expect(row('Runs as')).toBeUndefined();
+
+    const install = button(dialog, 'Install unsigned module Shop');
+    expect(install.getAttribute('aria-disabled')).toBe('true');
+    install.click();
+    await settle(fixture);
+    expect(calls.some((x) => x.startsWith('install '))).toBe(false);
+
+    check(dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    install.click();
+    await settle(fixture);
+    expect(calls).toContain('install stg-m1 true');
+    expect(dialog.open).toBe(false);
+    expect(toasts().at(-1)).toMatchObject({
+      tone: 'warning',
+      title: 'Unsigned connector module Shop installed',
+      body: 'Add a connection to use it. On an endpoint each of its 3 tools starts as Approval.',
+    });
+  });
+
+  it('installs a package GateRook’s signed list has as GateRook’s own connector, without asking for trust', async () => {
+    setup({ fileCheck: () => Promise.resolve(moduleCheck(true, { installedVersion: '1.1.0', installedSigned: false })) });
+    const { fixture, el } = await render();
+    const dialog = await checkFile(fixture, el, 'shop-1.2.0.jar');
+    expect(dialog.classList).not.toContain('gw-dialog--danger');
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Install Shop connector');
+    const rows = rowsOf(dialog);
+    const row = (key: string) => rows.find(([k]) => k === key)?.[1];
+    expect(row('Signature')).toBe("Signed GateRook's signed list of connector modules has this package");
+    expect(row('Replaces')).toBe('Shop v1.1.0, your own build. Requests that wait for approval on its connections are rejected.');
+    expect(row('Tools')).toBe('3, in the modes the connector declares: on an endpoint reads start as Read only and the others as Approval.');
+    expect(row('Updates')).toBeUndefined();
+    expect(dialog.querySelector('input[type="checkbox"]')).toBeNull();
+
+    button(dialog, 'Install Shop connector').click();
+    await settle(fixture);
+    expect(calls).toContain('install stg-m1 false');
+    expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Shop connector installed' });
+  });
+
+  it('lists a type of the person’s own module as a module, unsigned, and removes the module on request', async () => {
+    setup({ types: () => Promise.resolve(typesCatalog([...installedTypes(), ownModuleType(), ownModuleType(null, { id: 'shipments', name: 'Shipments', tools: 1, connections: 0 })])) });
+    const { fixture, el } = await render();
+    expect(text(el.querySelector('#installed-count'))).toBe('10 built-in, 2 from your own module, 1 plugin, 1 MCP server');
+    const orders = cardOf(el, 'installed', 'Orders')!;
+    expect(Array.from(orders.querySelectorAll('.gw-connector-card__meta .gw-badge')).map(text)).toEqual(['Module', 'Unsigned']);
+    expect(text(orders.querySelector('.gw-connector-card__meta .gw-mono'))).toBe('v1.2.0');
+    expect(text(orders.querySelector('[gwConnectorCardNote]'))).toBe('2 tools, each starts as Approval · no connections yet · Add connection for Orders');
+    expect(text(orders.querySelector('.gw-card__footer .gw-status'))).toBe('Sleeping');
+    const menu = orders.querySelector('[role="menu"]')!;
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((item) => text(item.querySelector('.gw-menu__label')))).toEqual(['Uninstall module']);
+
+    button(menu, 'Uninstall module').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwConfirmDialog]')!;
+    expect(dialog.open).toBe(true);
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Uninstall module shop?');
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toBe(
+      'Its code is unloaded, its package deleted and the connector types Orders and Shipments removed. No connection uses it, so nothing stops working. Install it from its file again to use it.',
+    );
+    expect(text(document.activeElement)).toBe('Cancel');
+    expect(calls).not.toContain('uninstall-module shop');
+
+    button(dialog, 'Uninstall module shop').click();
+    await settle(fixture);
+    expect(calls).toContain('uninstall-module shop');
+    expect(dialog.open).toBe(false);
+    expect(toasts().at(-1)?.title).toBe('Module shop uninstalled');
+  });
+
+  it('says that connections stand in the way of removing a module, and returns to GateRook’s build where its list has one', async () => {
+    setup({ types: () => Promise.resolve(typesCatalog([...installedTypes(), ownModuleType('1.3.0', { connections: 2 })])) });
+    const { fixture, el } = await render();
+    const orders = cardOf(el, 'installed', 'Orders')!;
+    expect(text(orders.querySelector('.gw-card__footer .gw-status'))).toBe('GateRook’s build available · v1.3.0');
+    const menu = orders.querySelector('[role="menu"]')!;
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((item) => text(item.querySelector('.gw-menu__label')).split('Replace')[0])).toEqual([
+      "Use GateRook's build",
+      'Uninstall module',
+    ]);
+
+    button(menu, 'Uninstall module').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwConfirmDialog]')!;
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toContain('2 connections use it: remove those connections first, or the module stays.');
+    button(dialog, 'Cancel').click();
+    await settle(fixture);
+
+    button(menu, "Use GateRook's build").click();
+    await settle(fixture);
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe("Replace your Orders module with GateRook's v1.3.0?");
+    expect(dialog.classList).toContain('gw-dialog--warning');
+    button(dialog, "Use GateRook's v1.3.0").click();
+    await settle(fixture);
+    expect(calls).toContain('replace-own shop');
+    expect(toasts().at(-1)?.title).toBe("GateRook's Orders v1.3.0 is installing");
+
+    // The installation's steps reach the page as events: the cards follow them.
+    const before = calls.filter((x) => x === 'types').length;
+    events.emit('module.state', { id: 'shop', version: '1.3.0', step: 'ready', sizeBytes: 1 });
+    await settle(fixture);
+    expect(calls.filter((x) => x === 'types').length).toBe(before + 1);
+  });
+});
+
+/** The core's words when GitHub can't be reached for GateRook's list of connector modules. */
+const LIST_UNREACHABLE = "The catalog can't be reached: index.json can't be downloaded from raw.githubusercontent.com: timeout";
+
 describe('Connectors page: Catalog', () => {
   it('says the catalog isn’t available on a core without it, and still installs from a file', async () => {
     setup({ catalog: () => Promise.reject(notAvailable()) });
@@ -651,58 +861,232 @@ describe('Connectors page: Catalog', () => {
     expect(cardOf(el, 'catalog', 'ClickHouse')).not.toBeNull();
   });
 
-  it('installs github-mcp from the catalog with the value of its variable, typed in the review and sent once', async () => {
-    // Review 2026-10-26 (K6, E1): the catalog install sent no value and the core answered 422 "Secret missing".
+  it('offers GateRook’s own modules that aren’t installed first, with what adding a connection downloads', async () => {
+    setup({ types: () => Promise.resolve(typesWithListedModules()), modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })) });
+    const { fixture, el } = await render();
+    const titles = Array.from(el.querySelectorAll('#catalog-grid .gw-card__title')).map(text);
+    expect(titles.slice(0, 3)).toEqual(['DuckDB', 'ClickHouse', 'Jira']);
+    // The plugin of the same name in the catalog's fixture stays an entry of its own.
+    expect(titles.filter((t) => t === 'ClickHouse')).toHaveLength(2);
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
+
+    const duckdb = cardOf(el, 'catalog', 'DuckDB')!;
+    expect(text(duckdb.querySelector('.gw-connector-card__meta'))).toBe('Built-in Version v1.1.0');
+    expect(text(duckdb.querySelector('[gwConnectorCardNote]'))).toBe('Not part of the installer: adding a connection downloads it (32 MB).');
+    expect(text(duckdb.querySelector('.gw-connector-card__tools'))).toBe('4 tools');
+    // Nothing to install by hand and nothing to review: the one action opens the type's form, which brings the module.
+    expect(duckdb.querySelector('button')).toBeNull();
+    const add = duckdb.querySelector<HTMLAnchorElement>('a.gw-btn')!;
+    expect(text(add)).toBe('Add connection for DuckDB');
+    expect(add.getAttribute('href')).toBe('/connections/new?type=duckdb');
+    expect(text(Array.from(el.querySelectorAll('#catalog article')).find((a) => text(a.querySelector('[gwConnectorCardNote]')).includes('(56 KB)'))?.querySelector('.gw-card__title'))).toBe('ClickHouse');
+
+    const search = el.querySelector<HTMLInputElement>('#catalog-search')!;
+    search.value = 'duck';
+    search.dispatchEvent(new Event('input'));
+    await settle(fixture);
+    expect(Array.from(el.querySelectorAll('#catalog-grid .gw-card__title')).map(text)).toEqual(['DuckDB']);
+    expect(text(el.querySelector('#catalog-count'))).toBe('1 of 7 catalog connectors');
+  });
+
+  it('shows GateRook’s modules in a build that reads no catalog, with the check of their list', async () => {
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+    });
+    const { el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(panel.querySelector('.gw-empty')).toBeNull();
+    expect(panel.querySelector('.gw-alert')).toBeNull();
+    expect(Array.from(panel.querySelectorAll('#catalog-grid .gw-card__title')).map(text)).toEqual(['DuckDB', 'ClickHouse']);
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-22');
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('2 connectors');
+    // The toolbar keeps the way to install a package from a file.
+    expect(Array.from(panel.querySelectorAll('button')).filter((b) => text(b).startsWith('Install from file or URL'))).toHaveLength(1);
+  });
+
+  it('says why GateRook’s list of modules couldn’t be read, over the cards of the last one', async () => {
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-21T11:00:00Z', offline: true, problem: LIST_UNREACHABLE })),
+    });
+    const { el } = await render();
+    const alert = el.querySelector('#catalog .gw-alert--warning');
+    expect(text(alert?.querySelector('.gw-alert__title'))).toBe("GateRook's list of connectors couldn't be checked");
+    expect(text(alert?.querySelector('.gw-alert__body'))).toBe(`${LIST_UNREACHABLE} These are the connectors of the last list GateRook verified.`);
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+  });
+
+  it('says why nothing is offered after a first start without the network', async () => {
+    // No list of modules was ever accepted, and this build reads no catalog either: the list's reason comes first.
+    setup({
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, offline: true, problem: LIST_UNREACHABLE })),
+    });
+    const { el } = await render();
+    expect(text(el.querySelector('#catalog .gw-empty__title'))).toBe("The catalog isn't available");
+    expect(text(el.querySelector('#catalog .gw-empty__text'))).toBe(`${LIST_UNREACHABLE} A plugin you have as a file can still be checked and installed.`);
+  });
+
+  it('calls the Catalog empty, not unavailable, when the list of modules was read and offers nothing', async () => {
+    // Every listed module is installed or none fits this build, and this build reads no plugin catalog.
+    setup({
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+    });
+    const { el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(text(panel.querySelector('.gw-empty__title'))).toBe('The catalog is empty');
+    expect(text(panel.querySelector('.gw-empty__text'))).not.toContain('No catalog is configured');
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-22');
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('0 connectors');
+  });
+
+  it('reads the modules again when the core accepted another list in the background', async () => {
+    let listed = false;
+    setup({ types: () => Promise.resolve(listed ? typesWithListedModules() : typesCatalog()) });
+    const { fixture, el } = await render();
+    expect(cardOf(el, 'catalog', 'DuckDB')).toBeNull();
+    const before = calls.length;
+
+    listed = true;
+    events.emit('module.list', { modules: 8 });
+    await settle(fixture);
+    expect(calls.slice(before).sort()).toEqual(['modules', 'types']);
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
+  });
+
+  it('checks both lists at once on Check now, shows what was published since and says so', async () => {
+    let listed = false;
+    let answer!: (list: ConnectorModules) => void;
+    setup({
+      types: () => Promise.resolve(listed ? typesWithListedModules() : typesCatalog()),
+      catalogCheck: () => Promise.resolve({ ...catalogIndex(), checkedAt: '2026-10-23T09:00:00Z' }),
+      modulesCheck: () => new Promise<ConnectorModules>((resolve) => (answer = resolve)),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    const check = button(panel, 'Check now');
+    expect(text(check)).toBe('Check now for changes in the catalog');
+    expect(check.getAttribute('aria-busy')).toBeNull();
+    expect(check.querySelector('svg')).not.toBeNull();
+    const before = calls.length;
+
+    check.click();
+    await settle(fixture);
+    // Busy while the core checks: a spinner for the icon, and a second click starts nothing.
+    expect(check.getAttribute('aria-busy')).toBe('true');
+    expect(check.getAttribute('aria-disabled')).toBe('true');
+    expect(check.querySelector('.gw-spinner')).not.toBeNull();
+    expect(check.querySelector('svg')).toBeNull();
+    check.click();
+    await settle(fixture);
+    expect(calls.slice(before).sort()).toEqual(['catalog-refresh', 'modules-refresh']);
+    expect(toasts()).toHaveLength(0);
+
+    listed = true;
+    answer(moduleList({ configured: true, checkedAt: '2026-10-23T09:00:00Z', offline: false }));
+    await settle(fixture);
+    // The answers are taken as they are (no second read of either list); the cards come with the types.
+    expect(calls.slice(before).sort()).toEqual(['catalog-refresh', 'modules-refresh', 'types']);
+    expect(check.getAttribute('aria-busy')).toBeNull();
+    expect(check.getAttribute('aria-disabled')).toBeNull();
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-23');
+    expect(text(el.querySelector('#tab-catalog .gw-tabs__count'))).toBe('7 connectors');
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]).toMatchObject({ tone: 'success', title: '2 new connectors in the catalog', body: 'DuckDB and ClickHouse' });
+  });
+
+  it('says that the catalog is up to date when a check brings nothing new', async () => {
+    // A build without a plugin catalog: its "No catalog is configured" is no failure of this check.
+    const none = (): Promise<CatalogIndex> =>
+      Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' });
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      catalog: none,
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+      modulesCheck: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-23T09:00:00Z', offline: false })),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-22');
+
+    button(panel, 'Check now').click();
+    await settle(fixture);
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]).toMatchObject({ tone: 'success', title: 'The catalog is up to date' });
+    expect(toasts()[0]?.body ?? null).toBeNull();
+    expect(text(panel.querySelector('#catalog-count'))).toContain('checked rel 2026-10-23');
+    expect(Array.from(panel.querySelectorAll('#catalog-grid .gw-card__title')).map(text)).toEqual(['DuckDB', 'ClickHouse']);
+    expect(panel.querySelector('.gw-alert')).toBeNull();
+  });
+
+  it('says why a check couldn’t reach a list, in the toast and over the cards of the last one', async () => {
+    setup({
+      types: () => Promise.resolve(typesWithListedModules()),
+      modules: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: false })),
+      modulesCheck: () => Promise.resolve(moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: true, problem: LIST_UNREACHABLE })),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(panel.querySelector('.gw-alert')).toBeNull();
+
+    button(panel, 'Check now').click();
+    await settle(fixture);
+    expect(toasts()[0]).toMatchObject({ tone: 'warning', title: "GateRook's list of connectors couldn't be checked", body: LIST_UNREACHABLE });
+    expect(text(panel.querySelector('.gw-alert--warning .gw-alert__title'))).toBe("GateRook's list of connectors couldn't be checked");
+    expect(cardOf(el, 'catalog', 'DuckDB')).not.toBeNull();
+    expect(button(panel, 'Check now').getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('says why the plugin catalog couldn’t be checked when the list of modules could', async () => {
+    const unreachable = "The catalog can't be reached: index.json can't be downloaded from catalog.gaterook.dev: timeout";
+    setup({ catalogCheck: () => Promise.resolve({ ...catalogIndex(), offline: true, problem: unreachable }) });
+    const { fixture, el } = await render();
+    button(el.querySelector('#catalog'), 'Check now').click();
+    await settle(fixture);
+    expect(toasts()[0]).toMatchObject({ tone: 'warning', title: "The catalog couldn't be checked", body: unreachable });
+    expect(text(el.querySelector('#catalog .gw-alert--warning .gw-alert__title'))).toBe("The catalog couldn't be checked");
+  });
+
+  it('offers Check now where nothing is offered yet, and says when the check itself failed', async () => {
+    // A first start without the network left no list: the empty Catalog still has the way to ask again.
+    setup({
+      catalog: () =>
+        Promise.resolve({ checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' }),
+      modules: () => Promise.resolve(moduleList({ configured: true, offline: true, problem: LIST_UNREACHABLE })),
+      modulesCheck: () => Promise.reject(new Error('The core did not answer')),
+    });
+    const { fixture, el } = await render();
+    const panel = el.querySelector('#catalog')!;
+    expect(text(panel.querySelector('.gw-empty__title'))).toBe("The catalog isn't available");
+    // One Install from file or URL, in the empty card; the toolbar has Check now alone.
+    expect(Array.from(panel.querySelectorAll('.gw-toolbar__end button')).map(text)).toEqual(['Check now for changes in the catalog']);
+
+    button(panel, 'Check now').click();
+    await settle(fixture);
+    expect(toasts()[0]).toMatchObject({ tone: 'danger', title: "The catalog wasn't checked" });
+    expect(toasts()[0]?.body).toContain('The core did not answer');
+    expect(button(panel, 'Check now').getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('sets a catalog MCP server up in Add connection, which asks for its environment, review and endpoints', async () => {
     setup({ catalog: () => Promise.resolve(catalogIndex(catalogEntries().map((e) => (e.kind === 'mcp-server' ? { ...e, installed: null } : e)))) });
+    const navigated = navigations();
     const { fixture, el } = await render();
     button(cardOf(el, 'catalog', 'GitHub'), 'Install').click();
     await settle(fixture);
-    expect(bodies['review']).toEqual({ catalog: 'github@0.6.2' });
-
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    expect(review.open).toBe(true);
-    expect(text(review.querySelector('.gw-dialog__title'))).toBe('Start MCP server github-mcp?');
-    expect(text(document.activeElement)).toBe('Cancel');
-    expect(Array.from(review.querySelectorAll('footer button')).map(text)).not.toContain('Back');
-    const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
-    expect(rows['Command']).toBe('node /Users/me/.gaterook/mcp/github-mcp/dist/index.js');
-    expect(rows['Secrets passed']).toBe('GITHUB_PERSONAL_ACCESS_TOKEN, from a new secret of github-mcp, encrypted here');
-    const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
-    expect(text(review.querySelector(`label[for="${value.id}"]`))).toBe('Value of GITHUB_PERSONAL_ACCESS_TOKEN');
-    expect(value.autocomplete).toBe('new-password');
-
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    await settle(fixture);
-    const start = button(review, 'Start MCP server github-mcp');
-    // Empty: refused at the field, nothing sent.
-    start.click();
-    await settle(fixture);
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { catalog: 'github@0.6.2' } }]]);
+    // Nothing is reviewed or started here: Add connection does both, after the person chose its environment.
+    expect(calls).not.toContain('review');
     expect(calls).not.toContain('create-server');
-    expect(value.getAttribute('aria-invalid')).toBe('true');
-    expect(text(review.querySelector('.gw-field__error'))).toBe('Enter the value of GITHUB_PERSONAL_ACCESS_TOKEN.');
-    expect(document.activeElement).toBe(value);
-
-    type(value, 'ghp_cnry_123');
-    await settle(fixture);
-    expect(value.hasAttribute('aria-invalid')).toBe(false);
-    start.click();
-    await settle(fixture);
-    expect(bodies['create-server']).toEqual({
-      catalog: 'github@0.6.2',
-      secrets: { '/env/0/secretRef': { source: 'local', value: 'ghp_cnry_123' } },
-      acknowledge: true,
-    });
-    expect(review.open).toBe(false);
-    // Write-only: the value left the page with the request (nothing in the DOM, no field keeps it).
-    expect(value.value).toBe('');
-    expect(document.body.innerHTML).not.toContain('ghp_cnry_123');
-    // A catalog server ends on the endpoint step too.
-    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
-    expect(step.open).toBe(true);
-    button(step, 'Add to endpoint').click();
-    await settle(fixture);
-    expect(calls).toContain('add-to-endpoint dev github-mcp');
-    expect(toasts().at(-1)?.title).toBe('MCP server github-mcp started');
+    expect(el.querySelector('dialog[open]')).toBeNull();
   });
 });
 
@@ -1081,674 +1465,41 @@ describe('Connectors page: MCP servers', () => {
     expect(toasts().at(-1)?.body).toBe('Its process stopped and its secret was destroyed. Past calls stay in Activity.');
   });
 
-  it('adds a server: refuses an empty form at its fields, reviews, and starts it after the acknowledgement', async () => {
+  it('opens Add connection on its MCP servers from the header menu and from the tab’s Add MCP server', async () => {
     setup();
+    const navigated = navigations();
     const { fixture, el } = await render();
-    const header = el.querySelector('#menu-add-connector')!;
-    button(header, 'Add MCP server').click();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
     await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(add.open).toBe(true);
-    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
-    expect(document.activeElement).toBe(name);
-
-    button(add, 'Review and start').click();
+    el.querySelector<HTMLButtonElement>('#tab-mcp')!.click();
     await settle(fixture);
-    expect(text(add.querySelector('.gw-field__error'))).toBe('Name the server: lowercase letters, digits and -.');
-    expect(calls).not.toContain('review');
-
-    type(name, 'sentry-mcp');
-    type(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!, 'npx -y @sentry/mcp-server@0.12.0');
-    type(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!, 'SENTRY_AUTH_TOKEN');
-    // No "Value from secret" with other servers' secrets: the core takes none by name (C10), so no value field here.
-    expect(add.querySelector('select')).toBeNull();
-    expect(add.querySelector('input[type="password"]')).toBeNull();
-    button(add, 'Review and start').click();
+    const add = button(el.querySelector('#mcp-servers .gw-toolbar'), 'Add MCP server');
+    // A page now, not a dialog.
+    expect(add.hasAttribute('aria-haspopup')).toBe(false);
+    add.click();
     await settle(fixture);
-    // The review gets the names only: no value travels before the person starts the server.
-    expect(bodies['review']).toEqual({
-      config: { name: 'sentry-mcp', transport: 'stdio', command: ['npx', '-y', '@sentry/mcp-server@0.12.0'], env: [{ name: 'SENTRY_AUTH_TOKEN' }] },
-    });
-
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    expect(add.open).toBe(false);
-    expect(review.open).toBe(true);
-    expect(review.classList).toContain('gw-dialog--danger');
-    expect(text(document.activeElement)).toBe('Cancel');
-    const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
-    expect(rows['Command']).toBe('npx -y @sentry/mcp-server@0.12.0');
-    expect(rows['Runs as']).toContain('Not sandboxed on this system');
-
-    const start = button(review, 'Start MCP server sentry-mcp');
-    expect(start.getAttribute('aria-disabled')).toBe('true');
-    start.click();
-    await settle(fixture);
-    expect(calls).not.toContain('create-server');
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    await settle(fixture);
-    type(review.querySelector<HTMLInputElement>('input[type="password"]')!, 'sntrys_value');
-    start.click();
-    await settle(fixture);
-    expect(bodies['create-server']).toEqual({
-      config: { name: 'sentry-mcp', transport: 'stdio', command: ['npx', '-y', '@sentry/mcp-server@0.12.0'], env: [{ name: 'SENTRY_AUTH_TOKEN' }] },
-      secrets: { '/env/0/secretRef': { source: 'local', value: 'sntrys_value' } },
-      acknowledge: true,
-    });
-    expect(review.open).toBe(false);
-
-    // The last step, as the connection wizard's: its tools join an endpoint in their default modes.
-    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
-    expect(step.open).toBe(true);
-    expect(text(step.querySelector('.gw-dialog__title'))).toBe('Add sentry-mcp to an endpoint');
-    const boxes = Array.from(step.querySelectorAll<HTMLInputElement>('input[name="endpoints"]'));
-    expect(boxes.map((b) => [b.value, b.checked, b.getAttribute('aria-disabled')])).toEqual([
-      ['dev', true, null],
-      ['incident-prod', false, 'true'],
+    expect(navigated()).toEqual([
+      [['/connections/new'], { queryParams: { show: 'mcp' } }],
+      [['/connections/new'], { queryParams: { show: 'mcp' } }],
     ]);
-    expect(text(step)).toContain('Accepts prod connections only; sentry-mcp is dev.');
-    expect(document.activeElement).toBe(boxes[0]);
-    button(step, 'Add to endpoint').click();
-    await settle(fixture);
-    expect(calls).toContain('preview dev sentry-mcp');
-    expect(calls).toContain('add-to-endpoint dev sentry-mcp');
-    expect(calls).not.toContain('add-to-endpoint incident-prod sentry-mcp');
-    expect(step.open).toBe(false);
-    expect(toasts().at(-1)?.title).toBe('MCP server sentry-mcp started');
-    expect(toasts().at(-1)?.body).toBe('Its 12 tools are on dev. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.');
-    expect(toasts().at(-1)?.actions?.[0]?.label).toBe('Open endpoint dev');
+    expect(calls.filter((c) => c === 'review' || c.startsWith('registry'))).toEqual([]);
+    expect(el.querySelector('dialog[open]')).toBeNull();
   });
 
-  it('leaves the tools of a new server Off when the endpoint step is skipped', async () => {
+  it('sends an older link to Add MCP server (?add=mcp-server) on to Add connection, in its place in the history', async () => {
     setup();
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'sentry-mcp');
-    type(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!, 'npx -y @sentry/mcp-server@0.12.0');
-    type(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!, 'SENTRY_AUTH_TOKEN');
-    button(add, 'Review and start').click();
-    await settle(fixture);
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    type(review.querySelector<HTMLInputElement>('input[type="password"]')!, 'sntrys_value');
-    await settle(fixture);
-    button(review, 'Start MCP server sentry-mcp').click();
-    await settle(fixture);
-    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
-    button(step, 'Not now').click();
-    await settle(fixture);
-    expect(step.open).toBe(false);
-    expect(calls.filter((c) => c.startsWith('add-to-endpoint'))).toEqual([]);
-    expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.');
-  });
-
-  it('loads registry browsing on first selection, keeps it across tabs and paginates without a search', async () => {
-    const first = deferred<McpRegistryPage>();
-    setup({ registry: (search, cursor) => cursor ? registryPage(search, cursor) : first.promise });
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
-
-    button(add, 'Official MCP Registry').click();
-    await settle(fixture);
-    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
-    const results = () => Array.from(registry.querySelectorAll('[aria-label="Servers in the MCP registry"] article'));
-    expect(text(registry.querySelector('[role="status"]'))).toBe('Loading servers from the MCP registry…');
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
-    first.resolve(await registryPage('', null));
-    await settle(fixture);
-    expect(results()).toHaveLength(2);
-    button(add, 'Manual entry').click();
-    button(add, 'Official MCP Registry').click();
-    await settle(fixture);
-    expect(results()).toHaveLength(2);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
-
-    button(add, 'Show more').click();
-    await settle(fixture);
-    expect(calls).toContain('registry  after app.linear/linear:1.0.2');
-    expect(results()).toHaveLength(3);
-    expect(document.activeElement).toBe(button(results()[2], 'Use'));
-    expect(calls).not.toContain('review');
-    expect(bodies['create-server']).toBeUndefined();
-  });
-
-  it('restores registry browsing when the search is cleared', async () => {
-    setup();
-    const { fixture, el } = await render();
-    const { registry, search, results } = await searchMcpRegistry(fixture, el, 'linear');
-    type(search, '');
-    await settle(fixture);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry linear', 'registry ']);
-    expect(results()).toHaveLength(2);
-    expect(text(registry.querySelector('[role="status"]'))).toBe('2 servers so far');
-  });
-
-  it('retries an initial registry listing and explains an empty listing without a search', async () => {
-    let fail = true;
-    setup({ registry: () => fail ? Promise.reject(new ApiError('server', 502, {
-      title: 'The registry did not answer', detail: 'Registry is temporarily unavailable.',
-    })) : Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: [] }) });
-    const fixture = TestBed.createComponent(ConnectorsPage);
-    fixture.componentRef.setInput('add', 'mcp-server');
-    fixture.componentRef.setInput('source', 'registry');
-    document.body.appendChild(fixture.nativeElement);
-    await settle(fixture);
-    const add = fixture.nativeElement.querySelector('dialog[gwMcpAddDialog]') as HTMLDialogElement;
-    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
-    expect(text(registry.querySelector('.gw-alert--danger'))).toContain('Registry is temporarily unavailable.');
-    fail = false;
-    button(registry, 'Try again').click();
-    await settle(fixture);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry ']);
-    expect(registry.querySelector('.gw-alert--danger')).toBeNull();
-    expect(text(registry.querySelector('.gw-empty__title'))).toBe('No servers available');
-    expect(text(registry.querySelector('[role="status"]'))).toBe('0 servers');
-  });
-
-  it('drops an initial listing as soon as a new query is typed, before its debounce finishes', async () => {
-    const initial = deferred<McpRegistryPage>();
-    setup({ registry: (search, cursor) => search ? registryPage(search, cursor) : initial.promise });
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    button(add, 'Official MCP Registry').click();
-    await settle(fixture);
-    const search = add.querySelector<HTMLInputElement>('input[type="search"]')!;
-    type(search, 'linear');
-    initial.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers });
-    await Promise.resolve();
-    await Promise.resolve();
-    fixture.detectChanges();
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
-    expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(0);
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle(fixture);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry linear']);
-    expect(text(add.querySelector('[aria-label="Servers in the MCP registry"]'))).toContain('Linear');
-    expect(text(add.querySelector('[aria-label="Servers in the MCP registry"]'))).not.toContain('stripecheckup');
-  });
-
-  it.each(['Use', 'title'])('selects an MCP registry server with %s, fills the form and waits for review', async (action) => {
-    setup();
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    // Manual entry first, as before; the registry is the other tab, with no review of its own in the footer.
-    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
-    button(add, 'Official MCP Registry').click();
-    await settle(fixture);
-    expect(button(add, 'Official MCP Registry').getAttribute('aria-selected')).toBe('true');
-    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
-    expect(registry.hidden).toBe(false);
-    expect(add.querySelector<HTMLElement>('[role="tabpanel"][id$="-manual"]')!.hidden).toBe(true);
-    expect(Array.from(add.querySelectorAll('footer button')).map(text)).toEqual(['Cancel']);
-    const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
-    const status = () => text(registry.querySelector('[role="status"]'));
-
-    // Browsing loads immediately; a nonempty search still needs at least 3 characters.
-    type(search, 'li');
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle(fixture);
-    expect(status()).toBe('Type at least 3 characters of the server’s name.');
-    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry ']);
-
-    // Enter searches at once and doesn't submit the form for review.
-    type(search, 'linear');
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle(fixture);
-    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry ', 'registry linear']);
-    expect(calls).not.toContain('review');
-    expect(status()).toBe('2 servers so far');
-    const results = () => Array.from(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article'));
-    expect(results().map((r) => text(r.querySelector('.gw-card__title button')))).toEqual(['Linear', 'image-only']);
-    expect(results()[0].querySelector('[aria-label="Official server by Linear"]')).not.toBeNull();
-    expect(text(results()[0])).toContain('HTTP mcp.linear.app');
-    expect(text(results()[1])).toContain('Can’t be added here');
-    expect(text(results()[1])).toContain('Deprecated');
-    expect(text(results()[1])).toContain('It runs as a Docker image, which GateRook doesn’t start from the registry yet.');
-    expect(button(results()[1], 'Use').getAttribute('aria-disabled')).toBe('true');
-    const unavailableTitle = results()[1].querySelector<HTMLButtonElement>('.gw-card__title button')!;
-    expect(unavailableTitle.getAttribute('type')).toBe('button');
-    expect(unavailableTitle.getAttribute('aria-disabled')).toBe('true');
-    expect(unavailableTitle.getAttribute('aria-describedby')).toBe(button(results()[1], 'Use').getAttribute('aria-describedby'));
-    unavailableTitle.click();
-    await settle(fixture);
-    expect(registry.hidden).toBe(false);
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('');
-    expect(calls).not.toContain('review');
-    expect(bodies['create-server']).toBeUndefined();
-    expect(text(add)).toContain('From the Official MCP Registry (registry.modelcontextprotocol.io).');
-
-    // The next page joins the list, and the keyboard goes to its first result.
-    button(add, 'Show more').click();
-    await settle(fixture);
-    expect(calls).toContain('registry linear after app.linear/linear:1.0.2');
-    expect(results()).toHaveLength(3);
-    expect(document.activeElement).toBe(button(results()[2], 'Use'));
-    expect(text(results()[2])).toContain('stdio npx @someone/linear-mcp@0.3.2');
-    expect(Array.from(add.querySelectorAll('button')).some((b) => text(b) === 'Show more')).toBe(false);
-
-    const choose = action === 'title' ? results()[0].querySelector<HTMLButtonElement>('.gw-card__title button')! : button(results()[0], 'Use');
-    choose.click();
-    await settle(fixture);
-    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
-    expect(name.value).toBe('linear-mcp');
-    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!.checked).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
-    // Use returns to Manual entry with the fields filled, and its review.
-    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
-    expect(registry.hidden).toBe(true);
-    expect(text(add)).toContain('Filled in the name and the URL from Linear in the MCP registry.');
-    expect(document.activeElement).toBe(name);
-    expect(calls).not.toContain('review');
-    expect(bodies['create-server']).toBeUndefined();
-
-    button(add, 'Review and connect').click();
-    await settle(fixture);
-    expect(bodies['review']).toEqual({ config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] } });
-    expect(bodies['create-server']).toBeUndefined();
-  });
-
-  it('highlights the official Stripe server and keeps other results in registry order', async () => {
-    setup({ registry: () => Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers }) });
-    const { fixture, el } = await render();
-    const { results } = await searchMcpRegistry(fixture, el, 'stripe');
-
-    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
-      .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
-    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
-    expect(results()[1].querySelector('.gw-card__title .gw-badge')).toBeNull();
-    expect(results()[2].querySelector('.gw-card__title .gw-badge')).toBeNull();
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry stripe']);
-    expect(calls).not.toContain('review');
-  });
-
-  it('does not treat copied official IDs from another registry as official publishers', async () => {
-    setup({ registry: () => Promise.resolve({ registry: 'registry.example.com', servers: stripeRegistryServers }) });
-    const { fixture, el } = await render();
-    const { results } = await searchMcpRegistry(fixture, el, 'stripe');
-
-    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
-      .toEqual(['stripecheckup', 'Official Stripe integration', 'mcp']);
-    expect(results().every((row) => row.querySelector('.gw-card__title .gw-badge') === null)).toBe(true);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry stripe']);
-  });
-
-  it('finds an official publisher beyond the first page and deduplicates it on Show more', async () => {
-    const additional: McpRegistryPage['servers'][number] = { ...stripeRegistryServers[0], name: 'org.example/stripe', title: 'Another Stripe server' };
-    setup({ registry: (search, cursor) => Promise.resolve({
-      registry: 'registry.modelcontextprotocol.io',
-      servers: cursor ? [stripeRegistryServers[2], additional, additional]
-        : search === 'com.stripe/mcp' ? [stripeRegistryServers[0], stripeRegistryServers[2]] : stripeRegistryServers.slice(0, 2),
-      nextCursor: !cursor && search === 'stripe' ? 'next-stripe-page' : null,
-    }) });
-    const { fixture, el } = await render();
-    const { add, registry, results } = await searchMcpRegistry(fixture, el, 'stripe');
-
-    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
-      .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry stripe', 'registry com.stripe/mcp']);
-    expect(text(registry.querySelector('[role="status"]'))).toBe('3 servers so far');
-
-    button(add, 'Show more').click();
-    await settle(fixture);
-    expect(calls).toContain('registry stripe after next-stripe-page');
-    expect(results()).toHaveLength(4);
-    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
-    expect(document.activeElement).toBe(button(results()[3], 'Use'));
-    expect(text(registry.querySelector('[role="status"]'))).toBe('4 servers');
-  });
-
-  it('keeps ordinary search usable when the extra lookup fails and focuses a later official result after ranking', async () => {
-    setup({ registry: (search, cursor) => search === 'com.stripe/mcp' ? Promise.reject(new Error('Lookup unavailable'))
-      : Promise.resolve({ registry: 'registry.modelcontextprotocol.io',
-        servers: cursor ? [stripeRegistryServers[0], stripeRegistryServers[2]] : stripeRegistryServers.slice(0, 2),
-        nextCursor: cursor ? null : 'next-stripe-page' }) });
-    const { fixture, el } = await render();
-    const { add, registry, results } = await searchMcpRegistry(fixture, el, 'stripe');
-    expect(results()).toHaveLength(2);
-    expect(registry.querySelector('.gw-alert--danger')).toBeNull();
-
-    button(add, 'Show more').click();
-    await settle(fixture);
-    expect(results()).toHaveLength(3);
-    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
-    expect(document.activeElement).toBe(button(results()[0], 'Use'));
-  });
-
-  it('discards an extra official lookup when a newer query has already completed', async () => {
-    const oldOfficial = deferred<McpRegistryPage>();
-    setup({ registry: (search, cursor) => search === 'com.stripe/mcp' ? oldOfficial.promise
-      : search === 'stripe' ? Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers.slice(0, 2) })
-        : registryPage(search, cursor) });
-    const { fixture, el } = await render();
-    const { search, results } = await searchMcpRegistry(fixture, el, 'stripe');
-    type(search, 'linear');
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle(fixture);
-
-    oldOfficial.resolve({ registry: 'registry.modelcontextprotocol.io', servers: [stripeRegistryServers[2]] });
-    await settle(fixture);
-    expect(results().map((row) => text(row.querySelector('.gw-card__title button')))).toEqual(['Linear', 'image-only']);
-  });
-
-  it('does not append the previous search page while a new official lookup is pending', async () => {
-    const official = deferred<McpRegistryPage>();
-    setup({ registry: (search, cursor) => search === 'com.stripe/mcp' ? official.promise
-      : search === 'stripe' ? Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers.slice(0, 2) })
-        : registryPage(search, cursor) });
-    const { fixture, el } = await render();
-    const { add, search, results } = await searchMcpRegistry(fixture, el, 'linear');
-    type(search, 'stripe');
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle(fixture);
-
-    expect(button(add, 'Show more').getAttribute('aria-disabled')).toBe('true');
-    button(add, 'Show more').click();
-    await settle(fixture);
-    expect(calls).not.toContain('registry linear after app.linear/linear:1.0.2');
-
-    official.resolve({ registry: 'registry.modelcontextprotocol.io', servers: [stripeRegistryServers[2]] });
-    await settle(fixture);
-    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
-      .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
-  });
-
-  it('says why the registry search failed, and searches again on request', async () => {
-    let fail = true;
-    setup({
-      registry: (search, cursor) => (fail
-        ? Promise.reject(new ApiError('server', 502, { title: 'The registry didn\'t answer', detail: 'registry.modelcontextprotocol.io answered HTTP 503 for the MCP registry\'s answer.' }))
-        : registryPage(search, cursor)),
-    });
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    button(add, 'Official MCP Registry').click();
-    await settle(fixture);
-    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
-    const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
-    type(search, 'linear');
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle(fixture);
-    const alert = registry.querySelector('.gw-alert--danger');
-    expect(text(alert)).toContain('registry.modelcontextprotocol.io answered HTTP 503');
-
-    fail = false;
-    button(alert, 'Try again').click();
-    await settle(fixture);
-    expect(registry.querySelector('.gw-alert--danger')).toBeNull();
-    expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(2);
-  });
-
-  it('opens on Manual entry again and cancels a registry search queued before closing', async () => {
-    setup();
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    button(add, 'Official MCP Registry').click();
-    await settle(fixture);
-    type(add.querySelector<HTMLInputElement>('input[type="search"]')!, 'linear');
-    button(add.querySelector('footer'), 'Cancel').click();
-    await settle(fixture);
-    expect(add.open).toBe(false);
-
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    expect(add.open).toBe(true);
-    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
-    expect(add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!.hidden).toBe(true);
-    expect(document.activeElement).toBe(add.querySelector('input[placeholder="sentry-mcp"]'));
-    expect(Array.from(add.querySelectorAll('footer button')).map(text)).toEqual(['Cancel', 'Review and start']);
-    await sleep(400);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
-    expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(0);
-  });
-
-  it('warns about a key in the URL in the review, and still connects the server with it', async () => {
-    setup();
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'search-mcp');
-    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
-    await settle(fixture);
-    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp?apiKey=sk-example-123');
-    button(add, 'Review and connect').click();
-    await settle(fixture);
-    expect(add.querySelector('.gw-alert--danger')).toBeNull();
-
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    expect(review.open).toBe(true);
-    const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
-    expect(rows['URL']).toBe('https://mcp.example.com/mcp?apiKey=‹masked›');
-    expect(Array.from(review.querySelectorAll('.gw-alert--warning')).map(text)).toEqual([KEY_IN_URL]);
-
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    await settle(fixture);
-    button(review, 'Connect MCP server search-mcp').click();
-    await settle(fixture);
-    // The server takes its key in the URL: the core gets it as typed.
-    expect(bodies['create-server']).toEqual({
-      config: { name: 'search-mcp', transport: 'http', url: 'https://mcp.example.com/mcp?apiKey=sk-example-123', headers: [] },
-      acknowledge: true,
-    });
-    expect(review.open).toBe(false);
-  });
-
-  it('opens Add MCP server from the connection wizard’s link (?add=mcp-server)', async () => {
-    setup();
+    const navigated = navigations();
     const fixture = TestBed.createComponent(ConnectorsPage);
     fixture.componentRef.setInput('add', 'mcp-server');
     document.body.appendChild(fixture.nativeElement);
     await settle(fixture);
-    const add = fixture.nativeElement.querySelector('dialog[gwMcpAddDialog]') as HTMLDialogElement;
-    expect(add.open).toBe(true);
-  });
-
-  it.each(['url', 'registry'])('opens the source selected in Overview without starting a server: %s', async (source) => {
-    setup();
-    const fixture = TestBed.createComponent(ConnectorsPage);
-    fixture.componentRef.setInput('add', 'mcp-server');
-    fixture.componentRef.setInput('source', source);
-    document.body.appendChild(fixture.nativeElement);
-    await settle(fixture);
-    const add = fixture.nativeElement.querySelector('dialog[gwMcpAddDialog]') as HTMLDialogElement;
-    expect(add.open).toBe(true);
-    if (source === 'registry') {
-      expect(text(add.querySelector('[role="tab"][aria-selected="true"]'))).toContain('Official MCP Registry');
-      expect((document.activeElement as HTMLElement)?.id).toContain('-find-q');
-      expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
-      expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(2);
-    } else {
-      expect(text(add)).toContain('Review and connect');
-      expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')?.checked).toBe(true);
-      expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
-    }
-    expect(bodies['create-server']).toBeUndefined();
-  });
-
-  it('returns from a refused HTTP review to choose Bearer token and connects with the token prefixed automatically', async () => {
-    setup();
-    const reviewApi = vi.spyOn(TestBed.inject(McpServersApi), 'review').mockResolvedValueOnce(sentryReview({
-      name: 'private-mcp',
-      transport: 'http',
-      url: 'https://mcp.example.com/mcp',
-      argv: [],
-      env: [],
-      auth: { kind: 'refused', message: 'It refused the request (HTTP 401) and publishes no OAuth metadata.' },
-    }));
-    const { fixture, el } = await render();
-    const opener = button(el.querySelector('.gw-page-header__actions'), 'Add connector');
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
-    type(name, 'private-mcp');
-    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
-    await settle(fixture);
-    const bearer = add.querySelector<HTMLInputElement>('input[type="radio"][value="bearer"]')!;
-    expect(bearer.closest('[hidden]')).toBeNull();
-    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp');
-    button(add, 'Review and connect').click();
-    await settle(fixture);
-
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    expect(review.open).toBe(true);
-    expect(text(review.querySelector('.gw-alert--warning'))).toContain('It wants a key, not a sign-in');
-    expect(text(review.querySelector('.gw-alert--warning'))).toContain('Go back');
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    await settle(fixture);
-    button(review, 'Back').click();
-    await settle(fixture);
-
-    expect(review.open).toBe(false);
-    expect(add.open).toBe(true);
-    expect(name.value).toBe('private-mcp');
-    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!.checked).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.example.com/mcp');
-    expect(document.activeElement).toBe(name);
-    expect(calls).not.toContain('create-server');
-    check(bearer);
-    await settle(fixture);
-    button(add, 'Review and connect').click();
-    await settle(fixture);
-
-    const config = { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers: [{ name: 'Authorization' }] };
-    expect(reviewApi).toHaveBeenCalledTimes(2);
-    expect(reviewApi).toHaveBeenLastCalledWith({ config });
-    expect(review.open).toBe(true);
-    expect(add.open).toBe(false);
-    expect(review.querySelector('.gw-alert--warning')).toBeNull();
-    expect(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
-    const connect = button(review, 'Connect MCP server private-mcp');
-    expect(connect.getAttribute('aria-disabled')).toBe('true');
-    let token = review.querySelector<HTMLInputElement>('input[type="password"]')!;
-    expect(text(review.querySelector(`label[for="${token.id}"]`))).toBe('Bearer token');
-    type(token, ' Bearer ');
-    connect.click();
-    await settle(fixture);
-    expect(calls).not.toContain('create-server');
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    await settle(fixture);
-    connect.click();
-    await settle(fixture);
-    expect(calls).not.toContain('create-server');
-    expect(token.getAttribute('aria-invalid')).toBe('true');
-    expect(text(review.querySelector('.gw-field__error'))).toBe('Enter the bearer token.');
-    button(review, 'Back').click();
-    await settle(fixture);
-    expect(token.value).toBe('');
-    expect(bearer.checked).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[id$="-var-name-0"]')!.value).toBe('');
-    button(add, 'Review and connect').click();
-    await settle(fixture);
-    expect(reviewApi).toHaveBeenCalledTimes(3);
-    expect(reviewApi).toHaveBeenLastCalledWith({ config });
-    expect(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
-    token = review.querySelector<HTMLInputElement>('input[type="password"]')!;
-    expect(token.value).toBe('');
-    type(token, ' example-token ');
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    await settle(fixture);
-    connect.click();
-    await settle(fixture);
-    expect(bodies['create-server']).toEqual({
-      config,
-      secrets: { '/headers/0/secretRef': { source: 'local', value: 'Bearer example-token' } },
-      acknowledge: true,
-    });
-    expect(token.value).toBe('');
-    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
-    button(step, 'Not now').click();
-    await settle(fixture);
-    expect(document.activeElement).toBe(opener);
-
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    expect(bearer.checked).toBe(false);
-    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="oauth"]')!.checked).toBe(true);
-  });
-
-  it('does not carry Bearer mode to a pasted configuration with its own Authorization header', async () => {
-    setup();
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
-    await settle(fixture);
-    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="bearer"]')!);
-    button(add, 'Paste a configuration').click();
-    await settle(fixture);
-    const paste = add.querySelector<HTMLTextAreaElement>('textarea[id$="-paste-text"]')!;
-    type(paste, '{"url":"https://mcp.example.com/mcp","headers":{"Authorization":"Basic example-credentials"}}');
-    await settle(fixture);
-    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="bearer"]')!.checked).toBe(false);
-    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="oauth"]')!.checked).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="Authorization"]')!.value).toBe('Authorization');
-    expect(paste.value).toBe('');
-    button(add, 'Review and connect').click();
-    await settle(fixture);
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
-    expect(text(review.querySelector(`label[for="${value.id}"]`))).toBe('Value of Authorization');
-    expect(value.value).toBe('');
-  });
-
-  it('wipes the typed values when the review closes without a start', async () => {
-    setup();
-    const { fixture, el } = await render();
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'sentry-mcp');
-    type(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!, 'npx -y @sentry/mcp-server@0.12.0');
-    type(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!, 'SENTRY_AUTH_TOKEN');
-    button(add, 'Review and start').click();
-    await settle(fixture);
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
-    type(value, 'sntrys_typed');
-    button(review, 'Back').click();
-    await settle(fixture);
-    expect(review.open).toBe(false);
-    expect(value.value).toBe('');
-    expect(add.open).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('sentry-mcp');
-    expect(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!.value).toBe('npx -y @sentry/mcp-server@0.12.0');
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!.value).toBe('SENTRY_AUTH_TOKEN');
-    button(add, 'Review and start').click();
-    await settle(fixture);
-    expect(review.open).toBe(true);
-    expect(review.querySelector<HTMLInputElement>('input[type="password"]')!.value).toBe('');
-    type(review.querySelector<HTMLInputElement>('input[type="password"]')!, 'sntrys_retyped');
-    button(review, 'Cancel').click();
-    await settle(fixture);
-    expect(review.open).toBe(false);
-    expect(value.value).toBe('');
-    expect(calls).not.toContain('create-server');
-    expect(document.activeElement).toBe(button(el.querySelector('.gw-page-header__actions'), 'Add connector'));
-
-    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
-    await settle(fixture);
-    expect(add.open).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('');
-    expect(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!.value).toBe('');
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!.value).toBe('');
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { show: 'mcp' }, replaceUrl: true }]]);
+    expect((fixture.nativeElement as HTMLElement).querySelector('dialog[open]')).toBeNull();
   });
 
   it('offers the add button and twenty discovery cards when no server is connected', async () => {
     setup({ rows: () => connectionRows().filter((r) => r.type !== 'mcp-server') });
+    const navigated = navigations();
     const { fixture, el } = await render();
     const panel = el.querySelector('#mcp-servers')!;
     expect(text(panel)).toContain('No MCP servers connected yet. Choose a server below or add your own.');
@@ -1760,7 +1511,7 @@ describe('Connectors page: MCP servers', () => {
 
     button(panel.querySelector('.gw-toolbar'), 'Add MCP server').click();
     await settle(fixture);
-    expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!.open).toBe(true);
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { show: 'mcp' } }]]);
   });
 
   it('keeps discovery beside connected servers without loading twenty registry entries', async () => {
@@ -1770,113 +1521,66 @@ describe('Connectors page: MCP servers', () => {
     const cards = el.querySelectorAll('[aria-label="Popular MCP servers for developers"] article');
     expect(cards).toHaveLength(20);
     for (const card of cards) {
-      expect(card.querySelector('button')?.getAttribute('aria-haspopup')).toBe('dialog');
+      // Each card opens its setup on the Add connection page, not in a dialog.
+      expect(card.querySelector('button')?.hasAttribute('aria-haspopup')).toBe(false);
       expect(card.querySelector('button')?.getAttribute('aria-label')).toMatch(/^Add .+ from Official MCP Registry$/);
       expect(card.querySelector('img')?.getAttribute('src')).toMatch(/^(mcp-logos|assets\/integrations)\//);
     }
     expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+    expect(el.querySelector('[aria-labelledby="mcp-profiles-title"]')).toBeNull();
   });
 
-  it('opens a discovery card with its exact live registry entry filled in and restores focus on cancel', async () => {
-    setup();
+  it('opens a verified profile’s Cloud platforms card on that profile’s setup in Add connection', async () => {
+    setup({ profiles: () => Promise.resolve(profilesFixture()) });
+    const navigated = navigations();
     const { fixture, el } = await render();
     button(el, 'MCP servers').click();
     await settle(fixture);
-    const opener = button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear');
-    opener.focus();
+    const list = el.querySelector('[aria-label="Cloud platform MCP servers with a verified profile"]')!;
+    expect(list.querySelectorAll('article')).toHaveLength(2);
+    expect(text(list)).toContain('Verified profile, checked 2026-11-11');
+    expect(list.querySelector('img')?.getAttribute('src')).toBe('mcp-logos/supabase.png');
+    const opener = button(list, 'Cloudflare API');
+    expect(opener.getAttribute('aria-label')).toBe('Add Cloudflare API with GateRook’s verified profile');
     opener.click();
     await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(add.open).toBe(true);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry app.linear/linear']);
-    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
-    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
-    expect(text(add)).toContain('from Linear in the MCP registry.');
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { profile: 'cloudflare-api' } }]]);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+    expect(calls).not.toContain('review');
+  });
+
+  it('opens a Popular card that has a verified profile on that profile, not on its registry entry', async () => {
+    setup({ profiles: () => Promise.resolve(profilesFixture()) });
+    const navigated = navigations();
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    await settle(fixture);
+    const popular = el.querySelector('[aria-label="Popular MCP servers for developers"]')!;
+    const supabase = button(popular, 'Supabase');
+    expect(supabase.getAttribute('aria-label')).toBe('Add Supabase with GateRook’s verified profile');
+    expect(text(supabase.closest('article'))).toContain('Verified profile');
+    supabase.click();
+    await settle(fixture);
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { profile: 'supabase' } }]]);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+  });
+
+  it.each([
+    ['Linear', 'app.linear/linear'],
+    ['Playwright', 'io.github.microsoft/playwright-mcp'],
+  ])('opens the %s card on its exact entry of the Official MCP Registry in Add connection', async (name, registryName) => {
+    setup();
+    const navigated = navigations();
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    await settle(fixture);
+    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), name).click();
+    await settle(fixture);
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { registry: registryName } }]]);
+    // Add connection reads the entry: nothing is looked up, reviewed or started here.
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
     expect(calls).not.toContain('review');
     expect(calls).not.toContain('create-server');
-    button(add.querySelector('footer'), 'Cancel').click();
-    await settle(fixture);
-    expect(document.activeElement).toBe(opener);
-  });
-
-  it('uses the exact local package, pins the live version and ignores similarly named results', async () => {
-    setup({ registry: async () => ({ registry: 'registry.modelcontextprotocol.io', servers: [
-      { name: 'io.github.someone/playwright-mcp', title: 'Playwright', status: 'active', packages: [],
-        remotes: [{ type: 'streamable-http', url: 'https://example.com/lookalike', headers: [], variables: [] }] },
-      { name: 'io.github.microsoft/playwright-mcp', title: 'Playwright', status: 'active', remotes: [],
-        packages: [{ registryType: 'npm', identifier: '@playwright/mcp', version: '1.2.3', transport: 'stdio',
-          environmentVariables: [], runtimeArguments: [], packageArguments: [] }] },
-    ] }) });
-    const { fixture, el } = await render();
-    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Playwright').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry io.github.microsoft/playwright-mcp']);
-    expect(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!.value).toBe('npx -y @playwright/mcp@1.2.3');
-    expect(calls).not.toContain('review');
-    expect(calls).not.toContain('create-server');
-  });
-
-  it.each(['missing', 'deprecated', 'unsupported', 'other-registry'])('does not preselect an invalid discovery entry: %s', async (scenario) => {
-    setup({ registry: async () => {
-      const page = await registryPage('', null);
-      return { ...page, registry: scenario === 'other-registry' ? 'registry.example.com' : page.registry,
-        servers: scenario === 'missing' ? page.servers.slice(1) : [{ ...page.servers[0],
-          status: scenario === 'deprecated' ? 'deprecated' : 'active',
-          remotes: scenario === 'unsupported' ? [] : page.servers[0].remotes }] };
-    } });
-    const { fixture, el } = await render();
-    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(button(add, 'Official MCP Registry').getAttribute('aria-selected')).toBe('true');
-    expect(add.querySelector('[role="alert"]')).not.toBeNull();
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('');
-    expect(calls).not.toContain('review');
-    expect(calls).not.toContain('create-server');
-  });
-
-  it('retries a failed discovery lookup and then preselects the same server', async () => {
-    let fail = true;
-    setup({ registry: (search, cursor) => fail ? Promise.reject(new Error('Registry unavailable')) : registryPage(search, cursor) });
-    const { fixture, el } = await render();
-    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(text(add.querySelector('[role="alert"]'))).toContain('Registry unavailable');
-    fail = false;
-    button(add, 'Try again').click();
-    await settle(fixture);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry app.linear/linear', 'registry app.linear/linear']);
-    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
-    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
-  });
-
-  it.each(['close', 'manual', 'search'])('drops a pending discovery selection after %s', async (action) => {
-    const pending = deferred<McpRegistryPage>();
-    setup({ registry: () => pending.promise });
-    const { fixture, el } = await render();
-    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear').click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(text(add.querySelector('[role="status"]'))).toBe('Searching the MCP registry…');
-    if (action === 'close') {
-      button(add.querySelector('footer'), 'Cancel').click();
-      await settle(fixture);
-      button(el.querySelector('#mcp-servers .gw-toolbar'), 'Add MCP server').click();
-      await settle(fixture);
-    } else if (action === 'manual') {
-      button(add, 'Manual entry').click();
-      await settle(fixture);
-      type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'my-server');
-    } else {
-      type(add.querySelector<HTMLInputElement>('input[type="search"]')!, 'st');
-    }
-    pending.resolve(await registryPage('', null));
-    await settle(fixture);
-    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe(action === 'manual' ? 'my-server' : '');
-    expect(text(add)).not.toContain('from Linear in the MCP registry.');
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry app.linear/linear']);
   });
 
   it('shows Not listed yet when the core has no tool snapshot route', async () => {
@@ -1887,8 +1591,9 @@ describe('Connectors page: MCP servers', () => {
 });
 
 describe('Connectors page: inline MCP Registry search', () => {
-  it('searches after three characters, opens the selected result and returns to it on cancel', async () => {
+  it('searches after three characters and opens the selected result in Add connection', async () => {
     setup();
+    const navigated = navigations();
     const { fixture, el } = await render();
     button(el, 'MCP servers').click();
     await settle(fixture);
@@ -1907,24 +1612,18 @@ describe('Connectors page: inline MCP Registry search', () => {
     expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
     expect(region.querySelectorAll('article')).toHaveLength(2);
     expect(text(region.querySelector('[role="status"]'))).toBe('2 servers so far');
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(add.open).toBe(false);
     const use = button(region, 'Use Linear');
-    use.focus();
+    expect(use.hasAttribute('aria-haspopup')).toBe(false);
     use.click();
     await settle(fixture);
-    expect(add.open).toBe(true);
-    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
+    expect(navigated()).toEqual([[['/connections/new'], { queryParams: { registryServer: 'app.linear/linear' } }]]);
     expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
     expect(calls).not.toContain('review');
-    expect(calls).not.toContain('create-server');
-    button(add.querySelector('footer'), 'Cancel').click();
-    await settle(fixture);
-    expect(document.activeElement).toBe(use);
     expect(search.value).toBe('linear');
+    // A result GateRook can't start from the registry goes nowhere.
     button(region, 'Use image-only').click();
     await settle(fixture);
-    expect(add.open).toBe(false);
+    expect(navigated()).toHaveLength(1);
   });
 
   it('submits immediately and clearing the query restores popular cards without browsing the registry', async () => {
@@ -1979,12 +1678,13 @@ describe('Connectors page: inline MCP Registry search', () => {
     ]);
   });
 
-  it('shows a failed search with retry, then an empty result without opening a dialog', async () => {
+  it('shows a failed search with retry, then an empty result', async () => {
     let fail = true;
     setup({ registry: async () => {
       if (fail) throw new Error('Registry unavailable');
       return { registry: 'registry.modelcontextprotocol.io', servers: [] };
     } });
+    const navigated = navigations();
     const { fixture, el } = await render();
     const { region } = await searchInlineRegistry(fixture, el, 'unlisted');
     expect(text(region.querySelector('[role="alert"]'))).toContain('Registry unavailable');
@@ -1993,18 +1693,15 @@ describe('Connectors page: inline MCP Registry search', () => {
     await settle(fixture);
     expect(region.querySelector('[role="alert"]')).toBeNull();
     expect(text(region.querySelector('.gw-empty__title'))).toBe('No server name contains “unlisted”');
-    expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!.open).toBe(false);
+    expect(navigated()).toEqual([]);
   });
 
-  it('uses a result from a configured registry without assigning an official-publisher badge', async () => {
+  it('shows a result from a configured registry without an official-publisher badge', async () => {
     setup({ registry: async () => ({ registry: 'registry.example.com', servers: [stripeRegistryServers[2]] }) });
     const { fixture, el } = await render();
     const { region, results } = await searchInlineRegistry(fixture, el, 'stripe');
     expect(text(region)).toContain('the MCP registry at registry.example.com');
     expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).toBeNull();
-    button(region, 'Use mcp').click();
-    await settle(fixture);
-    expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!.open).toBe(true);
     expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry stripe']);
   });
 

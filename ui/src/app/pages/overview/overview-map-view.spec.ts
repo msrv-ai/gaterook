@@ -120,6 +120,21 @@ describe('Overview AI app map', () => {
     expect(mapped('revoked')).toEqual(expect.objectContaining({ assigned: false, pending: false, state: { tone: 'neutral', label: 'Not connected' }, action: 'connect' }));
   });
 
+  it('marks an app whose extension on any endpoint runs an older bridge, without changing its state or action', () => {
+    const desktop = (links: ClientLink[]) => app(links, { client: 'claude-desktop', name: 'Claude Desktop' });
+    const older = link('claude-desktop', 'incident-prod', 'prod', { bridgeVersion: '0.6.0', bridgeUpdate: '0.9.2' });
+    const current = link('claude-desktop', 'dev', 'dev', { bridgeVersion: '0.9.2' });
+    expect(mapApps([desktop([current, older])], dev)?.[0]).toEqual(expect.objectContaining({
+      reinstall: true, connected: true, state: { tone: 'success', label: 'Connected' }, action: null,
+    }));
+    expect(mapApps([desktop([current, older])], endpoint('other'))?.[0]).toEqual(expect.objectContaining({
+      reinstall: true, state: { tone: 'neutral', label: 'Not connected' }, action: 'connect',
+    }));
+    expect(mapApps([desktop([current, { ...older, bridgeUpdate: null }])], dev)?.[0].reinstall).toBe(false);
+    // Only an extension keeps the bridge it was built with: other entries run the installed app's.
+    expect(mapApps([app([link('codex', 'dev', 'dev', { bridgeUpdate: '0.9.2' })])], dev)?.[0].reinstall).toBe(false);
+  });
+
   it('hides uninstalled apps and explains unsupported or paused access for detected apps', () => {
     const noProdMethod = app([], { methods: [{ id: 'token', label: 'Token', prodAllowed: false, reason: 'Not supported on production' }] });
     expect(mapApps([noProdMethod], endpoint('production', { env: 'prod' }))?.[0].actionReason).toContain('No supported connection method');

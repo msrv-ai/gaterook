@@ -3,15 +3,16 @@ import { isNotAvailable } from '../../core/api/api-error';
 import { ConnectionDetail, ConnectionRow, ConnectionsApi, SecretInputs } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
+import { ConnectorModules, ModulesApi } from '../../core/api/modules.api';
 import {
   CatalogIndex,
   McpRegistryPage,
-  McpServerConfig,
   McpServerReview,
   McpServerSource,
   McpServerStarted,
   McpServersApi,
   McpSignIn,
+  McpSignInSource,
   McpSignInStatus,
   PluginCheck,
   PluginUpdatePreview,
@@ -20,7 +21,7 @@ import {
 } from '../../core/api/plugins.api';
 import { SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
-import { JsonObject } from '../../core/api/types';
+import { Env, JsonObject } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
 import { McpServerView, mcpServerView } from './connectors-view';
 
@@ -103,6 +104,7 @@ export class ConnectorsData {
   private readonly typesApi = inject(ConnectorTypesApi);
   private readonly connectionsApi = inject(ConnectionsApi);
   private readonly pluginsApi = inject(PluginsApi);
+  private readonly modulesApi = inject(ModulesApi);
   private readonly serversApi = inject(McpServersApi);
   private readonly templatesApi = inject(TemplatesApi);
   private readonly endpointsApi = inject(EndpointsApi);
@@ -115,6 +117,11 @@ export class ConnectorsData {
     (rows) => this.loadServers(rows),
   );
   readonly catalog = new Source<CatalogIndex>(() => this.pluginsApi.catalog());
+  /**
+   * GateRook's own connector modules and the state of their signed list (`GET /api/modules`): the Catalog says when
+   * the list was checked and why it couldn't be. The cards themselves come with the types.
+   */
+  readonly modules = new Source<ConnectorModules>(() => this.modulesApi.list());
   readonly templates = new Source<readonly Template[]>(() => this.templatesApi.list(), () => this.loadEndpointTools());
   readonly endpoints = new Source<readonly EndpointSummary[]>(() => this.endpointsApi.list(), () => this.loadEndpointTools());
   readonly secrets = new Source<readonly SecretRow[]>(() => this.secretsApi.list());
@@ -167,6 +174,13 @@ export class ConnectorsData {
   start(): Promise<void> {
     this.unsubscribe.push(
       this.events.on('plugin.state', () => void this.types.refresh()),
+      // A module's installation moved on (GateRook's build replacing the person's own): its cards follow.
+      this.events.on('module.state', () => void this.types.refresh()),
+      // The core read another list of GateRook's modules, in the background: what the Catalog offers follows.
+      this.events.on('module.list', () => {
+        void this.types.refresh();
+        void this.modules.refresh();
+      }),
       this.events.on('mcp-server.state', (e) => {
         if (e?.name && e.state) this.liveStatesSignal.update((m) => new Map(m).set(e.name, e.state));
         void this.types.refresh();
@@ -184,6 +198,7 @@ export class ConnectorsData {
       this.types.refresh(),
       this.connections.refresh(),
       this.catalog.refresh(),
+      this.modules.refresh(),
       this.templates.refresh(),
       this.endpoints.refresh(),
       this.secrets.refresh(),
@@ -191,9 +206,25 @@ export class ConnectorsData {
     ]).then(() => undefined);
   }
 
+  /**
+   * Check now: both signed lists are checked at once, whatever their age (GateRook's list of connector modules and
+   * the plugin catalog), and the answers replace what the page holds. The connector types are read again, since the
+   * cards of the listed modules come with them. A list this build doesn't read answers at once, unchanged. Rejects
+   * when a request itself failed; a list the core couldn't reach is an answer that says so.
+   */
+  async checkLists(): Promise<{ readonly catalog: CatalogIndex; readonly modules: ConnectorModules }> {
+    const [catalog, modules] = await Promise.allSettled([this.pluginsApi.refreshCatalog(), this.modulesApi.refresh()]);
+    if (catalog.status === 'fulfilled') this.catalog.set(catalog.value);
+    if (modules.status === 'fulfilled') this.modules.set(modules.value);
+    await this.types.refresh();
+    if (catalog.status === 'rejected') throw catalog.reason;
+    if (modules.status === 'rejected') throw modules.reason;
+    return { catalog: catalog.value, modules: modules.value };
+  }
+
   /** The types whose connectors may offer templates (SQL queries, SSH runbooks, OpenAPI imports). */
   private async loadTemplateKinds(): Promise<ReadonlyMap<string, readonly string[]>> {
-    const types = ['postgres', 'mysql', 'oracle', 'sqlserver', 'ssh', 'http'];
+    const types = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'ssh', 'http'];
     const answers = await Promise.allSettled(types.map((t) => this.typesApi.get(t)));
     const kinds = new Map<string, string[]>();
     answers.forEach((a, i) => {
@@ -296,6 +327,18 @@ export class ConnectorsData {
     await Promise.all([this.types.refresh(), this.catalog.refresh()]);
   }
 
+  /** Removes a connector module the person installed from a file, with every connector type it adds. */
+  async uninstallModule(id: string): Promise<void> {
+    await this.modulesApi.uninstall(id);
+    await this.types.refresh();
+  }
+
+  /** Starts replacing the person's own build of a module with GateRook's; `module.state` events follow it. */
+  async replaceOwnModule(id: string): Promise<void> {
+    await this.modulesApi.replaceOwn(id);
+    await this.types.refresh();
+  }
+
   async uninstallPlugin(id: string): Promise<void> {
     await this.pluginsApi.uninstall(id);
     await Promise.all([this.types.refresh(), this.catalog.refresh()]);
@@ -330,7 +373,7 @@ export class ConnectorsData {
   }
 
   /** Starts a sign-in to the server under review; the review shows it until the browser comes back. */
-  startSignIn(source: { readonly config: McpServerConfig; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+  startSignIn(source: McpSignInSource): Promise<McpSignIn> {
     return this.serversApi.startSignIn(source);
   }
 

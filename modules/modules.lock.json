@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "modules": {
+    "cassandra": {
+      "1.0.0": {
+        "sha256": "fc69dbbd2e2f5cfc1096cbb3b3cf21b883c0b745a33a73dbfd54d201023fc6ae",
+        "size": 11950498
+      },
+      "2.0.0": {
+        "sha256": "524e3613049630d9a18f59dd25bb83dd51a499d0a4160a55d77e63b44cdfc4b0",
+        "size": 11948661
+      },
+      "2.0.1": {
+        "sha256": "47eda8c6e8cee401954e83f3e9b4511de17c9ae2c39fdb7523a203055ef83fa1",
+        "size": 11948654
+      }
+    },
+    "neo4j": {
+      "1.0.0": {
+        "sha256": "69a4092eaa7cde946afbed57e88a630a612c0d0070cfc68f2a4fb8570e1f530b",
+        "size": 9429498
+      },
+      "2.0.0": {
+        "sha256": "091ae870873d87bea90683f125c93ef74df1da9102bed4830ca51c2256c08f7d",
+        "size": 9427834
+      },
+      "2.0.1": {
+        "sha256": "28723305ce5c3536bc0a76ed9a6e9a978b2111de680fbe4c231d893f1a61a3f5",
+        "size": 9427828
+      }
+    },
+    "sql-oracle": {
+      "1.0.0": {
+        "sha256": "5c23d8d3dbe85be0e8d63cb72c929d81c842f32779fa8c8d3d73deba4a5a2854",
+        "size": 16532088
+      },
+      "2.0.0": {
+        "sha256": "36a226bda5edb57da0f4d3e5dac59f9a9030c4bce0aa78368f6e5338dd914fb3",
+        "size": 16529286
+      },
+      "2.0.1": {
+        "sha256": "01c9143cd039242bffc49a8d25da32f515c91e044da2d2c6a2185e5bcd3b5f5a",
+        "size": 16529279
+      }
+    },
+    "sql-sqlserver": {
+      "1.0.0": {
+        "sha256": "8888f0d742722080c57eefe6601baec6b48715445e07c02901ec0dd50b16ccca",
+        "size": 9222869
+      },
+      "2.0.0": {
+        "sha256": "f1f8383aed3798c1cceff0d3a0b21c6b02eceea58c3c65c960b152369134b6d7",
+        "size": 9220064
+      },
+      "2.0.1": {
+        "sha256": "f580d13114ca334512251e6cc1d44cf504e372cb39fb6d5dac28eb6d31e91425",
+        "size": 9220056
+      }
+    }
+  }
+}

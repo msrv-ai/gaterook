@@ -130,8 +130,8 @@
           </div>
         } @else if (data.rows(); as rows) {
           @if (rows.length) {
-            <!-- Time | Decision | Tool · connection | AI app · endpoint | Duration: fits 712 px (lg with facets open), so
-                 1440 × 900 never scrolls sideways; AI app · endpoint and Duration hide first below lg. -->
+            <!-- Time | Decision | Tool · connection | AI app · endpoint | Duration | Traffic: 1440 × 900 with the facets open
+                 never scrolls sideways; AI app · endpoint, Duration and Traffic hide first below lg. -->
             <div class="gw-table-wrap" id="ac-table-wrap" role="region" aria-labelledby="ac-table-cap" tabindex="0" [attr.aria-busy]="data.refreshing() ? 'true' : null">
               <table class="gw-table gw-table--interactive" id="ac-events">
                 <caption class="gw-sr-only" id="ac-table-cap">{{ caption() }}</caption>
@@ -154,6 +154,7 @@
                         <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc"></svg>
                       </button>
                     </th>
+                    <th scope="col" class="gw-table__cell--num gw-table__cell--optional">Traffic</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -170,6 +171,8 @@
                       <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" [title]="e.tool">{{ e.tool }}</div>@if (e.connection) {<div class="gw-text-caption gw-truncate"><span class="gw-mono" [title]="e.connection">{{ e.connection }}</span>@if (e.env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--{{ e.env }} gw-env--sm">{{ e.env }}</span>}</div>}</td>
                       <td class="gw-table__cell--truncate gw-table__cell--optional"><div class="gw-truncate"><span [gwClientMark]="c.id" size="sm" [letter]="c.letter"></span> {{ c.name }}</div><div class="gw-text-caption gw-fg-muted gw-truncate"><svg lucideIcon="waypoints" class="gw-icon gw-icon--xs"></svg><span class="gw-sr-only">, endpoint</span> <span class="gw-mono" [title]="e.endpoint">{{ e.endpoint }}</span></div></td>
                       <td class="gw-table__cell--num gw-table__cell--optional">{{ durationText(e) }}</td>
+                      @let tr = traffic(e);
+                      <td class="gw-table__cell--num gw-table__cell--optional" data-traffic>@if (tr.in || tr.out) {@if (tr.in) {<div class="gw-text-small">{{ tr.in }}</div>}@if (tr.out) {<div class="gw-text-caption gw-fg-muted">{{ tr.out }}</div>}} @else {<span aria-hidden="true">—</span><span class="gw-sr-only">Not recorded</span>}</td>
                     </tr>
                   }
                 </tbody>
@@ -220,6 +223,7 @@
                   <th scope="col">Tool · connection</th>
                   <th scope="col" class="gw-table__cell--optional">AI app · endpoint</th>
                   <th scope="col" class="gw-table__cell--num gw-table__cell--optional">Duration</th>
+                  <th scope="col" class="gw-table__cell--num gw-table__cell--optional">Traffic</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,6 +232,7 @@
                     <td><span class="gw-skeleton gw-skeleton--text"></span></td>
                     <td><span class="gw-skeleton gw-skeleton--text"></span></td>
                     <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                    <td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td>
                     <td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td>
                     <td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td>
                   </tr>

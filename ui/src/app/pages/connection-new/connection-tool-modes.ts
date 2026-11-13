@@ -9,7 +9,7 @@ import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
 import { MODES } from '../../kit/elements/shared/dictionaries';
-import { modeNote } from '../../kit/elements/tool-policy-list/tool-policy-view';
+import { modeNote, unattended } from '../../kit/elements/tool-policy-list/tool-policy-view';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger, MenuPick } from '../../kit/menu';
 import { ToastService } from '../../kit/toast.service';
@@ -58,6 +58,13 @@ export class ConnectionToolModes {
   protected readonly confirming = signal<{ endpoint: string; tool: ToolRow } | null>(null);
   protected readonly acknowledged = signal(false);
   private readonly confirmDialog = viewChild<GwDialog>('confirmDialog');
+  /** "Set all to…" that lets more than one tool run without approval: what the dialog asks about. */
+  protected readonly bulkConfirm = signal<{
+    readonly mode: BulkMode;
+    readonly count: number;
+    readonly shown: readonly { readonly endpoint: string; readonly tools: readonly ToolRow[] }[];
+  } | null>(null);
+  private readonly bulkDialog = viewChild<GwDialog>('bulkDialog');
   protected readonly bulkScope = signal('');
   protected readonly bulkResults = signal<readonly BulkResult[]>([]);
   protected readonly endpointSlugs = computed<readonly string[]>(() => JSON.parse(this.slugs()));
@@ -101,6 +108,7 @@ export class ConnectionToolModes {
       const generation = ++this.generation;
       untracked(() => {
         this.confirmDialog()?.close();
+        this.bulkDialog()?.close();
         this.bulkScope.set('');
         this.bulkResults.set([]);
         this.endpoints.set({});
@@ -140,12 +148,37 @@ export class ConnectionToolModes {
     this.changed.emit({ endpoint, tools });
   }
 
+  /**
+   * "Set all to…" sets the tools the table shows on each chosen endpoint, each with the definition it showed. Bypass,
+   * and Read only for a server's tools, on more than one tool asks first, naming how many.
+   */
   protected async pickBulk(pick: MenuPick): Promise<void> {
     const mode: BulkMode | undefined = pick.value === 'DEFAULT' ? 'DEFAULT' : this.modes.find((value) => value === pick.value);
     if (!mode || this.bulkUnavailable() || (mode === 'BYPASS' && this.bulkReadOnly())) return;
+    const targets = [...this.bulkTargets()];
+    const shown = targets.map((endpoint) => ({ endpoint, tools: [...(this.endpoints()[endpoint]?.tools ?? [])] }));
+    const count = shown.reduce((n, s) => n + unattended(s.tools, mode, s.tools.length > 0 && s.tools.every((t) => !!t.declaredBy)), 0);
+    if (count > 1) {
+      const trigger = pick.item.closest('.gw-menu-host')?.querySelector<HTMLElement>('button[aria-haspopup="menu"]') ?? null;
+      this.bulkConfirm.set({ mode, count, shown });
+      this.bulkDialog()?.openAfterRender(trigger);
+      return;
+    }
+    await this.runBulk(mode, shown);
+  }
+
+  protected confirmBulk(): void {
+    const c = this.bulkConfirm();
+    if (!c) return;
+    this.bulkDialog()?.close('set');
+    void this.runBulk(c.mode, c.shown);
+  }
+
+  private async runBulk(mode: BulkMode, shown: readonly { readonly endpoint: string; readonly tools: readonly ToolRow[] }[]): Promise<void> {
+    if (this.bulkUnavailable()) return;
     const generation = this.generation;
     const connection = this.connection();
-    const targets = [...this.bulkTargets()];
+    const targets = shown.map((s) => s.endpoint);
     const label = mode === 'DEFAULT' ? 'Default modes' : MODES[mode].text;
     this.bulkResults.set([]);
     for (const endpoint of targets) this.update(endpoint, { saving: true });
@@ -153,7 +186,8 @@ export class ConnectionToolModes {
       for (const endpoint of targets) {
         if (generation !== this.generation) return;
         try {
-          const result = await this.api.bulk(endpoint, { group: connection, mode });
+          const tools = (shown.find((s) => s.endpoint === endpoint)?.tools ?? []).map((t) => ({ toolKey: t.toolKey, definitionHash: t.definitionHash }));
+          const result = await this.api.bulk(endpoint, { group: connection, mode, tools });
           if (generation !== this.generation) return;
           const skipped = result.skipped.map((item) => ({ name: this.endpoints()[endpoint]?.tools.find((tool) => tool.toolKey === item.toolKey)?.name ?? item.toolKey, reason: item.reason }));
           const text = `${result.changed.length} ${result.changed.length === 1 ? 'tool' : 'tools'} updated. ${skipped.length ? `${skipped.length} kept their saved mode.` : 'Applies from the next call.'}`;
@@ -223,7 +257,7 @@ export class ConnectionToolModes {
         if (!current) throw new ApiError('conflict', 409, { detail: 'This tool is no longer available on the endpoint. Review its current tools.' });
         version = current.version;
       }
-      const groups = await this.api.setMode(endpoint, { toolKey: tool.toolKey, connection, mode, version });
+      const groups = await this.api.setMode(endpoint, { toolKey: tool.toolKey, connection, mode, definitionHash: tool.definitionHash, version });
       if (generation !== this.generation) return;
       this.apply(endpoint, connection, groups);
       this.toasts.show({ tone: 'success', title: `${tool.name}: ${MODES[mode].text} on ${endpoint}`, body: 'Applies from the next call.' });

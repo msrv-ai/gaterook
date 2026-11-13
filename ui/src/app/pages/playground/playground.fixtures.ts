@@ -159,7 +159,7 @@ export function callView(over: Partial<PlaygroundCallView> & { readonly tool?: s
           content: [{ type: 'text', text }],
           ...(structured !== null ? { structuredContent: structured } : {}),
           isError: rest.isError ?? false,
-          _meta: { 'ai.msrv.gaterook/callId': callId, 'ai.msrv.gaterook/traceId': traceId },
+          _meta: { 'com.gaterook/callId': callId, 'com.gaterook/traceId': traceId },
         },
       },
       httpStatus: 200,

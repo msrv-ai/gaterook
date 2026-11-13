@@ -6,7 +6,7 @@
   "provider": "GateRook tests",
   "license": "Apache-2.0",
   "description": "A plugin that exhausts its heap.",
-  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=2.0.0 & <3.0.0"},
   "connectorClass": "gaterook.plugins.fixtures.OomConnector",
   "type": "fixture-oom",
   "toolNamespace": "oom_",

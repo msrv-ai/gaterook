@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "metric": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "One metric name, such as http_requests_total. Default: every metric the server knows."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Most metrics to return; the endpoint caps it."
+    }
+  }
+}

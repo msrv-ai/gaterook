@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cloud Firestore",
+  "type": "object",
+  "x-card": {
+    "description": "Documents, collections and queries. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "project",
+    "credentials"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+      "examples": [
+        "acme-stage"
+      ],
+      "description": "The ID of the Google Cloud project that holds the database."
+    },
+    "database": {
+      "type": "string",
+      "title": "Database",
+      "default": "(default)",
+      "pattern": "^(\\(default\\)|[a-z][a-z0-9-]{2,61}[a-z0-9])$",
+      "examples": [
+        "(default)"
+      ],
+      "description": "The Firestore database ID: (default) for the project's default database."
+    },
+    "collections": {
+      "type": "array",
+      "title": "Collections",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 1500,
+        "pattern": "^/?[^/\\u0000-\\u001f\\u007f#%\\\\]+(/[^/\\u0000-\\u001f\\u007f#%\\\\]+)*$"
+      },
+      "examples": [
+        [
+          "orders",
+          "users/*/orders"
+        ]
+      ],
+      "description": "The collections agents may use. An ID such as orders or audit-* allows every collection with that ID, collection-group queries included; a path such as /orders or users/*/orders allows the collections at that path (* is one ID, ** any number). Empty: every collection the credentials may read."
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Authentication",
+          "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
+          "enum": [
+            "adc",
+            "serviceAccountKey"
+          ],
+          "default": "adc",
+          "x-enumTitles": [
+            "Existing Google sign-in (ADC)",
+            "Service account key (JSON)"
+          ]
+        },
+        "impersonate": {
+          "type": "string",
+          "title": "Service account to impersonate",
+          "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+          "examples": [
+            "gw-firestore@acme-stage.iam.gserviceaccount.com"
+          ],
+          "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes. Empty: calls use the sign-in or key itself."
+        },
+        "lifetimeSeconds": {
+          "type": "integer",
+          "title": "Token lifetime",
+          "minimum": 300,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
+        },
+        "quotaProject": {
+          "type": "string",
+          "title": "Billed project",
+          "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
+        }
+      },
+      "patternProperties": {
+        "^(serviceAccountKey)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "serviceAccountKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "serviceAccountKey": {
+                "type": "string",
+                "title": "Service account key",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "x-widget": "textarea",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "serviceAccountKey"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

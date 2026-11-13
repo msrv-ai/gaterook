@@ -148,7 +148,7 @@
       "maxLength": 20000,
       "x-widget": "textarea",
       "title": "CA certificate (PEM)",
-      "description": "Only for a private CA."
+      "description": "PEM of the CA that signed the server's certificate; Elasticsearch writes its own to config/certs/http_ca.crt. Empty: the CAs this computer trusts."
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

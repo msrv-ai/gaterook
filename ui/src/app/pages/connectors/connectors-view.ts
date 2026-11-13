@@ -1,11 +1,13 @@
 import { CatalogEntry, CatalogIndex, McpSignInStatus } from '../../core/api/plugins.api';
 import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api';
-import { ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
+import { ConnectorGroup, ConnectorModuleRef, ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup } from '../../core/api/endpoints.api';
 import { Template, TemplateKind } from '../../core/api/templates.api';
+import { ConnectorModules } from '../../core/api/modules.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
 import { ConnectorCardStatus, ConnectorCardView } from '../../kit/elements/connector-card/connector-card';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
+import { ToastOptions } from '../../kit/toast.service';
 
 /**
  * What the Connectors page shows, as pure functions of the core's answers (ARCHITECTURE.md §6 "connectors", §8.4):
@@ -118,7 +120,8 @@ export function pluginUpdate(plugin: Pick<InstalledConnector, 'id' | 'version'>,
  */
 export interface InstalledView {
   readonly key: string;
-  readonly kind: 'built-in' | 'plugin' | 'mcp-server';
+  /** `module`: a connector type of a module the person installed from a file and GateRook didn't sign. */
+  readonly kind: 'built-in' | 'module' | 'plugin' | 'mcp-server';
   readonly id: string;
   readonly name: string;
   readonly card: ConnectorCardView;
@@ -132,11 +135,18 @@ export interface InstalledView {
   readonly failed: boolean;
   /** The server behind an MCP server card. */
   readonly server: McpServerView | null;
+  /** The person's own connector module behind a `module` card: its menu removes it or returns to GateRook's build. */
+  readonly module?: ConnectorModuleRef | null;
   /** Lowercase text the search matches (name, kind, description, version). */
   readonly search: string;
 }
 
-const KIND_ORDER: Record<InstalledView['kind'], number> = { 'built-in': 0, plugin: 1, 'mcp-server': 2 };
+const KIND_ORDER: Record<InstalledView['kind'], number> = { 'built-in': 0, module: 1, plugin: 2, 'mcp-server': 3 };
+
+/** The installed module of a type when it is the person's own: from a file, not one GateRook's signed list has. */
+export function ownModule(t: Pick<InstalledConnector, 'kind' | 'module'>): ConnectorModuleRef | null {
+  return t.kind === 'built-in' && t.module?.installed && t.module.signed === false ? t.module : null;
+}
 
 /** Built-in connectors and plugins from `/api/connector-types`, then the MCP servers (the kit's order). */
 export function installedViews(
@@ -151,7 +161,8 @@ export function installedViews(
   for (const t of installed) {
     if (t.kind !== 'built-in' && t.kind !== 'plugin') continue;
     const names = byType.get(t.id) ?? [];
-    views.push(t.kind === 'plugin' ? pluginView(t, names, catalog) : builtInView(t, names));
+    const own = ownModule(t);
+    views.push(t.kind === 'plugin' ? pluginView(t, names, catalog) : own ? ownModuleView(t, names, own) : builtInView(t, names));
   }
   for (const s of servers) views.push(serverCardView(s));
   return views.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
@@ -190,6 +201,55 @@ function builtInView(t: InstalledConnector, names: readonly string[]): Installed
     failed: false,
     server: null,
     search: searchText(t.name, 'built-in', t.description, t.version),
+  };
+}
+
+/**
+ * A connector type of the person's own module: a card that says so (Module, Unsigned, the package's version), what its
+ * process does, and, when GateRook's list has the module too, that GateRook's build is there to return to.
+ */
+function ownModuleView(t: InstalledConnector, names: readonly string[], module: ConnectorModuleRef): InstalledView {
+  const state = stateOf(t);
+  const process = processStatus(t.process);
+  const failed = t.process?.state?.toLowerCase() === 'failed';
+  const status: ConnectorCardStatus | null =
+    state === 'changed-outside'
+      ? { tone: 'warning', text: 'Changed outside GateRook' }
+      : state === 'disabled'
+        ? { tone: 'neutral', text: 'Switched off' }
+        : module.state === 'installing'
+          ? { tone: 'info', text: 'Installing GateRook’s build' }
+          : failed
+            ? process
+            : module.listedVersion
+              ? { tone: 'info', text: 'GateRook’s build available · ', mono: v(module.listedVersion) }
+              : process;
+  return {
+    key: `module:${t.id}`,
+    kind: 'module',
+    id: t.id,
+    name: t.name,
+    card: {
+      type: t.id,
+      variant: null,
+      name: t.name,
+      icon: t.icon || connectorIcon(t.id),
+      kind: 'module',
+      version: module.version,
+      signed: false,
+      description: t.description,
+      tools: t.tools,
+      action: null,
+      status,
+    },
+    connections: t.connections,
+    activityQuery: connectionsQuery(names),
+    state,
+    update: null,
+    failed,
+    server: null,
+    module,
+    search: searchText(t.name, 'module unsigned file', t.description, module.version),
   };
 }
 
@@ -276,13 +336,18 @@ export function matches(search: string, query: string): boolean {
   return words.every((w) => search.includes(w));
 }
 
-/** The count line of Installed: "10 built-in, 1 plugin, 1 MCP server", or "3 of 12 installed connectors" when searching. */
+/**
+ * The count line of Installed: "10 built-in, 1 plugin, 1 MCP server", with "1 from your own module" between where
+ * there is one, or "3 of 12 installed connectors" when searching.
+ */
 export function installedCountText(views: readonly InstalledView[], shown: number, query: string): string {
   if (query.trim()) return `${shown} of ${plural(views.length, 'installed connector')}`;
   const builtIn = views.filter((x) => x.kind === 'built-in').length;
+  const own = views.filter((x) => x.kind === 'module').length;
   const plugins = views.filter((x) => x.kind === 'plugin').length;
   const servers = views.filter((x) => x.kind === 'mcp-server').length;
   const parts = [`${builtIn} built-in`];
+  if (own) parts.push(`${own} from your own ${new Set(views.filter((x) => x.kind === 'module').map((x) => x.module?.id)).size === 1 ? 'module' : 'modules'}`);
   if (plugins) parts.push(plural(plugins, 'plugin'));
   if (servers) parts.push(plural(servers, 'MCP server'));
   return parts.join(', ');
@@ -295,10 +360,13 @@ export type CatalogAction = 'install-plugin' | 'update-plugin' | 'install-templa
 
 export interface CatalogView {
   readonly key: string;
-  readonly entry: CatalogEntry;
+  /** The entry of the signed catalog; null for one of GateRook's own connector modules, which that catalog never lists. */
+  readonly entry: CatalogEntry | null;
   readonly card: ConnectorCardView;
   readonly action: CatalogAction;
   readonly search: string;
+  /** The line under the description: what adding a connection of a module's type downloads. */
+  readonly note?: string | null;
 }
 
 const CATALOG_ICONS: Record<CatalogEntry['kind'], string> = { plugin: 'puzzle', template: 'file-code', 'mcp-server': 'plug' };
@@ -356,6 +424,83 @@ export function catalogViews(index: CatalogIndex): CatalogView[] {
       search: searchText(e.name, e.kind.replace('-', ' '), e.description, e.version),
     };
   });
+}
+
+/**
+ * GateRook's own connector modules that aren't installed, as the Catalog offers them: every connector type that the
+ * signed list of modules adds and this build doesn't have (`GET /api/connector-types`: a card with a `module` that
+ * isn't installed). Nobody installs one by hand: Add connection opens its form, and the module arrives meanwhile. An
+ * installed module's types are among the installed connectors.
+ */
+export function moduleCatalogViews(groups: readonly ConnectorGroup[]): CatalogView[] {
+  const views: CatalogView[] = [];
+  const seen = new Set<string>();
+  for (const group of groups) {
+    for (const c of group.cards) {
+      const module = c.module;
+      if (!module || module.installed || c.variant || c.kind !== 'built-in' || seen.has(c.type)) continue;
+      seen.add(c.type);
+      const size = formatBytes(module.sizeBytes);
+      const status: ConnectorCardStatus | null =
+        module.state === 'installing'
+          ? { tone: 'info', text: 'Downloading' }
+          : module.state === 'failed'
+            ? { tone: 'warning', text: 'The download failed' }
+            : null;
+      views.push({
+        key: `module:${c.type}`,
+        entry: null,
+        action: 'add-connection',
+        note: `Not part of the installer: adding a connection downloads it (${size}).`,
+        card: {
+          type: c.type,
+          variant: null,
+          name: c.name,
+          icon: c.icon,
+          kind: 'built-in',
+          version: module.version,
+          signed: null,
+          description: c.description,
+          tools: c.tools,
+          action: 'add',
+          status,
+        },
+        search: searchText(c.name, 'built-in module', group.name, c.description, module.version),
+      });
+    }
+  }
+  return views;
+}
+
+/** Everything the Catalog offers: GateRook's modules that aren't installed, then the signed catalog's entries. */
+export function catalogOffer(groups: readonly ConnectorGroup[] | null | undefined, index: CatalogIndex | null | undefined): CatalogView[] {
+  return [...moduleCatalogViews(groups ?? []), ...(index ? catalogViews(index) : [])];
+}
+
+/**
+ * The toast of the Catalog's Check now, from what both lists answered: why a list this build reads couldn't be
+ * reached, in the core's words; else what the Catalog offers now and didn't before the check; else that nothing is
+ * new. A list of modules without a channel and a catalog this build doesn't read (`source: 'none'`) didn't fail:
+ * there was nothing to check.
+ */
+export function listsCheckToast(
+  before: readonly CatalogView[],
+  after: readonly CatalogView[],
+  index: CatalogIndex,
+  modules: ConnectorModules,
+): ToastOptions {
+  const channel = modules.channel;
+  if (channel.configured && channel.offline) {
+    return { tone: 'warning', title: "GateRook's list of connectors couldn't be checked", body: channel.problem?.trim() || null };
+  }
+  if (index.offline && index.source !== 'none') {
+    return { tone: 'warning', title: "The catalog couldn't be checked", body: index.problem?.trim() || null };
+  }
+  const known = new Set(before.map((x) => x.key));
+  const added = after.filter((x) => !known.has(x.key)).map((x) => x.card.name);
+  return added.length
+    ? { tone: 'success', title: `${plural(added.length, 'new connector')} in the catalog`, body: joinAnd(added) }
+    : { tone: 'success', title: 'The catalog is up to date' };
 }
 
 // ── Templates ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -636,10 +781,34 @@ function authType(config: JsonObject): string | null {
     : null;
 }
 
+/** A host without brackets or port: `[::1]:7781` → `::1`, `127.0.0.1:7781` → `127.0.0.1`. */
+function bareHost(host: string | null | undefined): string {
+  return (host ?? '').trim().replace(/^\[(.*)\](?::\d+)?$/, '$1').replace(/^([^:]+):\d+$/, '$1');
+}
+
+/**
+ * The host a sign-in names in its words ("Sign in with mcp.linear.app", "Signed in at mcp.linear.app"), without its
+ * port; or null when it would name nothing to the person: an IP address or localhost (a server under development on
+ * this computer, a provider reached by address). The words then leave the host out; the review's Sign-in row still
+ * says where the sign-in happens.
+ */
+export function signInHost(host: string | null | undefined): string | null {
+  const h = bareHost(host);
+  if (!h || onThisComputer(h)) return null;
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(h) || h.includes(':') ? null : h;
+}
+
+/** Whether a host is this computer: localhost (and `*.localhost`), a 127.x.x.x address or ::1. */
+export function onThisComputer(host: string | null | undefined): boolean {
+  const h = bareHost(host).toLowerCase();
+  return h === 'localhost' || h.endsWith('.localhost') || /^127(?:\.\d{1,3}){3}$/.test(h) || h === '::1';
+}
+
 /** The sign-in of a server in words for its row: "Signed in at mcp.linear.app", "Needs sign-in". */
 export function signInText(s: McpServerView): { readonly tone: 'success' | 'warning' | 'neutral'; readonly text: string } | null {
   if (!s.oauth) return null;
-  const at = s.signIn?.issuer ? ` at ${hostOf(s.signIn.issuer)}` : '';
+  const host = s.signIn?.issuer ? signInHost(hostOf(s.signIn.issuer)) : null;
+  const at = host ? ` at ${host}` : '';
   switch (s.signIn?.state) {
     case 'signed-in':
       return { tone: 'success', text: `Signed in${at}` };

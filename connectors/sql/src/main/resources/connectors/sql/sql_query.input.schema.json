@@ -19,7 +19,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 100000,
-      "description": "One SELECT, WITH \u2026 SELECT, VALUES, TABLE, SHOW or EXPLAIN. PostgreSQL, MySQL and Oracle use read-only transactions. Oracle and SQL Server accept one SELECT or WITH SELECT using known built-in functions; every read is rolled back."
+      "description": "One SELECT, WITH \u2026 SELECT, VALUES, TABLE, SHOW or EXPLAIN. PostgreSQL, MySQL and Oracle use read-only transactions; SQLite reads through a read-only file handle. Oracle and SQL Server accept one SELECT or WITH SELECT using known built-in functions; every read is rolled back."
     },
     "limit": {
       "type": "integer",

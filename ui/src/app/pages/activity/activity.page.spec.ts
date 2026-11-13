@@ -286,7 +286,7 @@ describe('Activity page', () => {
     expect(text(el.querySelector('h1'))).toBe('Activity');
     await new Promise((r) => setTimeout(r, SKELETON_DELAY_MS + 30));
     await settle();
-    expect(el.querySelectorAll('#ac-panel-events .gw-skeleton').length).toBe(30);
+    expect(el.querySelectorAll('#ac-panel-events .gw-skeleton').length).toBe(36);
     expect(text(el.querySelector('#ac-panel-events [role="status"]'))).toBe('Loading calls');
     answer.resolve({ events: kitCalls(), nextCursor: null });
     await settle();
@@ -317,15 +317,21 @@ describe('Activity page', () => {
       'http_requestbilling-api environment stage',
       'Cx Codex, endpoint dev',
       '30 s so far',
+      '164 B in',
     ]);
     expect(pending.querySelector('a.gw-table__row-link')!.getAttribute('href')).toBe('/activity#event-18');
     expect(pending.querySelector('a.gw-btn')!.getAttribute('href')).toBe('/approvals/ap_http');
     expect(pending.querySelector('.gw-badge')!.className).toContain('gw-badge--warning');
     expect(pending.querySelector('.gw-env')!.className).toContain('gw-env--stage');
     expect(cells(allowed)[4]).toBe('38 ms');
+    // Traffic: what the app sent over what went back; a size the audit didn't keep is said as not recorded.
+    expect(Array.from(allowed.querySelectorAll('[data-traffic] div')).map(text)).toEqual(['96 B in', '2.1 KB out']);
+    expect(cells(ssh)[5]).toBe('—Not recorded');
+    expect(text(el.querySelector('#ac-events th:last-child'))).toBe('Traffic');
     expect(cells(ssh)[3]).toBe('CD Claude Desktop, endpoint dev');
     expect(cells(denied)[1]).toBe('Denied by policy');
     expect(cells(denied)[4]).toBe('Not run');
+    expect(cells(denied)[5]).toBe('120 B in');
     expect(text(el.querySelector('#ac-pager-info'))).toBe('All 10 calls in the last 24 hours');
     expect(el.querySelector('#ac-pager button')).not.toBeNull();
   });

@@ -18,7 +18,6 @@ import { FormField, form, maxLength, validate } from '@angular/forms/signals';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { ConnectionPreview, IssuedToken, SplitPreview, TokenRow, ToolGroup, WiredConnection } from '../../core/api/endpoints.api';
-import { ToolMode } from '../../core/api/types';
 import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { TimeService } from '../../core/time/time.service';
@@ -33,13 +32,14 @@ import { GwSplitDialog, SplitRequest } from '../../kit/elements/risk-callout/spl
 import { GwSetupWiring, SetupWiring } from '../../kit/elements/setup-map/setup-map';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
 import { GwTokenIssueDialog, GwTokens } from '../../kit/elements/token-issue/token-issue';
-import { GwToolPolicyList, TemporaryBypassOpen, ToolModeChange, ToolOverridesChange } from '../../kit/elements/tool-policy-list/tool-policy-list';
+import { GwToolPolicyList, TemporaryBypassOpen, ToolBulkChange, ToolModeChange, ToolOverridesChange } from '../../kit/elements/tool-policy-list/tool-policy-list';
 import { GwTemporaryBypassDialog } from '../../kit/elements/tool-policy-list/temporary-bypass-dialog';
 import { toolPolicyGroups } from '../../kit/elements/tool-policy-list/tool-policy-view';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
+import { deletedToast } from '../endpoints/endpoints-view';
 import { jumpTo } from '../secrets/jump';
 import { GwEndpointClients } from './endpoint-clients';
 import { EndpointDetailData } from './endpoint-detail.data';
@@ -420,7 +420,7 @@ export class EndpointDetailPage {
 
   protected async setMode(c: ToolModeChange): Promise<void> {
     try {
-      await this.data.setMode({ toolKey: c.toolKey, connection: c.connection, mode: c.mode, version: c.version });
+      await this.data.setMode({ toolKey: c.toolKey, connection: c.connection, mode: c.mode, definitionHash: c.definitionHash, version: c.version });
     } catch (e) {
       this.toast({ tone: 'danger', title: "The mode wasn't changed", body: this.errorText(e) });
     }
@@ -446,6 +446,7 @@ export class EndpointDetailPage {
     const row = this.data.groups()?.find((g) => g.connection === c.connection)?.tools.find((t) => t.toolKey === c.toolKey);
     if (!row) return;
     try {
+      // The limits alone: no definition, so a tool held in Approval stays held until a person picks its mode.
       await this.data.setMode({ toolKey: c.toolKey, connection: c.connection, mode: row.storedMode, overrides: c.overrides, version: c.version });
       this.toast({ tone: 'success', title: c.overrides ? `Limits of ${row.name} saved` : `${row.name} follows the policy again` });
     } catch (e) {
@@ -453,10 +454,13 @@ export class EndpointDetailPage {
     }
   }
 
-  /** "Set all to…": tools that can't take the mode stay as they are, and the announcement names them (kit). */
-  protected async bulk(b: { readonly connection: string | null; readonly mode: ToolMode | 'DEFAULT' }): Promise<void> {
+  /**
+   * "Set all to…": only the tools the list showed change; tools that can't take the mode stay as they are, and the
+   * announcement names them (kit).
+   */
+  protected async bulk(b: ToolBulkChange): Promise<void> {
     try {
-      const result = await this.data.bulk(b.connection, b.mode);
+      const result = await this.data.bulk(b.connection, b.mode, b.tools);
       const names = result.skipped.map((s) => s.toolKey.split('/').at(-1) ?? s.toolKey);
       const label = b.mode === 'DEFAULT' ? 'default modes' : b.mode === 'READ_ONLY' ? 'Read only' : b.mode === 'APPROVAL' ? 'Approval' : b.mode === 'BYPASS' ? 'Bypass' : 'Off';
       this.announcer.announce(`Set to ${label}${names.length ? `. ${names.join(' and ')} kept ${names.length > 1 ? 'their modes' : 'its mode'}` : ''}`);
@@ -632,9 +636,9 @@ export class EndpointDetailPage {
     this.deleteBusy.set(true);
     this.deleteError.set(null);
     try {
-      await this.data.remove();
+      const result = await this.data.remove();
       this.deleteDialog()?.close('delete');
-      this.toast({ tone: 'success', title: `Endpoint ${slug} deleted`, body: 'Its URL stops answering. The audit log keeps every call.' });
+      this.toast(deletedToast(slug, result));
       void this.router.navigate(['/endpoints']);
     } catch (e) {
       this.deleteError.set(this.errorText(e));

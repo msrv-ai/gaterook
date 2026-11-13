@@ -70,7 +70,7 @@ function deferred<T>() {
 describe('AI connection import review', () => {
   let fixture: ComponentFixture<ConnectionImportPage>;
   let page: ConnectionImportPage;
-  let api: { start: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn>; commit: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn> };
+  let api: { start: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn>; commit: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn>; summary: ReturnType<typeof vi.fn> };
   let connections: { list: ReturnType<typeof vi.fn>; testDraft: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>;
     browseFiles: ReturnType<typeof vi.fn>; confirmDraft: ReturnType<typeof vi.fn> };
   let copy: ReturnType<typeof vi.fn>;
@@ -85,6 +85,8 @@ describe('AI connection import review', () => {
       get: vi.fn(async () => structuredClone(review)),
       commit: vi.fn(async () => ({ connections: [candidate.name], endpoint: 'production', status: 'imported' })),
       cancel: vi.fn(async () => undefined),
+      summary: vi.fn(async (_id: string, _candidate: string, _env: string, config: { connection?: { host?: string } }) =>
+        ({ target: config.connection?.host ?? null, settings: [], omitted: 0 })),
     };
     connections = { list: vi.fn(async () => ({ items: [] })), testDraft: vi.fn(), create: vi.fn(),
       browseFiles: vi.fn(async () => folder),
@@ -1362,6 +1364,9 @@ describe('AI connection import review', () => {
     expect(page.retainedSecrets()[0]).toMatchObject({ ref, store: 'vault-chosen', staged: true });
     if (mode === 'keep') page.keep(page.form()!.value());
     else page.keepAvailable(staged);
+    // A prepared reference has no default destination: editing it does not choose one for the person.
+    expect(page.destinations().has(staged.id)).toBe(false);
+    page.setDestination(staged, 'default');
     await page.commit();
     const sent = api.commit.mock.calls[0][1][0];
     expect(sent.secrets).toEqual(expected);
@@ -1526,6 +1531,198 @@ describe('AI connection import review', () => {
     expect(page.drafts().size).toBe(0);
     expect(api.commit).not.toHaveBeenCalled();
   });
+
+  // ── what each card says about the candidate, and who chooses where a prepared credential goes ──────────────────
+
+  const described: ImportCandidate = { ...candidate, id: 'described-db', name: 'described-db', summary: {
+    target: 'db.example.test:3306/example',
+    settings: [
+      { path: 'connection.host', value: 'db.example.test', target: true },
+      { path: 'connection.port', value: '3307', target: false },
+      { path: 'connection.databases', value: 'example, orders', target: false },
+    ], omitted: 2,
+  } };
+  const fileSource = { field: '/credentials/password', source: 'file' as const, path: '/private/example/db-password.json', jsonPointer: '/database/password' };
+  const referenceSource = { field: '/credentials/password', source: 'reference' as const, reference: 'vault://kv/dev/example#password', store: 'team-vault' };
+  const dynamicSource = { field: '/credentials/password', source: 'vault-dynamic' as const, reference: 'vault://database/creds/reader' };
+  const literalSource = { field: '/credentials/password', source: 'local' as const };
+
+  function withSources(id: string, ...secretSources: NonNullable<ImportCandidate['secretSources']>): ImportCandidate {
+    return { ...described, id, name: id, secretSources };
+  }
+
+  /** The card's one polite live region, which stays in place while its text changes. */
+  function liveRegion(candidate: ImportCandidate): HTMLElement {
+    const region = candidateCard(candidate).querySelector<HTMLElement>(`#import-summary-status-${candidate.id}`)!;
+    expect(region.getAttribute('role')).toBe('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    return region;
+  }
+
+  /** What one row of a card says (Connects to, Settings, Credentials): its list items, or its text when it has none. */
+  function facts(candidate: ImportCandidate, term: string): string[] {
+    const row = Array.from(candidateCard(candidate).querySelectorAll('.gw-kv__row'))
+      .find(item => item.querySelector('dt')?.textContent?.trim() === term)!;
+    const items = Array.from(row.querySelectorAll('li'), item => item.textContent!.replace(/\s+/g, ' ').trim());
+    return items.length ? items : [row.querySelector('dd')!.textContent!.replace(/\s+/g, ' ').trim()];
+  }
+
+  it('shows the target, the settings that are not defaults and every credential source on each card', async () => {
+    const mixed = withSources('mixed-db', literalSource, { ...fileSource, field: '/credentials/token' },
+      { ...referenceSource, field: '/credentials/apiKey' }, { ...dynamicSource, field: '/credentials/lease' });
+    await loadReview({ ...review, manifest: { version: 1, connections: [mixed], warnings: [] } });
+    expect(facts(mixed, 'Connects to')).toEqual(['db.example.test:3306/example']);
+    expect(facts(mixed, 'Settings')).toEqual([
+      'connection.host: db.example.test (where credentials go)', 'connection.port: 3307',
+      'connection.databases: example, orders']);
+    expect(candidateCard(mixed).textContent).toContain('2 more settings not listed. Open Edit settings to see all of them.');
+    expect(facts(mixed, 'Credentials')).toEqual([
+      'Credential /credentials/password: Value from the repository, stored encrypted',
+      'Credential /credentials/token: Local file, read when you import · /private/example/db-password.json · key /database/password',
+      'Credential /credentials/apiKey: External reference · vault://kv/dev/example#password · store team-vault',
+      'Credential /credentials/lease: Short-lived credentials from a Vault role · vault://database/creds/reader · store chosen when you import']);
+    // The editor is closed: the card needed no click, and nothing in it holds a credential value.
+    expect(page.active()).toBeNull();
+    expect(candidateCard(mixed).textContent).not.toContain('fixture-password');
+  });
+
+  it('marks up each card as a named group of terms and descriptions that a screen reader can walk', async () => {
+    const file = withSources('described-db', fileSource);
+    await loadReview({ ...review, manifest: { version: 1, connections: [file], warnings: [] } });
+    const group = candidateCard(file).querySelector('dl')!;
+    expect(group.getAttribute('aria-label')).toBe('What described-db would save');
+    expect(Array.from(group.querySelectorAll('dt'), term => term.textContent?.trim())).toEqual(['Connects to', 'Settings', 'Credentials']);
+    expect(group.querySelectorAll('dd ul li').length).toBe(4);
+    expect(group.querySelector('.gw-sr-only')?.textContent).toContain('where credentials go');
+  });
+
+  it('says when a candidate names no target, uses only defaults or has no credentials prepared', async () => {
+    const plain: ImportCandidate = { ...candidate, id: 'plain-db', name: 'plain-db', summary: { target: null, settings: [], omitted: 0 } };
+    await loadReview({ ...review, manifest: { version: 1, connections: [plain], warnings: [] } });
+    expect(facts(plain, 'Connects to')).toEqual(['No host or address in the settings']);
+    expect(facts(plain, 'Settings')).toEqual(["Only the connector's defaults"]);
+    expect(facts(plain, 'Credentials')).toEqual(['None prepared']);
+  });
+
+  it('keeps a candidate with a literal credential selected but waits for a file, a reference or a role', async () => {
+    const literal = withSources('literal-db', literalSource);
+    const file = withSources('file-db', fileSource);
+    const reference = withSources('reference-db', referenceSource);
+    const dynamic = withSources('dynamic-db', dynamicSource);
+    const plain: ImportCandidate = { ...described, id: 'plain-db', name: 'plain-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [plain, literal, file, reference, dynamic], warnings: [] } });
+    expect([...page.destinations().keys()]).toEqual(['plain-db', 'literal-db']);
+    expect(page.selected().size).toBe(2);
+    for (const waiting of [file, reference, dynamic]) {
+      expect(destinationSelect(waiting).value).toBe('');
+      expect(Array.from(destinationSelect(waiting).selectedOptions, option => option.textContent)).toEqual(['Skip import']);
+      const reason = candidateCard(waiting).querySelector<HTMLElement>(`#import-choose-${waiting.id}`)!;
+      expect(reason.textContent).toContain('Not selected: the AI prepared a credential from');
+      expect(destinationSelect(waiting).getAttribute('aria-describedby')).toContain(`import-choose-${waiting.id}`);
+    }
+    expect(candidateCard(file).textContent).toContain('from a local file');
+    expect(candidateCard(reference).textContent).toContain('from an external secret store');
+    expect(candidateCard(dynamic).textContent).toContain('from an external secret store');
+    for (const selected of [plain, literal]) expect(candidateCard(selected).querySelector('[id^="import-choose-"]')).toBeNull();
+  });
+
+  it('imports a waiting candidate only after the person chooses its destination, and drops the note then', async () => {
+    const file = withSources('file-db', fileSource);
+    await loadReview({ ...review, manifest: { version: 1, connections: [file], warnings: [] } });
+    expect(page.ready()).toBe(false);
+    await page.commit();
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('.gw-form__actions button').disabled).toBe(true);
+
+    destinationSelect(file).value = 'production';
+    destinationSelect(file).dispatchEvent(new Event('change', { bubbles: true }));
+    await renderReview();
+    expect(page.destinations().get(file.id)).toBe('production');
+    expect(page.ready()).toBe(true);
+    expect(candidateCard(file).querySelector(`#import-choose-${file.id}`)).toBeNull();
+    expect(destinationSelect(file).getAttribute('aria-describedby')).not.toContain('import-choose');
+    await page.commit();
+    expect(api.commit).toHaveBeenCalledWith(review.id, [expect.objectContaining({ candidateId: file.id, endpoint: 'production' })], undefined);
+  });
+
+  it('shows a replacement the person entered or chose instead of the prepared source, and stops waiting for it', async () => {
+    const file = withSources('file-db', fileSource);
+    await loadReview({ ...review, manifest: { version: 1, connections: [file], warnings: [] } });
+    page.drafts.update(drafts => new Map(drafts).set(file.id, { ...drafts.get(file.id)!,
+      secrets: { '/credentials/password': { source: 'local', value: 'fixture-password' } } }));
+    await renderReview();
+    expect(facts(file, 'Credentials')).toEqual(['Credential /credentials/password: Entered by you, stored encrypted']);
+    expect(candidateCard(file).textContent).not.toContain('fixture-password');
+    expect(candidateCard(file).querySelector(`#import-choose-${file.id}`)).toBeNull();
+
+    page.drafts.update(drafts => new Map(drafts).set(file.id, { ...drafts.get(file.id)!,
+      secrets: { '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/mine#password', store: 'my-vault' } } }));
+    await renderReview();
+    expect(facts(file, 'Credentials')).toEqual(['Credential /credentials/password: Reference you chose · vault://kv/dev/mine#password · store my-vault']);
+  });
+
+  it('asks the core to describe a draft the person changed and shows nothing stale while it answers', async () => {
+    const changed = deferred<{ target: string | null; settings: []; omitted: number }>();
+    api.summary.mockReturnValueOnce(changed.promise);
+    await loadReview({ ...review, manifest: { version: 1, connections: [described], warnings: [] } });
+    expect(facts(described, 'Connects to')).toEqual(['db.example.test:3306/example']);
+    // One live region per card, present and quiet before any change: a region inserted with its text is often not read.
+    const region = liveRegion(described);
+    expect(region.textContent!.trim()).toBe('');
+    await page.configure(described);
+    page.keep({ ...draft, name: described.name, config: { connection: { host: 'mine.example.test' } } });
+    await renderReview();
+    expect(api.summary).toHaveBeenCalledWith(review.id, described.id, 'dev', { connection: { host: 'mine.example.test' } });
+    expect(facts(described, 'Connects to')).toEqual(['Updating from your changes…']);
+    expect(facts(described, 'Settings')).toEqual(['Updating from your changes…']);
+    expect(candidateCard(described).textContent).not.toContain('db.example.test');
+    expect(liveRegion(described)).toBe(region);
+    expect(region.textContent!.trim()).toBe(`Updating the summary of ${described.name} from your changes…`);
+    expect(candidateCard(described).querySelectorAll('[role="status"]')).toHaveLength(1);
+
+    changed.resolve({ target: 'mine.example.test:3306', settings: [], omitted: 0 });
+    await vi.waitFor(() => expect(page.changedSummaries().get(described.id)?.target).toBe('mine.example.test:3306'));
+    await renderReview();
+    expect(facts(described, 'Connects to')).toEqual(['mine.example.test:3306']);
+    expect(facts(described, 'Settings')).toEqual(["Only the connector's defaults"]);
+    expect(liveRegion(described)).toBe(region);
+    expect(region.textContent!.trim()).toBe(`The summary of ${described.name} shows your changes.`);
+  });
+
+  it('says so, and keeps no old summary, when the core cannot describe the changed draft', async () => {
+    api.summary.mockRejectedValueOnce(new ApiError('network', 0, {}));
+    await loadReview({ ...review, manifest: { version: 1, connections: [described], warnings: [] } });
+    await page.configure(described);
+    page.keep({ ...draft, name: described.name });
+    await vi.waitFor(() => expect(page.summaryUnavailable().has(described.id)).toBe(true));
+    await renderReview();
+    expect(facts(described, 'Connects to')).toEqual(['Could not summarize your changes. Open Edit settings to check them.']);
+    expect(facts(described, 'Settings')).toEqual(['Could not summarize your changes. Open Edit settings to check them.']);
+    expect(liveRegion(described).textContent!.trim())
+      .toBe(`Could not summarize your changes to ${described.name}. Open Edit settings to check them.`);
+    expect(candidateCard(described).querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(candidateCard(described).textContent).not.toContain('db.example.test:3306');
+    // Keeping again asks again.
+    await page.configure(described);
+    page.keep({ ...draft, name: described.name, config: { connection: { host: 'again.example.test' } } });
+    await vi.waitFor(() => expect(page.changedSummaries().get(described.id)?.target).toBe('again.example.test'));
+    expect(page.summaryUnavailable().has(described.id)).toBe(false);
+  });
+
+  it('ignores the late summary of an earlier change', async () => {
+    const first = deferred<{ target: string | null; settings: []; omitted: number }>();
+    api.summary.mockReturnValueOnce(first.promise);
+    await loadReview({ ...review, manifest: { version: 1, connections: [described], warnings: [] } });
+    await page.configure(described);
+    page.keep({ ...draft, name: described.name, config: { connection: { host: 'first.example.test' } } });
+    await page.configure(described);
+    page.keep({ ...draft, name: described.name, config: { connection: { host: 'second.example.test' } } });
+    await vi.waitFor(() => expect(page.changedSummaries().get(described.id)?.target).toBe('second.example.test'));
+    first.resolve({ target: 'first.example.test', settings: [], omitted: 0 });
+    await first.promise;
+    await renderReview();
+    expect(facts(described, 'Connects to')).toEqual(['second.example.test']);
+  });
 });
 
 describe('repository discovery prompt', () => {
@@ -1551,6 +1748,8 @@ describe('repository discovery prompt', () => {
     expect(prompt).toContain('~/.vault-token');
     expect(prompt).toContain('auth.method token with source:file');
     expect(prompt).toContain('Only the user connects stores and imports connections');
+    // Settings only the person makes are not in the schema: the AI is told to leave them out and say so.
+    expect(prompt).toContain('personOnlyFields lists what only the person sets (trust, local commands): leave it out, note it in warnings');
     expect(prompt).toContain('json');
     expect(prompt.length).toBeLessThan(8000);
     expect(encodeURIComponent(encodeURIComponent(prompt)).length + 100).toBeLessThan(10000);

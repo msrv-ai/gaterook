@@ -123,16 +123,27 @@ function baseUrl(text: string, ks: KeySchema): { value: JsonValue } | { error: s
   return { value: v };
 }
 
-const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+/** A dotted quad as the core's egress guard reads it: no octet above 255 and no leading zero (`010` reads as octal elsewhere). */
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+/** An IPv6 literal the URL parser accepts, as the core's guard needs one it can read. */
+function ipv6(address: string): boolean {
+  if (!address.includes(':') || !/^[0-9a-f:.]+$/i.test(address)) return false;
+  try {
+    return new URL(`http://[${address}]/`).hostname.length > 2;
+  } catch {
+    return false;
+  }
+}
 
 function privateRange(text: string): { value: JsonValue } | { error: string } {
   const v = text.trim();
   const [address, bits, extra] = v.split('/');
   const v4 = IPV4.test(address ?? '');
-  const v6 = !v4 && /^[0-9a-f:]+$/i.test(address ?? '') && (address ?? '').includes(':');
+  const v6 = !v4 && ipv6(address ?? '');
   const max = v4 ? 32 : 128;
   if (extra !== undefined || (!v4 && !v6) || (bits !== undefined && !(/^\d{1,3}$/.test(bits) && Number(bits) <= max))) {
-    return { error: 'Enter an address or a CIDR range, for example 10.20.0.0/16.' };
+    return { error: 'Enter an address or a CIDR range without leading zeros, for example 10.20.0.0/16.' };
   }
   if (v4 && address!.startsWith('169.254.')) return { error: `${v} holds the cloud metadata address and is always blocked.` };
   return { value: { cidr: v } };
@@ -174,17 +185,17 @@ export interface SectionSpec {
 
 /** Connector sections in the kit's order, then the ones the kit doesn't have (Logs), then any plugin's. */
 export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
-  sql: { types: ['postgres', 'mysql', 'oracle', 'sqlserver'], icon: 'database', noun: 'SQL' },
+  sql: { types: ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite'], icon: 'database', noun: 'SQL' },
   ssh: { types: ['ssh', 'ssh-logs'], icon: 'terminal', noun: 'SSH' },
   k8s: { types: ['kubernetes'], icon: 'ship-wheel', noun: 'Kubernetes' },
-  cloud: { types: ['aws', 'gcp'], icon: 'cloud', noun: 'cloud' },
+  cloud: { types: ['aws', 'gcp', 'azure'], icon: 'cloud', noun: 'cloud' },
   http: { types: ['http'], icon: 'globe', noun: 'HTTP' },
-  logs: { types: ['gcp-logging', 'cloudwatch', 'loki', 'logs', 'ssh-logs', 'gcp'], icon: 'scroll-text', noun: 'logs' },
+  logs: { types: ['gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'logs', 'ssh-logs', 'gcp'], icon: 'scroll-text', noun: 'logs' },
 };
 export const CORE_SECTIONS: readonly string[] = ['masking', 'limits', 'approvals'];
 
 /** The connector type order of the catalog (Databases, Remote access, Logs, Kubernetes, Cloud, HTTP and MCP). */
-const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'mongodb', 'redis', 'opensearch', 'elasticsearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
+const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'spanner', 'mongodb', 'redis', 'dynamodb', 'bigquery', 'snowflake', 'redshift', 'databricks', 'trino', 'athena', 'firestore', 'firebase-rtdb', 'cosmosdb', 'cassandra', 'neo4j', 'prometheus', 'influxdb', 'pinecone', 'qdrant', 'milvus', 'weaviate', 'chroma', 'opensearch', 'elasticsearch', 'algolia', 'meilisearch', 'typesense', 'azure-ai-search', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'azure', 'cloudflare', 's3', 'http', 'mcp-server'];
 
 export function typeRank(type: string): number {
   const i = TYPE_ORDER.indexOf(type);
@@ -274,8 +285,8 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
     words: { on: 'allowed', off: 'not allowed' },
     describe: (x) =>
       x.env === 'prod'
-        ? [t('Set on prod only, never inherited; off by default on prod. Allowing it asks you to confirm. Commands need approval unless ssh_exec uses Bypass.')]
-        : [t('A separate permission, off by default and never inherited. Commands need approval unless ssh_exec uses Bypass.')],
+        ? [t('Set on prod only, never inherited; on by default. Changing it asks you to confirm. Commands need approval unless ssh_exec uses Bypass.')]
+        : [t('A separate permission, on by default and never inherited. Commands need approval unless ssh_exec uses Bypass.')],
   },
   'ssh.commandTimeoutSeconds': { label: 'Command timeout', noun: 'command timeout', describe: () => [t('The session is closed after this.')] },
   'ssh.maxOutputKb': { label: 'Max output', noun: 'max output', describe: () => [t('Longer output is cut from the start.')] },
@@ -296,7 +307,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
       remove: (v, env) => `Remove verb ${v} on ${env}`,
       add: (env) => `Add verb on ${env}`,
       placeholder: () => 'Add a verb, for example describe',
-      empty: () => [t('None: agents can call nothing on the cluster.')],
+      empty: () => [t('None: no verb is left out. '), c('delete'), t(', '), c('scale'), t(' and '), c('exec'), t(' stay denied.')],
       parse: k8sVerb,
       label: verbLabel,
       approval: (v) => typeof v === 'string' && MUTATING_VERBS.includes(v),
@@ -314,20 +325,23 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
       remove: (v, env) => `Remove resource ${v} on ${env}`,
       add: (env) => `Add resource on ${env}`,
       placeholder: () => 'Add a resource, for example cronjobs',
-      empty: () => [t('None: agents can read no resource.')],
+      empty: () => [t('None: every resource but '), c('secrets'), t(', cluster-scoped ones such as nodes and namespaces included.')],
       parse: plainItem('a resource name', 'Use the plural RBAC name, for example cronjobs or certificates.cert-manager.io.'),
     },
   },
   'k8s.namespaces': {
     label: 'Namespaces',
     noun: 'namespaces',
-    describe: () => [t('Per environment, never inherited. Agents see nothing outside these namespaces.')],
+    describe: (x) =>
+      Array.isArray(x.value) && x.value.length
+        ? [t('Per environment, never inherited. Agents see nothing outside these namespaces.')]
+        : [t('Per environment, never inherited. Empty: agents see every namespace of the cluster.')],
     tags: {
       list: (env) => `Namespaces on ${env}`,
       remove: (v) => `Remove namespace ${v}`,
       add: (env) => `Add namespace on ${env}`,
       placeholder: () => 'Add a namespace',
-      empty: () => [t("None: agents see only the namespace of each connection's context.")],
+      empty: () => [t('None: agents see every namespace of the cluster.')],
       parse: plainItem('a namespace', 'Use lowercase letters, digits and dashes.'),
     },
   },
@@ -336,7 +350,10 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
     labelCode: 'k8s_apply',
     noun: 'privileged pods',
     words: { on: 'denied', off: 'allowed with approval unless Bypass' },
-    describe: () => [t('Privileged containers, host network and host paths in a manifest are denied before anyone is asked.')],
+    describe: (x) =>
+      x.value === true
+        ? [t('Privileged containers, host network and host paths in a manifest are denied before anyone is asked.')]
+        : [t('Off: privileged containers, host network and host paths wait for approval with a warning, unless k8s_apply uses Bypass.')],
   },
   'k8s.applyMaxObjects': { label: 'Objects per apply', noun: 'objects per apply', describe: () => [t('A larger manifest is denied.')] },
   'k8s.logsTailMax': { label: 'Log lines per k8s_logs call', noun: 'log lines per k8s_logs call', describe: () => [t('A larger tail is denied.')] },
@@ -353,7 +370,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
       remove: (v, env) => `Remove service ${v} on ${env}`,
       add: (env) => `Add service on ${env}`,
       placeholder: () => 'Add a service, for example s3',
-      empty: () => [t('None: agents can describe nothing.')],
+      empty: () => [t('None: every service but sensitive ones such as '), c('secretsmanager'), t(', '), c('iam'), t(' and '), c('kms'), t(', which need to be listed.')],
       parse: plainItem('a service name', 'Use the short name, for example ec2 or sqladmin.'),
     },
   },

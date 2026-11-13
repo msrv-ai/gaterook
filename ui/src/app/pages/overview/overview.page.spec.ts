@@ -5,21 +5,16 @@ import { ApiError } from '../../core/api/api-error';
 import { ApprovalDetail, ApprovalsApi } from '../../core/api/approvals.api';
 import { ClientsApi, ClientsView } from '../../core/api/clients.api';
 import { ConnectionRow, ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
-import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
-import { McpServersApi, PluginsApi } from '../../core/api/plugins.api';
-import { SecretsApi } from '../../core/api/secrets.api';
-import { TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, ROWS, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
-import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
-import { catalogIndex, sentryReview } from '../connectors/connectors.fixtures';
+import { NOW, ROWS, busySummary, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
+import { ENDPOINT_STORAGE_KEY, OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
 import { detail as endpointDetail, groups as endpointTools } from '../endpoint-detail/endpoint-detail.fixtures';
 
@@ -112,6 +107,8 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       const next = overviewAnswers.length > 1 ? overviewAnswers.shift()! : overviewAnswers[0];
       return next();
     },
+    // The last 30 days read on their own (GwOverviewSummary); not among the calls the page's actions make.
+    summary: () => Promise.resolve(busySummary()),
   };
   const approvalsApi: Partial<ApprovalsApi> = {
     get: (id) =>
@@ -171,20 +168,6 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
         addConnection: async (slug: string, name: string) => { calls.push(`add ${slug} ${name}`); savedConnections = savedConnections.map((row) => row.name === name ? { ...row, usedBy: [...new Set([...row.usedBy, slug])] } : row); return {}; },
       } },
       { provide: ConnectionsApi, useValue: connectionsApi },
-      { provide: ConnectorTypesApi, useValue: { catalog: async () => ({ groups: [], installed: [] }) } },
-      { provide: PluginsApi, useValue: { catalog: async () => catalogIndex() } },
-      { provide: SecretsApi, useValue: { list: async () => [] } },
-      { provide: TemplatesApi, useValue: { list: async () => [] } },
-      { provide: McpServersApi, useValue: {
-        review: async (source: { config: { name: string } }) => { calls.push('review mcp'); return sentryReview({ name: source.config.name, env: [] }); },
-        create: async (source: { config: { name: string } }) => {
-          const name = source.config.name;
-          calls.push(`create mcp ${name}`);
-          savedConnections.push(healthyMcp(name, []));
-          return { name, state: 'running', tools: 4 };
-        },
-        tools: async () => [],
-      } },
       { provide: EventStream, useValue: events },
       { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), address: signal('127.0.0.1:7465') } },
     ],
@@ -224,8 +207,19 @@ const href = (a: Element | null) => a?.getAttribute('href') ?? null;
 const service = (root: ParentNode, name: string) => [...root.querySelectorAll<HTMLElement>('[data-map-service]')].find((node) => node.dataset['mapService'] === name) ?? null;
 const services = (root: ParentNode) => [...root.querySelectorAll<HTMLElement>('[data-map-service]')].map((node) => node.dataset['mapService']);
 const app = (root: ParentNode, name: string) => root.querySelector<HTMLElement>(`[data-map-app="${name}"]`)!;
+/** The app card's setup action (Connect, Manage or Repair) after its settings link; null when it has none. */
+const appAction = (root: ParentNode, name: string) => app(root, name).querySelector<HTMLAnchorElement>('.gw-setup-map__network-actions > a');
 const switchOf = (root: ParentNode) => root.querySelector<HTMLInputElement>('input[role="switch"]')!;
 const findButton = (root: ParentNode, name: string) => byText<HTMLButtonElement>(root, 'button', name)!;
+
+const selectedEndpoint = (root: ParentNode) => root.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')?.value ?? null;
+
+/** Leaves Overview and opens it again: a new page instance, as after navigating back to the home page. */
+async function reopen(fixture: ComponentFixture<OverviewPage>): Promise<{ fixture: ComponentFixture<OverviewPage>; el: HTMLElement }> {
+  fixture.destroy();
+  document.body.innerHTML = '';
+  return render();
+}
 
 async function selectEndpoint(fixture: ComponentFixture<unknown>, el: HTMLElement, slug: string): Promise<void> {
   const radio = [...el.querySelectorAll<HTMLInputElement>('input[name="overview-endpoint"]')].find((input) => input.value === slug)!;
@@ -254,24 +248,56 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
   return [...el.querySelectorAll<HTMLDialogElement>('dialog[open]')].find((dialog) => text(dialog).includes('Review service access')) ?? null;
 }
 
-beforeEach(() => setupPage());
+beforeEach(() => {
+  localStorage.clear();
+  setupPage();
+});
+
+describe('Overview last 30 days', () => {
+  it('sums up the month under the connection map, above the line about the last 24 hours', async () => {
+    const { el } = await render();
+    const month = el.querySelector('#ov-month')!;
+    expect(text(month.querySelector('#ov-month-title'))).toBe('Last 30 days');
+    expect([...month.querySelectorAll('.gw-stat__label')].map(text)).toEqual(['Calls', 'Denied by policy', 'Traffic in', 'Traffic out']);
+    expect(month.querySelectorAll('.gw-chart[role="img"]')).toHaveLength(2);
+    const order = [el.querySelector('#ov-detail')!, month, byText(el, 'p', '1,287 calls from your AI apps')!];
+    expect(order.every(Boolean)).toBe(true);
+    expect(order[0].compareDocumentPosition(order[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1].compareDocumentPosition(order[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 
 describe('Overview connection map', () => {
-  it.each([6, 5, 4])('filters and expands %i connections alongside assigned and unassigned MCP services', async (nativeCount) => {
+  it.each([6, 5, 4])('lists %i connections and the MCP services in one list, six at first, each with its settings', async (nativeCount) => {
     savedConnections = [
       ...Array.from({ length: nativeCount }, (_, index) => row(`database-${index}`, 'dev', ['dev'])),
       row('stage-database', 'stage', ['stage-readonly']),
       ...Array.from({ length: 5 }, (_, index) => healthyMcp(`docs-mcp-${index}`, index < 2 ? ['dev'] : [])),
     ];
     const { fixture, el } = await render();
-    expect(el.querySelectorAll('#ov-services [data-map-service]')).toHaveLength(4);
-    expect(el.querySelectorAll('#ov-mcp [data-map-service]')).toHaveLength(2);
-    expect(el.querySelector('#ov-mcp button[aria-label="Connect docs-mcp-4 to endpoint dev"]')).not.toBeNull();
+    const list = el.querySelector('#ov-services')!;
+    const onDev = [...Array.from({ length: nativeCount }, (_, index) => `database-${index}`), 'docs-mcp-0', 'docs-mcp-1'];
+    const installed = ['docs-mcp-2', 'docs-mcp-3', 'docs-mcp-4'];
+    expect(el.querySelector('#ov-mcp')).toBeNull();
+    expect(byText(el, 'button', 'Add an MCP service')).toBeNull();
+    expect(list.querySelectorAll(':scope > li')).toHaveLength(6);
+    expect(services(list)).toEqual(onDev.slice(0, 6));
 
-    if (nativeCount > 4) {
-      await showAll(fixture, el);
-      expect(el.querySelectorAll('#ov-services [data-map-service]')).toHaveLength(nativeCount);
+    await showAll(fixture, el);
+    expect(services(el)).toEqual(onDev);
+    expect([...list.querySelectorAll(':scope > li')].map((item) => text(item.querySelector('strong')))).toEqual([...onDev, ...installed]);
+    expect([...list.querySelectorAll('button[aria-label^="Connect "]')].map((button) => button.getAttribute('aria-label')))
+      .toEqual(installed.map((name) => `Connect ${name} to endpoint dev`));
+    for (const name of [...onDev, ...installed]) {
+      expect(href(list.querySelector(`a[aria-label="Open settings for ${name}"]`))).toBe(`/connections/${name}`);
     }
+    expect(text(service(el, 'docs-mcp-0'))).toContain('External MCP server');
+    expect(switchOf(service(el, 'docs-mcp-0')!)).not.toBeNull();
+    const card = list.querySelector('button[aria-label="Connect docs-mcp-4 to endpoint dev"]')!.closest('li')!;
+    expect(text(card)).toContain('Not connected to dev');
+    expect(card.querySelector('input[role="switch"]')).toBeNull();
+    expect(card.querySelector('[aria-pressed]')).toBeNull();
+
     await searchFor(fixture, el, 'docs-mcp-0');
     expect(services(el)).toEqual(['docs-mcp-0']);
     await searchFor(fixture, el, 'database-0');
@@ -322,6 +348,51 @@ describe('Overview connection map', () => {
     expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
   });
 
+  it('opens an AI app’s settings from its card, before its setup action, without selecting it', async () => {
+    TestBed.inject(Router).resetConfig([{ path: 'clients', children: [] }]);
+    const { fixture, el } = await render();
+    const codex = app(el, 'codex');
+    const settings = codex.querySelector<HTMLAnchorElement>('a[aria-label="Open settings for Codex"]')!;
+    expect(settings.classList).toContain('gw-setup-map__network-settings');
+    expect(href(settings)).toBe('/clients?endpoint=dev#cl-cx-t');
+    expect(settings.closest('button')).toBeNull();
+    expect(text(el.querySelector(`#${settings.getAttribute('aria-describedby')}`))).toBe('Open AI app settings');
+    expect(appAction(el, 'codex'), 'a connected app has no setup action').toBeNull();
+    const cursor = app(el, 'cursor').querySelector('.gw-setup-map__network-actions')!;
+    expect([...cursor.children].map((child) => (child.matches('.gw-tooltip') ? 'settings' : text(child)))).toEqual(['settings', 'Connect']);
+    settings.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/clients?endpoint=dev#cl-cx-t');
+    expect(codex.getAttribute('data-selected')).toBe('false');
+    expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
+  });
+
+  it('marks Claude Desktop while an extension needs a reinstall, on every endpoint, until the new bridge connects', async () => {
+    const extension = (bridgeUpdate: string | null): ClientsView => {
+      const inUse = clientsInUse();
+      return { ...inUse, clients: inUse.clients.map((c) => c.client === 'claude-desktop'
+        ? { ...c, links: c.links.map((l) => (l.endpoint === 'incident-prod' ? { ...l, bridgeVersion: '0.6.0', bridgeUpdate } : l)) }
+        : c) };
+    };
+    clientsAnswer = async () => extension('0.9.2');
+    const { fixture, el } = await render();
+    const badge = (name: string) => app(el, name).querySelector('.gw-setup-map__network-node .gw-badge--warning');
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(text(badge('claude-desktop')), 'the outdated extension is incident-prod’s').toBe('Needs reinstall');
+    expect(text(app(el, 'claude-desktop'))).toContain('Connected');
+    expect(appAction(el, 'claude-desktop'), 'the badge only, no extra action').toBeNull();
+    expect(badge('codex')).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    expect(text(badge('claude-desktop'))).toBe('Needs reinstall');
+
+    clientsAnswer = async () => extension(null);
+    events.emit('clients.drift', { link: 'cl_claude-desktop_incident-prod', client: 'claude-desktop', status: 'connected', bridgeUpdate: false });
+    await sleep(1_050);
+    await settle(fixture);
+    expect(badge('claude-desktop')).toBeNull();
+    expect(text(app(el, 'claude-desktop'))).toContain('Connected');
+  });
+
   it('toggles an endpoint from its card without selecting it or changing connections', async () => {
     const { fixture, el } = await render();
     const card = el.querySelector('[data-map-endpoint="stage-readonly"]')!.parentElement!;
@@ -333,6 +404,7 @@ describe('Overview connection map', () => {
     expect(calls).toContain('endpoint stage-readonly false');
     expect(calls.some((call) => call.startsWith('connection '))).toBe(false);
     expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBeNull();
     expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through dev');
     expect(text(card)).toContain('Access paused');
   });
@@ -366,20 +438,20 @@ describe('Overview connection map', () => {
     expect(text(service(el, 'dev-db')!.querySelector('.gw-env--dev'))).toBe('dev');
     expect(text(service(el, 'aws-stage')!.querySelector('.gw-env--stage'))).toBe('stage');
     expect(text(app(el, 'codex'))).toContain('Connected');
-    expect(app(el, 'codex').querySelector('a')).toBeNull();
+    expect(appAction(el, 'codex')).toBeNull();
 
     await selectEndpoint(fixture, el, 'incident-prod');
     expect(services(el)).toEqual(['prod-logs', 'prod-replica', 'prod-vm']);
     expect(text(service(el, 'prod-replica')!.querySelector('.gw-env--prod'))).toBe('prod');
     expect(text(app(el, 'codex'))).toContain('Not connected');
-    const connect = app(el, 'codex').querySelector('a')!;
+    const connect = appAction(el, 'codex')!;
     expect(href(connect)).toBe('/clients?endpoint=incident-prod&connect=codex#cl-cx-t');
     expect(connect.getAttribute('aria-label')).toBe('Connect Codex');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(app(el, 'claude-desktop'))).toContain('Connected');
     expect(app(el, 'antigravity')).toBeNull();
-    expect(href(app(el, 'vscode').querySelector('a'))).toBe('/clients?endpoint=incident-prod&connect=vscode#cl-vs-t');
-    expect(app(el, 'vscode').querySelector('a')!.hasAttribute('aria-disabled')).toBe(false);
+    expect(href(appAction(el, 'vscode'))).toBe('/clients?endpoint=incident-prod&connect=vscode#cl-vs-t');
+    expect(appAction(el, 'vscode')!.hasAttribute('aria-disabled')).toBe(false);
     expect(findButton(el, 'Add endpoint').getAttribute('aria-haspopup')).toBe('dialog');
 
     clientsAnswer = async () => ({ ...installedApps, clients: [...installedApps.clients, card('vscode', 'VS Code', 'not-installed')]
@@ -422,6 +494,7 @@ describe('Overview connection map', () => {
     expect(dialog.open).toBe(false);
     expect(text(el.querySelector('#ov-services-scope'))).toBe('0 services on new-dev');
     expect(el.querySelector<HTMLInputElement>('[data-map-endpoint="new-dev"] input')?.checked).toBe(true);
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('new-dev');
     expect(text(el.querySelector('h1'))).toBe('Overview');
     expect(router.url).toBe(url);
     expect(navigate).not.toHaveBeenCalled();
@@ -431,7 +504,7 @@ describe('Overview connection map', () => {
     const longName = 'orders-reporting-read-replica-for-international-finance-team';
     savedConnections.push({ ...row(longName, 'dev', ['dev']), typeName: 'Reporting database' });
     const { fixture, el } = await render();
-    expect(services(el)).toHaveLength(4);
+    expect(services(el)).toHaveLength(6);
     expect(service(el, longName)).toBeNull();
     const input = await searchFor(fixture, el, 'international-finance');
     expect(services(el)).toEqual([longName]);
@@ -444,7 +517,7 @@ describe('Overview connection map', () => {
     await settle(fixture);
     expect(input.value).toBe('');
     expect(document.activeElement).toBe(input);
-    expect(services(el)).toHaveLength(4);
+    expect(services(el)).toHaveLength(6);
     await showAll(fixture, el);
     expect(services(el)).toContain(longName);
     expect(services(el)).toHaveLength(9);
@@ -471,8 +544,11 @@ describe('Overview connection map', () => {
     expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
     await selectEndpoint(fixture, el, 'incident-prod');
     const empty = el.querySelector('#ov-services')!;
-    expect(text(empty)).toContain('No connectors on this endpoint');
+    expect(text(empty.querySelector('.gw-setup-map__network-empty'))).toContain('No services on this endpoint');
     expect(text(empty)).toContain('analyze a repository and prepare connections for review');
+    // An installed MCP server that no endpoint uses yet follows the empty state, ready to connect.
+    expect(text(empty.querySelector('li:last-child'))).toContain('Not connected to incident-prod');
+    expect(empty.querySelector('li:last-child button[aria-label="Connect github-mcp to endpoint incident-prod"]')).not.toBeNull();
     const importLink = byText<HTMLAnchorElement>(empty, 'a', 'Import with AI')!;
     expect(href(importLink)).toBe('/connection-import?endpoint=incident-prod');
     const before = [...calls];
@@ -509,24 +585,30 @@ describe('Overview connection map', () => {
     savedConnections.push(healthyMcp('issue-tracker-mcp', ['dev']));
     savedConnections.push(healthyMcp('docs-mcp', ['stage-readonly']));
     const { fixture, el } = await render();
+    await showAll(fixture, el);
     expect(text(service(el, 'issue-tracker-mcp')?.querySelector('.gw-status__label'))).toBe('Connected');
-    expect(text(el.querySelector('#ov-mcp .gw-card__description'))).toContain('dev');
-    const mcp = el.querySelector('#ov-mcp')!;
-    expect(text(mcp)).toContain('github-mcp');
-    expect(text(mcp)).toContain('Not connected to dev');
-    expect(text(mcp)).not.toContain('docs-mcp');
-    expect(mcp.querySelector('a[target="_blank"]')).toBeNull();
+    const list = el.querySelector('#ov-services')!;
+    const installed = () => list.querySelector('button[aria-label^="Connect github-mcp"]')?.closest('li') ?? null;
+    expect(service(el, 'github-mcp')).toBeNull();
+    expect(text(installed())).toContain('github-mcp');
+    expect(text(installed())).toContain('Not connected to dev');
+    expect(text(list)).not.toContain('docs-mcp');
+    expect(list.querySelector('a[target="_blank"]')).toBeNull();
     await searchFor(fixture, el, 'docs-mcp');
-    expect(text(mcp)).not.toContain('docs-mcp');
+    expect(text(list)).not.toContain('docs-mcp');
+    expect(text(list)).toContain('No matching connections');
+    await searchFor(fixture, el, 'github');
+    expect(text(installed())).toContain('github-mcp');
+    expect(text(list)).not.toContain('No matching connections');
     await searchFor(fixture, el, '');
     await selectEndpoint(fixture, el, 'stage-readonly');
     expect(text(service(el, 'docs-mcp')?.querySelector('.gw-status__label'))).toBe('Connected');
-    expect(text(mcp)).not.toContain('issue-tracker-mcp');
-    expect(text(mcp)).toContain('github-mcp');
-    expect(text(mcp)).toContain('Not connected to stage-readonly');
+    expect(text(list)).not.toContain('issue-tracker-mcp');
+    expect(text(installed())).toContain('Not connected to stage-readonly');
     await selectEndpoint(fixture, el, 'dev');
-    expect(text(mcp)).not.toContain('docs-mcp');
-    mcp.querySelector<HTMLButtonElement>('button[aria-label="Connect github-mcp to endpoint dev"]')!.click();
+    await showAll(fixture, el);
+    expect(text(list)).not.toContain('docs-mcp');
+    installed()!.querySelector<HTMLButtonElement>('button[aria-label="Connect github-mcp to endpoint dev"]')!.click();
     await settle(fixture);
     expect(text(openReview(el))).toContain('Connect github-mcp to dev');
     expect(text(openReview(el))).toContain('List issues');
@@ -534,103 +616,25 @@ describe('Overview connection map', () => {
     expect(calls.some((call) => call.startsWith('add '))).toBe(false);
   });
 
-  it('opens and cancels MCP setup on Overview while preserving endpoint, search and focus', async () => {
+  it('opens Add connection for the chosen endpoint from the services list’s Add service, without a dialog', async () => {
+    TestBed.inject(Router).resetConfig([{ path: 'connections/new', children: [] }]);
     const { fixture, el } = await render();
     await selectEndpoint(fixture, el, 'stage-readonly');
-    await searchFor(fixture, el, 'mcp');
-    const opener = findButton(el.querySelector('#ov-mcp')!, 'Add an MCP service');
-    const beforeUrl = TestBed.inject(Router).url;
-    opener.click();
+    findButton(el.querySelector('[aria-labelledby="ov-services-title"]')!, 'Add service').click();
     await settle(fixture);
-    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(dialog.open).toBe(true);
-    expect(el.querySelector('gw-mcp-setup-flow')).not.toBeNull();
-    findButton(dialog, 'Cancel').click();
-    await settle(fixture);
-    expect(dialog.open).toBe(false);
-    expect(TestBed.inject(Router).url).toBe(beforeUrl);
-    expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('stage-readonly');
-    expect(el.querySelector<HTMLInputElement>('#ov-service-search')!.value).toBe('mcp');
-    expect(document.activeElement).toBe(opener);
-    expect(calls.some((call) => call.startsWith('create mcp'))).toBe(false);
+    // Every kind of service is chosen there: connector types and MCP servers, by hand, from the catalog or a paste.
+    expect(el.querySelector('dialog[open]')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/connections/new?endpoint=stage-readonly');
+    expect(calls.some((call) => call.startsWith('add '))).toBe(false);
   });
 
-  it('opens the URL form locally and closes it back to the original Add service button', async () => {
-    const { fixture, el } = await render();
-    const opener = findButton(el.querySelector('.gw-page-header__actions')!, 'Add service');
-    opener.click();
-    await settle(fixture);
-    findButton(el.querySelector('dialog[open]')!, 'Connect an MCP service by URL').click();
-    await settle(fixture);
-    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    expect(dialog.open).toBe(true);
-    expect(dialog.querySelector<HTMLInputElement>('input[value="http"]')!.checked).toBe(true);
-    expect(el.querySelectorAll('dialog[open]')).toHaveLength(1);
-    findButton(dialog, 'Cancel').click();
-    await settle(fixture);
-    expect(document.activeElement).toBe(opener);
-    expect(TestBed.inject(Router).url).toBe('/');
-    expect(calls).not.toContain('review mcp');
-  });
-
-  it.each(['add', 'skip'])('keeps the complete reviewed MCP flow on Overview and refreshes the map: %s', async (finish) => {
-    const { fixture, el } = await render();
-    await selectEndpoint(fixture, el, 'stage-readonly');
-    const opener = findButton(el.querySelector('#ov-mcp')!, 'Add an MCP service');
-    opener.click();
-    await settle(fixture);
-    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
-    const command = add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!;
-    for (const [input, value] of [[name, 'sample-mcp'], [command, 'npx -y @example/mcp@1.0.0']] as const) {
-      input.value = value;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    findButton(add, 'Review and start').click();
-    await settle(fixture);
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    expect(review.open).toBe(true);
-    expect(calls).not.toContain('create mcp sample-mcp');
-    findButton(review, 'Back').click();
-    await settle(fixture);
-    expect(add.open).toBe(true);
-    expect(name.value).toBe('sample-mcp');
-    expect(command.value).toBe('npx -y @example/mcp@1.0.0');
-    findButton(add, 'Review and start').click();
-    await settle(fixture);
-    review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
-    await settle(fixture);
-    findButton(review, 'Start MCP server sample-mcp').click();
-    await settle(fixture);
-    expect(calls).toContain('create mcp sample-mcp');
-    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
-    expect(step.open).toBe(true);
-    const reads = calls.filter((call) => call === 'GET /api/connections').length;
-    findButton(step, finish === 'add' ? 'Add to endpoint' : 'Not now').click();
-    await settle(fixture);
-    expect(step.open).toBe(false);
-    expect(calls.filter((call) => call === 'GET /api/connections').length).toBeGreaterThan(reads);
-    expect(TestBed.inject(Router).url).toBe('/');
-    expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('stage-readonly');
-    expect(document.activeElement).toBe(opener);
-    expect(text(el.querySelector('#ov-mcp')).includes('sample-mcp')).toBe(finish === 'skip');
-    expect(calls.includes('add dev sample-mcp')).toBe(finish === 'add');
-    await selectEndpoint(fixture, el, 'dev');
-    expect(text(el.querySelector('#ov-mcp'))).toContain('sample-mcp');
-  });
-
-  it('opens the service chooser with new-service routes and existing services scoped to the endpoint', async () => {
+  it('opens Add connection for the selected endpoint from the header’s Add service', async () => {
+    TestBed.inject(Router).resetConfig([{ path: 'connections/new', children: [] }]);
     const { fixture, el } = await render();
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
-    const dialog = el.querySelector<HTMLDialogElement>('dialog[open]')!;
-    expect(text(dialog.querySelector('h2'))).toBe('Add a service');
-    expect(findButton(dialog, 'Connect an MCP service by URL')).toBe(document.activeElement);
-    expect(href(byText(dialog, 'a', 'Built-in connectors'))).toBe('/connections/new');
-    expect(href(byText(dialog, 'a', 'Connect existing services'))).toBe('/connections?notConnectedTo=dev');
-    expect(text(dialog)).not.toContain('Already in GateRook');
-    expect(text(dialog)).not.toContain('Browse services');
-    expect(calls.some((call) => call.startsWith('add '))).toBe(false);
+    expect(el.querySelector('dialog[open]')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/connections/new?endpoint=dev');
   });
 
   it('waits for the global switch write, restores filtered rows and carries the saved setting across endpoints', async () => {
@@ -704,7 +708,7 @@ describe('Overview connection map', () => {
     events.emit('approval.requested', { id: 'refresh' });
     await sleep(180);
     await settle(fixture);
-    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services ov-mcp"]')).toBeNull();
+    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services"]')).toBeNull();
     expect(services(el)).toContain('billing-api');
     expect(services(el)).toContain('app-logs');
     expect(text(service(el, 'billing-api'))).toContain('Endpoint off');
@@ -738,7 +742,7 @@ describe('Overview connection map', () => {
     await settle(fixture);
     expect((el.querySelector('input[name="overview-endpoint"]:checked') as HTMLInputElement).value).toBe('stage-readonly');
     expect(services(el)).toEqual(['aws-stage', 'billing-api', 'stage-db']);
-    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services ov-mcp"]')).toBeNull();
+    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services"]')).toBeNull();
   });
 
   it('shows the selected service path automatically and can replay, clear and restore it without sending a request', async () => {
@@ -798,6 +802,72 @@ describe('Overview connection map', () => {
     await settle(fixture);
     expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
     expect(text(el.querySelector('#ov-trace-reason'))).toContain('This app is not connected');
+  });
+});
+
+describe('Overview remembered endpoint', () => {
+  it('opens the endpoint chosen last, including one chosen from its problem badge', async () => {
+    let { fixture, el } = await render();
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+
+    ({ fixture, el } = await reopen(fixture));
+    expect(selectedEndpoint(el)).toBe('incident-prod');
+    expect(text(el.querySelector('#ov-services-scope'))).toMatch(/ services on incident-prod$/);
+    expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through incident-prod');
+
+    el.querySelector<HTMLButtonElement>('button[aria-label="Show 1 unreachable connections on dev"]')!.click();
+    await settle(fixture);
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('dev');
+    ({ el } = await reopen(fixture));
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services"]')).toBeNull();
+  });
+
+  it('lets an endpoint link take precedence without replacing the remembered endpoint', async () => {
+    localStorage.setItem(ENDPOINT_STORAGE_KEY, 'incident-prod');
+    await TestBed.inject(Router).navigateByUrl('/?endpoint=stage-readonly');
+    const { el } = await render();
+    expect(selectedEndpoint(el)).toBe('stage-readonly');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+  });
+
+  it('falls back to the first endpoint while the remembered one is missing and keeps it for later', async () => {
+    localStorage.setItem(ENDPOINT_STORAGE_KEY, 'incident-prod');
+    const removed = savedEndpoints;
+    savedEndpoints = removed.filter((endpoint) => endpoint.slug !== 'incident-prod');
+    let { fixture, el } = await render();
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+
+    savedEndpoints = removed;
+    ({ fixture, el } = await reopen(fixture));
+    expect(selectedEndpoint(el)).toBe('incident-prod');
+
+    savedEndpoints = removed.filter((endpoint) => endpoint.slug !== 'incident-prod');
+    events.emit('approval.requested', { id: 'refresh' });
+    await sleep(180);
+    await settle(fixture);
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+  });
+
+  it('still opens and switches endpoints when storage is blocked', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError'); });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError'); });
+    try {
+      const { fixture, el } = await render();
+      expect(selectedEndpoint(el)).toBe('dev');
+      await selectEndpoint(fixture, el, 'stage-readonly');
+      expect(selectedEndpoint(el)).toBe('stage-readonly');
+      expect(setItem).toHaveBeenCalledWith(ENDPOINT_STORAGE_KEY, 'stage-readonly');
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
   });
 });
 
@@ -863,8 +933,8 @@ describe('Overview availability', () => {
       expect(text(el)).toContain('Endpoints could not be loaded.');
       expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
       expect((el.querySelector('#ov-service-search') as HTMLInputElement).disabled).toBe(true);
-      expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
-      expect(text(el.querySelector('#ov-mcp'))).not.toContain('Not connected to an endpoint');
+      expect(appAction(el, 'codex')?.getAttribute('aria-disabled')).toBe('true');
+      expect(text(el.querySelector('#ov-services'))).not.toContain('Not connected to an endpoint');
       expect(el.querySelector('button[aria-label^="Connect github-mcp"]')).toBeNull();
     } else {
       expect(text(el)).toContain('AI app status is unavailable.');
@@ -885,21 +955,22 @@ describe('Overview availability', () => {
     expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import');
     expect(text(el.querySelector('#ov-services'))).toContain('analyze a repository and prepare connections for review');
     expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
-    expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
+    expect(appAction(el, 'codex')?.getAttribute('aria-disabled')).toBe('true');
+    // No endpoint yet: Add connection's first run creates one with the first service.
+    TestBed.inject(Router).resetConfig([{ path: 'connections/new', children: [] }]);
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
-    const picker = el.querySelector<HTMLDialogElement>('dialog[open]')!;
-    expect(href(byText(picker, 'a', 'Built-in connectors'))).toBe('/connections/new');
-    findButton(picker, 'Cancel').click();
+    expect(el.querySelector('dialog[open]')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/connections/new');
     savedEndpoints = [endpoint('empty')];
     clientsAnswer = async () => ({ ...clientsFound(), clients: clientsFound().clients.map((card) => ({ ...card, methods: [{ id: 'token', label: 'Token', prodAllowed: true, reason: null }] })) });
     events.emit('approval.requested', { id: 'refresh' });
     await sleep(180);
     await settle(fixture);
-    const connect = app(el, 'codex').querySelector('a')!;
+    const connect = appAction(el, 'codex')!;
     expect(href(connect)).toBe('/clients?endpoint=empty&connect=codex#cl-cx-t');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
-    expect(text(el)).toContain('No connectors on this endpoint');
+    expect(text(el)).toContain('No services on this endpoint');
     expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import?endpoint=empty');
   });
 });

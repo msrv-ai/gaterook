@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
 import { Diff } from './approvals.api';
 import { SecretInputs } from './connections.api';
-import { Iso, JsonObject, JsonValue, WithReason } from './types';
+import { Env, Iso, JsonObject, JsonValue, WithReason } from './types';
 
 /** The signed catalog (steps K4/K6): plugins, templates, MCP servers. Offline: the last good index. */
 export interface CatalogIndex {
@@ -40,10 +40,25 @@ export interface PluginCheckTool {
   readonly declared: JsonValue;
 }
 
-/** The report of a staged plugin before Install: signature, hash, what it asks for. */
+/** One connector type a connector module's package adds: its tools, and its connection form in words. */
+export interface ModuleCheckType {
+  readonly id: string;
+  readonly name: string;
+  readonly tools: PluginCheckTool[];
+  readonly configPreview: JsonValue;
+}
+
+/**
+ * The report of a staged package before Install: signature, hash, what it asks for. A file may be a plugin or a
+ * connector module (`module`): the same check reviews both and the same install installs what was checked.
+ */
 export interface PluginCheck {
   readonly stagingId: string;
   readonly report: {
+    /**
+     * A plugin: the catalog key signed this build. A connector module: GateRook's signed list of modules pins this
+     * very package, so it is GateRook's own; false for a module of the person's own.
+     */
     readonly signed: boolean;
     readonly sha256: string;
     /** Bytes of the JAR. */
@@ -65,12 +80,19 @@ export interface PluginCheck {
      * none ("Not sandboxed on this system", ARCHITECTURE §7.5); absent from a core before the K4 review.
      */
     readonly sandbox?: string | null;
+    /** The package is a connector module: `types` are the connector types it adds, `tools` those of all of them. */
+    readonly module?: boolean;
+    readonly types?: ModuleCheckType[] | null;
+    /** A module: the version of the module of that id installed now, which this package would replace; else null. */
+    readonly installedVersion?: string | null;
+    /** Whether that installed build is GateRook's (false: the person's own, from a file). */
+    readonly installedSigned?: boolean | null;
   };
 }
 
 /**
  * `GET /api/plugins/{id}/update-preview?to=`: the same checks as an install plus what changes in the manifest, as a
- * diff of hunks the kit's `gw-diff` draws (§7.5: side-by-side update, new tools start Off).
+ * diff of hunks the kit's `gw-diff` draws (§7.5: side-by-side update, new tools join in their default modes).
  */
 export interface PluginUpdatePreview {
   readonly id: string;
@@ -140,14 +162,17 @@ export class PluginsApi {
     return this.api.post('/api/plugins/check', source);
   }
 
-  /** A JAR from this computer, as multipart (`file`, ≤ 50 MB): the core stages and checks it before anything loads. */
+  /**
+   * A JAR from this computer, as multipart (`file`): a plugin (≤ 50 MB) or a connector module's package (≤ 150 MB).
+   * The core stages and checks it before anything loads.
+   */
   checkFile(file: File): Promise<PluginCheck> {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.api.post('/api/plugins/check', form);
   }
 
-  /** 422 for an unsigned plugin without `acknowledgeUnsigned`. */
+  /** Installs what was checked, a plugin or a connector module; 422 for an unsigned one without `acknowledgeUnsigned`. */
   install(stagingId: string, acknowledgeUnsigned = false, body: WithReason = {}): Promise<JsonObject> {
     return this.api.post('/api/plugins/install', { stagingId, acknowledgeUnsigned, ...body });
   }
@@ -189,6 +214,63 @@ export interface McpServerReview {
   readonly warnings?: string[];
   /** Over HTTP: how the server wants clients to sign in, from one request to it without a sign-in. */
   readonly auth?: McpServerAuthReview | null;
+  /** GateRook's verified profile of the vendor's server these settings name, with how its pins stand; else absent. */
+  readonly profile?: McpProfile | null;
+}
+
+/**
+ * GateRook's verified profile of a vendor's own MCP server (`GET /api/mcp-profiles`, ARCHITECTURE.md §7.5): its setup
+ * URL with the vendor's read-only switches and the person's `{placeholders}`, or its setup command, and the tools that
+ * start in Approval or Off whatever they declare. A profile only makes defaults stricter; it never makes a tool Read
+ * only.
+ */
+export interface McpProfile {
+  readonly id: string;
+  readonly name: string;
+  readonly publisher: string;
+  readonly category: string;
+  readonly description: string;
+  readonly documentation: string;
+  /** The vendor's own entry in the Official MCP Registry (`com.supabase/mcp`), or null. */
+  readonly registryName: string | null;
+  /** The day GateRook last checked the server's tools, sign-in and switches (`2026-11-11`). */
+  readonly checked: string;
+  readonly transport: 'http' | 'stdio';
+  readonly url: string | null;
+  /** Over HTTP: the headers with a fixed value the setup sends, its header switches among them. */
+  readonly headers: readonly McpFixedHeader[];
+  readonly command: readonly string[];
+  readonly placeholders: readonly McpProfilePlaceholder[];
+  readonly pins: readonly McpProfilePin[];
+  /** How it signs in, in one sentence. */
+  readonly signIn: string;
+  readonly notes: readonly string[];
+  readonly tools: readonly McpProfileTool[];
+}
+
+/** A switch the setup sets, a query parameter or a fixed header; `set` is how it stands in a review (null on a card). */
+export interface McpProfilePin {
+  readonly in: 'query' | 'header';
+  /** The query parameter (`read_only`) or header (`X-MCP-Readonly`). */
+  readonly name: string;
+  /** The value it sets (`true`), or null when it is the person's own (`project_ref`). */
+  readonly setTo: string | null;
+  readonly purpose: string;
+  readonly missing: string;
+  readonly set: boolean | null;
+}
+
+export interface McpProfilePlaceholder {
+  readonly name: string;
+  readonly description: string;
+}
+
+/** A tool the profile names, by the server's own name for it. */
+export interface McpProfileTool {
+  readonly tool: string;
+  readonly start: 'approval' | 'off';
+  readonly kind: 'code' | 'passthrough' | 'write' | 'delegating';
+  readonly reason: string;
 }
 
 /**
@@ -203,9 +285,11 @@ export interface McpServerAuthReview {
   readonly scope?: string | null;
   /**
    * `metadata-document`: the server reads GateRook's published client details, nothing is registered; `dynamic`:
-   * GateRook registers itself; `app`: the OAuth app the person named; `app-required`: they need one.
+   * GateRook registers itself; `gaterook-app`: GateRook's own app at a provider that admits only registered apps
+   * (GitHub), signed in with a one-time code the person enters on the provider's page; `app`: the OAuth app the person
+   * named; `app-required`: they need one.
    */
-  readonly registration?: 'metadata-document' | 'dynamic' | 'app' | 'app-required' | null;
+  readonly registration?: 'metadata-document' | 'dynamic' | 'gaterook-app' | 'app' | 'app-required' | null;
   /** The redirect URI to register for an OAuth app. */
   readonly redirectUri?: string | null;
   readonly message?: string | null;
@@ -216,6 +300,25 @@ export interface McpServerAuthReview {
   readonly cloud?: 'google' | 'aws' | null;
   /** Over an OAuth app: whether the provider takes it only with its client secret (Google does). */
   readonly secretRequired?: boolean | null;
+  /** Where a sign-in sends the client secret of the person's OAuth app; sent back with `issuer` when it signs in with one. */
+  readonly tokenEndpoint?: string | null;
+}
+
+/**
+ * The authorization server a review showed: a sign-in with the client secret of the person's OAuth app names it, and
+ * the core sends the secret to that one only.
+ */
+export interface McpAuthorizationServer {
+  readonly issuer: string;
+  readonly tokenEndpoint: string;
+}
+
+/** What starts a sign-in to the server under review. */
+export interface McpSignInSource {
+  readonly config: McpServerConfig;
+  readonly env?: Env;
+  readonly secrets?: SecretInputs;
+  readonly authorizationServer?: McpAuthorizationServer;
 }
 
 /**
@@ -268,6 +371,11 @@ export interface McpSignIn {
   readonly expiresAt?: string | null;
   readonly scope?: string | null;
   readonly message?: string | null;
+  /**
+   * A device sign-in's one-time code, while it waits: the person enters it on the page at `authorizationUrl`, and the
+   * browser doesn't come back to this computer.
+   */
+  readonly userCode?: string | null;
 }
 
 /** The sign-in of a stored server: GateRook renews it; `needs-sign-in` until the person signs in again. */
@@ -305,17 +413,25 @@ export interface McpServerConfig {
   readonly url?: string;
   readonly env?: McpSecretBinding[];
   readonly headers?: McpSecretBinding[];
+  /** Over HTTP: headers sent as written here, not secrets: a server's switch such as `X-MCP-Readonly: true`. */
+  readonly fixedHeaders?: McpFixedHeader[];
   /** Over HTTP: sign in with OAuth in the browser, or with the server's Google Cloud or AWS credentials. */
   readonly auth?: McpServerAuthConfig;
+}
+
+/** A header with a fixed value (`fixedHeaders`): never a credential, which belongs in a header from a secret. */
+export interface McpFixedHeader {
+  readonly name: string;
+  readonly text: string;
 }
 
 /**
  * A server typed in Add MCP server, or a signed catalog entry (`github-mcp@0.6.2`); `secrets` only to add it, and
  * `signIn` the finished sign-in of a server that signs in with OAuth.
  */
-export type McpServerSource =
+export type McpServerSource = { readonly env?: Env } & (
   | { readonly config: McpServerConfig; readonly secrets?: SecretInputs; readonly signIn?: string }
-  | { readonly catalog: string; readonly secrets?: SecretInputs };
+  | { readonly catalog: string; readonly secrets?: SecretInputs });
 
 /**
  * One page of the MCP registry's search (`GET /api/mcp-registry/servers`, §7.5): the latest version of each server
@@ -414,6 +530,11 @@ export class McpServersApi {
     return this.api.get('/api/mcp-registry/servers', { search, cursor });
   }
 
+  /** GateRook's verified profiles of vendors' own servers, for the Cloud platforms cards. */
+  profiles(): Promise<McpProfile[]> {
+    return this.api.get('/api/mcp-profiles');
+  }
+
   action(name: string, action: 'test' | 'start' | 'restart' | 'stop'): Promise<McpServerStarted> {
     return this.api.post(`${ApiClient.path`/api/mcp-servers/${name}`}/${action}`);
   }
@@ -428,7 +549,7 @@ export class McpServersApi {
   }
 
   /** Starts a sign-in to the server under review (its config with `auth.type: "oauth"`). */
-  startSignIn(source: { readonly config: McpServerConfig; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+  startSignIn(source: McpSignInSource): Promise<McpSignIn> {
     return this.api.post('/api/mcp-sign-ins', source);
   }
 
@@ -449,7 +570,7 @@ export class McpServersApi {
     return this.api.get(ApiClient.path`/api/mcp-servers/${name}/sign-in`);
   }
 
-  /** Signs in to a stored server again: the new tokens replace the old ones once the browser comes back. */
+  /** Signs in to a stored server again: the new tokens replace the old ones once the person allowed access. */
   signInAgain(name: string): Promise<McpSignIn> {
     return this.api.post(ApiClient.path`/api/mcp-servers/${name}/sign-in`);
   }

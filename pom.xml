@@ -17,7 +17,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>ai.msrv.gaterook</groupId>
+  <groupId>com.gaterook</groupId>
   <artifactId>mcp-gateway</artifactId>
   <version>${revision}</version>
   <packaging>pom</packaging>
@@ -31,6 +31,8 @@
     <module>connectors/support</module>
     <module>connectors/cloud-auth</module>
     <module>connectors/sql</module>
+    <module>connectors/sql-oracle</module>
+    <module>connectors/sql-sqlserver</module>
     <module>connectors/mongodb</module>
     <module>connectors/redis</module>
     <module>connectors/ssh</module>
@@ -38,6 +40,24 @@
     <module>connectors/kubernetes</module>
     <module>connectors/gcp</module>
     <module>connectors/aws</module>
+    <module>connectors/azure</module>
+    <module>connectors/dynamodb</module>
+    <module>connectors/s3</module>
+    <module>connectors/bigquery</module>
+    <module>connectors/spanner</module>
+    <module>connectors/firebase</module>
+    <module>connectors/snowflake</module>
+    <module>connectors/cloudflare</module>
+    <module>connectors/prometheus</module>
+    <module>connectors/influxdb</module>
+    <module>connectors/redshift</module>
+    <module>connectors/databricks</module>
+    <module>connectors/trino</module>
+    <module>connectors/athena</module>
+    <module>connectors/cosmosdb</module>
+    <module>connectors/neo4j</module>
+    <module>connectors/cassandra</module>
+    <module>connectors/search</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -45,26 +65,45 @@
     <module>plugin-host</module>
     <module>plugins/jira-service-desk</module>
     <module>plugins/test-fixtures</module>
-    <module>plugins/clickhouse</module>
     <module>plugins/rabbitmq</module>
+    <module>modules/cassandra</module>
+    <module>modules/neo4j</module>
+    <module>modules/sql-oracle</module>
+    <module>modules/sql-sqlserver</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>
 
   <properties>
     <!-- Application version: change this value for the next release. -->
-    <revision>0.9.2</revision>
+    <revision>2.0.0</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!--
+      Reproducible archives: every JAR of the reactor gets this time on its entries, so the same sources give the same
+      bytes. A connector module's package is made of reactor JARs, and its released SHA-256 must be what a rebuild gives
+      (docs/connector-delivery.md). A package that pins a time of its own keeps it.
+    -->
+    <project.build.outputTimestamp>2026-11-12T00:00:00Z</project.build.outputTimestamp>
 
-    <!-- The SPI is versioned on its own: plugins declare requires.connectorApi against it (ApiVersion.CURRENT). -->
-    <connector-api.version>1.0.0</connector-api.version>
+    <!--
+      The SPI is versioned on its own, and its artifact has the SPI's version (ApiVersion.CURRENT): plugins and
+      connector modules declare requires.connectorApi against it and compile against this artifact.
+    -->
+    <connector-api.version>2.0.0</connector-api.version>
 
     <!-- Overrides of versions the Spring Boot BOM manages (reports 05, 07, 09). -->
     <mongodb.version>5.13.0</mongodb.version>
+    <!-- The Neo4j connector's driver (docs/neo4j.md); Boot 4.1.2 manages 6.1.0 through neo4j-java-driver-bom. -->
+    <neo4j-java-driver.version>6.3.0</neo4j-java-driver.version>
     <jedis.version>8.0.2</jedis.version>
     <!-- Jedis 8.0.2 and google-auth 1.54.0 need gson 2.14.0; Boot 4.1.2 would pin 2.13.2. -->
     <gson.version>2.14.0</gson.version>
+    <!--
+      The Apache Cassandra Java driver of connectors/cassandra (docs/cassandra.md): Boot 4.1.2's own value, pinned here
+      so that the version the connector was tested with doesn't move with a Boot upgrade.
+    -->
+    <cassandra-driver.version>4.19.4</cassandra-driver.version>
 
     <!-- Versions the Spring Boot BOM does not manage. -->
     <spring-modulith.version>2.1.2</spring-modulith.version>
@@ -107,6 +146,15 @@
     -->
     <it.tag.mysql>mysql-it</it.tag.mysql>
     <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
+    <it.tag.cockroach>cockroach-it</it.tag.cockroach>
+    <it.tag.prometheus>prometheus-it</it.tag.prometheus>
+    <it.tag.influxdb>influxdb-it</it.tag.influxdb>
+    <it.tag.trino>trino-it</it.tag.trino>
+    <it.tag.cosmosdb>cosmosdb-it</it.tag.cosmosdb>
+    <it.tag.neo4j>neo4j-it</it.tag.neo4j>
+    <it.tag.cassandra>cassandra-it</it.tag.cassandra>
+    <it.tag.spanner>spanner-it</it.tag.spanner>
+    <it.tag.search>search-it</it.tag.search>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -120,99 +168,199 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.trino},${it.tag.prometheus},${it.tag.influxdb},${it.tag.cosmosdb},${it.tag.neo4j},${it.tag.cassandra},${it.tag.spanner},${it.tag.search},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
     <dependencies>
       <!-- ── Our own modules ───────────────────────────────────────────────────────────────────────────── -->
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connector-api</artifactId>
         <version>${connector-api.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>plugin-protocol</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>sshd-nofs</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-support</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-cloud-auth</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-sql</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-sql-oracle</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-sql-sqlserver</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-mongodb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-redis</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-ssh</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-logs</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-kubernetes</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-gcp</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-aws</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-azure</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-dynamodb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-s3</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-bigquery</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-spanner</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-firebase</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-trino</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-redshift</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-snowflake</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-cloudflare</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-prometheus</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-influxdb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-search</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-databricks</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-athena</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-cosmosdb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-neo4j</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
+        <artifactId>connectors-cassandra</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-http</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>connectors-mcp-server</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>core</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>bridge-cli</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>ai.msrv.gaterook</groupId>
+        <groupId>com.gaterook</groupId>
         <artifactId>plugin-host</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -283,6 +431,26 @@
         <version>${jsqlparser.version}</version>
       </dependency>
 
+      <!-- ── Connectors: Cassandra (docs/cassandra.md) ───────────────────────────────────────────────────── -->
+      <!--
+        The driver's optional extras stay out: JNR (native clock and PID; the driver falls back to Java's), Jackson 2
+        (banned, A9: the connector sends the driver's STARTUP options itself, without their JSON "baggage", and
+        leaves DSE Insights off), Dropwizard metrics and HdrHistogram (the connector configures NoopMetricsFactory).
+        Netty comes at the Boot BOM's version.
+      -->
+      <dependency>
+        <groupId>org.apache.cassandra</groupId>
+        <artifactId>java-driver-core</artifactId>
+        <version>${cassandra-driver.version}</version>
+        <exclusions>
+          <exclusion><groupId>com.github.jnr</groupId><artifactId>jnr-posix</artifactId></exclusion>
+          <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-core</artifactId></exclusion>
+          <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></exclusion>
+          <exclusion><groupId>io.dropwizard.metrics</groupId><artifactId>metrics-core</artifactId></exclusion>
+          <exclusion><groupId>org.hdrhistogram</groupId><artifactId>HdrHistogram</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+
       <!-- ── Connectors: Redis (report 05) ─────────────────────────────────────────────────────────────── -->
       <dependency>
         <groupId>redis.clients</groupId>
@@ -298,7 +466,7 @@
       </dependency>
 
       <!-- ── Connectors: SSH (reports 06, 15 §4) ───────────────────────────────────────────────────────── -->
-      <!-- Only third-party/sshd-nofs may depend on these; everybody else uses ai.msrv.gaterook:sshd-nofs. -->
+      <!-- Only third-party/sshd-nofs may depend on these; everybody else uses com.gaterook:sshd-nofs. -->
       <dependency>
         <groupId>org.apache.sshd</groupId>
         <artifactId>sshd-core</artifactId>
@@ -545,6 +713,8 @@
             <systemPropertyVariables>
               <gateway.it.services>${it.services}</gateway.it.services>
               <gateway.build.version>${revision}</gateway.build.version>
+              <!-- No test reads GateRook's published lists by itself: a core in a test JVM has no channel unless given one. -->
+              <gateway.lists>none</gateway.lists>
             </systemPropertyVariables>
           </configuration>
         </plugin>
@@ -557,6 +727,8 @@
             <systemPropertyVariables>
               <gateway.it.services>${it.services}</gateway.it.services>
               <gateway.build.version>${revision}</gateway.build.version>
+              <!-- No test reads GateRook's published lists by itself: a core in a test JVM has no channel unless given one. -->
+              <gateway.lists>none</gateway.lists>
             </systemPropertyVariables>
           </configuration>
         </plugin>
@@ -660,13 +832,13 @@
             </configuration>
           </execution>
           <execution>
-            <!-- sshd-common registers a FileSystemProvider that breaks the native build: use ai.msrv.gaterook:sshd-nofs. -->
+            <!-- sshd-common registers a FileSystemProvider that breaks the native build: use com.gaterook:sshd-nofs. -->
             <id>ban-sshd</id>
             <goals><goal>enforce</goal></goals>
             <configuration>
               <rules>
                 <bannedDependencies>
-                  <message>Use ai.msrv.gaterook:sshd-nofs instead of org.apache.sshd (ARCHITECTURE.md A23, report 15 §4).</message>
+                  <message>Use com.gaterook:sshd-nofs instead of org.apache.sshd (ARCHITECTURE.md A23, report 15 §4).</message>
                   <excludes>
                     <exclude>org.apache.sshd:sshd-core</exclude>
                     <exclude>org.apache.sshd:sshd-common</exclude>
@@ -706,6 +878,53 @@
     <profile>
       <id>sqlserver-it</id>
       <properties><it.tag.sqlserver>__enabled-sqlserver-it</it.tag.sqlserver></properties>
+    </profile>
+    <profile>
+      <id>cockroach-it</id>
+      <properties><it.tag.cockroach>__enabled-cockroach-it</it.tag.cockroach></properties>
+    </profile>
+    <profile>
+      <!-- Prometheus of the test services (scripts/test-services.sh up prometheus), with -Pservices. -->
+      <id>prometheus-it</id>
+      <properties><it.tag.prometheus>__enabled-prometheus-it</it.tag.prometheus></properties>
+    </profile>
+    <profile>
+      <!-- InfluxDB 3 Core and InfluxDB 2.9 of the Compose services: scripts/test-services.sh up influxdb. -->
+      <id>influxdb-it</id>
+      <properties><it.tag.influxdb>__enabled-influxdb-it</it.tag.influxdb></properties>
+    </profile>
+    <profile>
+      <!-- Trino 484 of the Compose services (profile trino): scripts/test-services.sh up trino, then -Pservices,trino-it. -->
+      <id>trino-it</id>
+      <properties><it.tag.trino>__enabled-trino-it</it.tag.trino></properties>
+    </profile>
+    <profile>
+      <!-- The Azure Cosmos DB Linux emulator vNext of the Compose services (scripts/test-services.sh up cosmosdb). -->
+      <id>cosmosdb-it</id>
+      <properties><it.tag.cosmosdb>__enabled-cosmosdb-it</it.tag.cosmosdb></properties>
+    </profile>
+    <profile>
+      <!-- Neo4j 5 Community of the neo4j Compose profile (scripts/test-services.sh up neo4j), with -Pservices. -->
+      <id>neo4j-it</id>
+      <properties><it.tag.neo4j>__enabled-neo4j-it</it.tag.neo4j></properties>
+    </profile>
+    <profile>
+      <!-- Apache Cassandra 5.0 of the Compose services (scripts/test-services.sh up cassandra), with -Pservices. -->
+      <id>cassandra-it</id>
+      <properties><it.tag.cassandra>__enabled-cassandra-it</it.tag.cassandra></properties>
+    </profile>
+    <profile>
+      <!-- Google's Spanner emulator of the Compose services (scripts/test-services.sh up spanner), with -Pservices. -->
+      <id>spanner-it</id>
+      <properties><it.tag.spanner>__enabled-spanner-it</it.tag.spanner></properties>
+    </profile>
+    <profile>
+      <!--
+        Qdrant, Milvus, Weaviate, Chroma, Pinecone Local, Meilisearch and Typesense of the search Compose profile
+        (scripts/test-services.sh up search), with -Pservices.
+      -->
+      <id>search-it</id>
+      <properties><it.tag.search>__enabled-search-it</it.tag.search></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

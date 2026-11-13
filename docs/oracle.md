@@ -6,11 +6,13 @@ The built-in **Oracle Database** connector uses JDBC Thin to connect to Oracle D
 
 ## Connect
 
-Choose **Oracle Database** in **Connections → Add connection**. Enter the listener host and port, the service name and the database user and password. For example, use `oracle.example.test`, port `1521` and service `orders.example.test`. The service name is stored in `connection.database`; one connection reaches one service. SID connections, TNS aliases and Oracle wallets are not supported.
+Choose **Oracle Database** in **Connections → Add connection**. Enter the listener host and port, the service name and the database user and password; the password is required, because Oracle refuses a sign-in without one. For example, use `oracle.example.test`, port `1521` and service `orders.example.test`. The service name is stored in `connection.database`; one connection reaches one service. SID connections, TNS aliases and Oracle wallets are not supported. The form offers `localhost` for the host when a listener answers on port 1521 of this computer, and once the user signs in, it offers the schemas with tables the user may read for **Default schema** and the schema allowlist.
 
 Under **Advanced**, select the transport that matches the listener. The default, **Verify the CA and host name**, uses TCPS and requires a TLS listener on the chosen port. **Verify the CA** also uses TCPS. Supply a private CA certificate in PEM format when needed; otherwise the driver uses the system trust store. **Off** uses unencrypted TCP.
 
 The default schema is the authenticated user's schema. Set **Default schema** to use another permitted schema. Unquoted Oracle identifiers use uppercase; double-quote case-sensitive names. Restrict accessible schemas with the connection's schema allowlist and the endpoint's SQL policy. When an external credential provider supplies the username, set an explicit default schema or qualify table names for schema introspection.
+
+**Test connection** reads what the user may do from Oracle's dictionary views, without write probes. Session privileges such as `CREATE SESSION` do not count as schema changes, and the grants Oracle gives `PUBLIC` on its own schemas do not count as writes, so a user with only `CREATE SESSION` and `SELECT` grants is reported as read-only.
 
 ## Bound reads and review database changes
 
@@ -19,6 +21,10 @@ The default schema is the authenticated user's schema. Set **Default schema** to
 `sql_execute` requires approval by default and follows the shared SQL policy. Oracle schema changes commit implicitly and cannot be rolled back; the approval preview identifies this behavior. Oracle plan estimates are unavailable because `EXPLAIN PLAN` writes to a plan table.
 
 Use a restricted database user and trusted schemas and views. The connector blocks explicit unknown function calls, procedural PL/SQL and database links. A read-only transaction does not prevent an Oracle autonomous routine from producing side effects, including when a view or an implicit function reference invokes it. Restrict database grants accordingly.
+
+## Delivery
+
+Oracle Database is a dialect of the SQL connector and its own unit of delivery: a [connector module](connector-delivery.md#connector-modules) that this release still compiles in ([the bridge](connector-delivery.md#the-bridge-between-two-releases)). The release after downloads it when a connection needs it, about 17 MB, and runs it in a separate Java process. For a person who has an Oracle Database connection, this release installs the module ahead.
 
 ## Integration tests
 
@@ -30,11 +36,18 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
   -Dit.test=OracleIT -Dfailsafe.failIfNoSpecifiedTests=false
 ```
 
+The module is tested through an assembled core against the same service. `OracleBridgeCoreProcessIT` checks that this release installs it ahead and goes on serving Oracle itself. `OracleModuleCoreProcessIT` runs the module in a core that doesn't compile Oracle in, which is built with `-Dgateway.withoutBridge`:
+
+```bash
+scripts/test-services.sh run mvn -B -ntp -pl app,modules/sql-oracle -am verify -Pservices -Dgateway.withoutBridge \
+  -Dit.test=OracleModuleCoreProcessIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
 `OracleIT` reads the shared `test-services/.env` with `-Pservices` or `GW_TEST_SERVICES`. It also runs when
 `GW_ORACLE_HOST` is set explicitly; that selects the external settings below instead of the Compose settings.
 See [connector test services](../test-services/README.md) for ports, credentials, profiles and cleanup.
 
-For an external fixture, use a disposable Oracle service and a separate test user with `CREATE SESSION`, `CREATE TABLE` and a small quota on its default tablespace. The tests create and remove `GW_ORACLE_IT_CUSTOMERS`, `GW_ORACLE_IT_ORDERS` and `"GateRook mixed table"` in that user's schema. They use TCP without TLS and must not run against production data.
+For an external fixture, use a disposable Oracle service and a separate test user with `CREATE SESSION`, `CREATE TABLE` and a small quota on its default tablespace. The tests create and remove `GW_ORACLE_IT_CUSTOMERS`, `GW_ORACLE_IT_ORDERS` and `"GateRook mixed table"` in that user's schema. They use TCP without TLS and must not run against production data. With the Compose service, the suite also creates and removes the `GW_ORACLE_IT_READER` user through `SYSTEM` to check that a reader is reported as read-only; an external fixture skips that test.
 
 From the repository root, with the normal Java toolchain configured:
 

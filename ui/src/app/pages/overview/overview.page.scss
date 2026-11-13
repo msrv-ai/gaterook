@@ -1,8 +1,0 @@
-.gw-setup-map__network-native > .gw-setup-map__network-grid {
-  grid-auto-rows: 1fr;
-
-  // Stretch each card through its list item to fill the shared row height.
-  > li {
-    display: grid;
-  }
-}

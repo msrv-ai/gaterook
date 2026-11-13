@@ -129,6 +129,20 @@ function lock(text: string): ModeNote {
   return { icon: 'lock', text, locked: false, readOnlyDisabled: true, needsConfirmation: false };
 }
 
+/**
+ * How many of `tools` "Set all to…" `mode` lets run without a person that don't now: Bypass on a tool that isn't in
+ * Bypass; for a server's tools (`external`: their read-only declaration is the server's, not verified) Read only, or
+ * Restore defaults, on a tool declared read only that may take it without a confirmation of its own. A tool that
+ * changes data never takes Read only.
+ */
+export function unattended(tools: readonly ToolRow[], mode: ToolMode | 'DEFAULT', external: boolean): number {
+  if (mode === 'BYPASS') return tools.filter((t) => t.mode !== 'BYPASS').length;
+  if ((mode === 'READ_ONLY' || mode === 'DEFAULT') && external) {
+    return tools.filter((t) => t.mode !== 'READ_ONLY' && !!t.declaredBy && t.annotations.readOnlyHint && !t.annotations.destructiveHint && (t.readOnlyAllowed || t.readOnlyConfirmed)).length;
+  }
+  return 0;
+}
+
 /** The hints of "Set all to…": what each choice does to this group, and what stays as it is. */
 export function bulkHints(
   connection: string,
@@ -173,6 +187,7 @@ export function limitFields(type: string | null): LimitField[] {
     case 'mysql':
     case 'oracle':
     case 'sqlserver':
+    case 'sqlite':
       return [field('rowLimit', 'Row limit', 'rows', 'sql'), field('statementTimeoutMs', 'Timeout', 's', 'sql', 1000), field('maxResponseKb', 'Max response size', 'KB', 'sql')];
     case 'ssh':
       return [field('commandTimeoutSeconds', 'Timeout', 's', 'ssh'), field('maxOutputKb', 'Max output size', 'KB', 'ssh')];
@@ -181,6 +196,7 @@ export function limitFields(type: string | null): LimitField[] {
     case 'logs':
     case 'gcp-logging':
     case 'cloudwatch':
+    case 'azure-monitor':
     case 'loki':
       return [field('logLines', 'Line limit', 'lines', 'limits'), field('toolTimeoutSeconds', 'Timeout', 's', 'limits'), field('maxResponseKb', 'Max response size', 'KB', 'limits')];
     case 'http':
@@ -190,11 +206,22 @@ export function limitFields(type: string | null): LimitField[] {
   }
 }
 
-/** The value the environment policy gives a field (shown in the field's unit), or null when unknown. */
+/**
+ * The value the environment policy gives a field (shown in the field's unit), or null when unknown. A connector
+ * section only narrows the Limits value of the same key, as the core applies them: the response size of an SQL
+ * tool, and the response size and timeout of an HTTP tool, are the stricter of their section's value and Limits'.
+ */
 export function inherited(f: LimitField, sections: JsonObject | null | undefined): number | null {
-  const section = sections?.[f.section];
-  const v = section && typeof section === 'object' && !Array.isArray(section) ? (section as JsonObject)[f.key] : undefined;
-  return typeof v === 'number' ? v / f.scale : null;
+  const own = numberIn(sections, f.section, f.key);
+  const limits = f.section === 'limits' ? null : numberIn(sections, 'limits', f.key);
+  const v = own === null ? limits : limits === null ? own : Math.min(own, limits);
+  return v === null ? null : v / f.scale;
+}
+
+function numberIn(sections: JsonObject | null | undefined, name: string, key: string): number | null {
+  const section = sections?.[name];
+  const v = section && typeof section === 'object' && !Array.isArray(section) ? (section as JsonObject)[key] : undefined;
+  return typeof v === 'number' ? v : null;
 }
 
 /** The pair's own value for a field (in the field's unit), or null when it inherits. */

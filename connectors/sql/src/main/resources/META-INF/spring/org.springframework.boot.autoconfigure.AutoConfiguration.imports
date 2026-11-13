@@ -1,1 +1,1 @@
-ai.msrv.gaterook.connectors.sql.boot.SqlConnectorsAutoConfiguration
+com.gaterook.connectors.sql.boot.SqlConnectorsAutoConfiguration

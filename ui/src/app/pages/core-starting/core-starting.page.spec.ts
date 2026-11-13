@@ -252,19 +252,26 @@ describe('starting', () => {
       'Native core, completed Native image · 0.1 s',
       'Master key, completed Loaded ~/.gaterook/master.keyset',
       'Database migrations, completed Up to date · 0.4 s',
-      'Local API, in progress Binding 127.0.0.1:7465',
+      'Local API, in progress',
     ]);
     expect(steps[3].getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('[role=status]'))).toBe('Starting the gateway core: local api, step 4 of 4.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · core on 127.0.0.1:7465 · log ~/.gaterook/logs/core.log');
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · log ~/.gaterook/logs/core.log');
   });
 
-  it('keeps the startup summary free of connection details while showing the active port in diagnostics', async () => {
+  it('keeps the startup screen free of connection details: no address in the steps, only version and log file below', async () => {
     const page = await render();
-    await emit({ kind: 'starting', steps: [], port: 7475, publicPort: 7466 });
-    expect(text(page.querySelector('.gw-status-screen__text p'))).not.toMatch(/127\.0\.0\.1|7475/);
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toContain('core on 127.0.0.1:7475');
+    await emit({ kind: 'starting', steps: [], port: 7475, publicPort: 7466, version: '0.4.0' });
+    expect(text(page.querySelector('.gw-status-screen__card'))).not.toMatch(/127\.0\.0\.1|7475/);
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · log ~/.gaterook/logs/core.log');
     expect(text(page.querySelector('.gw-stepper__step[data-state=current]'))).toContain('Native core');
+
+    // The local API binding, then listening: the step says so without the address.
+    await emit({ kind: 'starting', steps: [{ step: 'local-api', state: 'running' }], port: 7475, publicPort: 7466, version: '0.4.0' });
+    expect(text(page.querySelector('.gw-stepper__step[data-state=current]'))).toBe('Local API, in progress');
+    await emit({ kind: 'starting', steps: [{ step: 'local-api', state: 'done' }], port: 7475, publicPort: 7466, version: '0.4.0' });
+    expect(text(page.querySelectorAll('.gw-stepper__step')[3])).toBe('Local API, completed Listening');
+    expect(text(page.querySelector('.gw-status-screen__card'))).not.toMatch(/127\.0\.0\.1|7475/);
   });
 });
 
@@ -423,7 +430,7 @@ describe('port in use', () => {
     expect(failed.getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('.gw-code-block'))).toContain('lsof -nP -iTCP:7465 -sTCP:LISTEN');
     expect(text(page.querySelector('[role=alert]'))).toBe('The core failed to start: port 7465 is already in use.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`GateRook 0.4.0 · core on 127.0.0.1:7465 · log ${LOG}`);
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`GateRook 0.4.0 · log ${LOG}`);
     button('Quit')!.click();
     expect(desktop.calls).toEqual(['quit']);
   });
@@ -539,7 +546,8 @@ describe('port in use', () => {
     expect(document.activeElement).toBe(opener);
     await emit({ kind: 'starting', steps: [], port: 7481, publicPort: 7466, version: '0.4.0' });
     expect(text(page.querySelector('h1'))).toBe('Starting the gateway core');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toContain('core on 127.0.0.1:7481');
+    expect(TestBed.inject(CoreStore).address()).toBe('127.0.0.1:7481');
+    expect(text(page.querySelector('.gw-status-screen__meta'))).not.toContain('7481');
   });
 
   it('a new state closes the dialog: the port it was about is no longer the question', async () => {
@@ -604,7 +612,7 @@ describe('locked: master key not found', () => {
     expect(text(steps[1])).toBe(`Master key, failed No file at ${KEY}`);
     expect(steps[1].getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('.gw-alert--danger .gw-alert__body'))).toBe('The 8 secrets encrypted here become unreadable, and you enter each one again.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`GateRook 0.4.0 · core on 127.0.0.1:7465 · log ${LOG}`);
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`GateRook 0.4.0 · log ${LOG}`);
   });
 
   it("says whose the secrets are and which references keep working when the core tells (step API)", async () => {

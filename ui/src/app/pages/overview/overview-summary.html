@@ -1,0 +1,127 @@
+<!-- One chart card: static bars by day (role="img" with the conclusion in words) and its numbers in a table for a screen reader. -->
+<ng-template #chartCard let-ch let-id="id" let-title="title" let-caption="caption" let-gutter="gutter">
+  <section class="gw-card" [attr.aria-labelledby]="id">
+    <header class="gw-card__header">
+      <div class="gw-card__heading">
+        <h3 class="gw-card__title" [id]="id">{{ title }}</h3>
+        <p class="gw-card__description">{{ ch.description }}</p>
+      </div>
+    </header>
+    <div class="gw-card__body gw-stack">
+      <div class="gw-chart" role="img" [attr.aria-label]="ch.aria" [style.--gw-chart-gutter]="gutter">
+        <div class="gw-chart__plot">
+          @for (g of ch.gridlines; track g.v) {
+            <span class="gw-chart__gridline" [style.--v]="g.v"><span class="gw-chart__label">{{ g.label }}</span></span>
+          }
+          @for (b of ch.bars; track b.date) {
+            <span class="gw-chart__bar" [attr.title]="b.title">@for (s of b.segments; track s.key) {<span [class]="'gw-chart__segment gw-chart__segment--' + s.key" [style.--v]="s.v"></span>}</span>
+          }
+        </div>
+        <div class="gw-chart__axis">
+          @for (a of ch.axis; track a.v) {
+            <span class="gw-chart__label" [style.--v]="a.v">{{ a.label }}</span>
+          }
+        </div>
+      </div>
+      <ul class="gw-legend" [attr.aria-label]="title + ', last 30 days'">
+        @for (l of ch.legend; track l.key) {
+          <li class="gw-legend__item"><span [class]="'gw-legend__swatch gw-legend__swatch--' + l.key"></span>{{ l.label }} <span class="gw-legend__value">{{ l.value }}</span></li>
+        }
+      </ul>
+      <div class="gw-sr-only">
+        <table>
+          <caption>{{ caption }}</caption>
+          <thead>
+            <tr><th scope="col">Day</th>@for (c of ch.columns; track c) {<th scope="col">{{ c }}</th>}</tr>
+          </thead>
+          <tbody>
+            @for (r of ch.rows; track $index) {
+              <tr><th scope="row">{{ r.label }}</th>@for (cell of r.cells; track $index) {<td>{{ cell }}</td>}</tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</ng-template>
+
+@if (!unavailable()) {
+  <section class="gw-section" id="ov-month" aria-labelledby="ov-month-title" [attr.aria-busy]="loading() ? 'true' : null">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="ov-month-title">Last 30 days</h2>
+      <p class="gw-section__description">Calls from your AI apps and the traffic through GateRook, day by day.</p>
+      <div class="gw-section__actions">
+        <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/insights" [queryParams]="{ range: '30d' }">Open Insights<span class="gw-sr-only"> for the last 30 days</span><svg lucideIcon="arrow-up-right" class="gw-icon gw-icon--sm"></svg></a>
+      </div>
+    </header>
+
+    @if (summary(); as s) {
+      @if (error(); as e) {
+        <!-- A later read failed: the numbers below are the last ones that loaded. -->
+        <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">These numbers may be out of date.</p>
+            <p class="gw-alert__body">{{ errorText(e) }}</p>
+          </div>
+          <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-disabled]="loading() ? 'true' : null">Try again</button></div>
+        </div>
+      }
+      @switch (state()) {
+        @case ('first-run') {
+          <div class="gw-card" id="ov-month-empty">
+            <div class="gw-empty gw-empty--compact">
+              <span class="gw-empty__icon"><svg lucideIcon="chart-column" class="gw-icon"></svg></span>
+              <p class="gw-empty__title">No calls yet</p>
+              <p class="gw-empty__text">When your AI apps call tools through GateRook, their calls and traffic show here by day.</p>
+            </div>
+          </div>
+        }
+        @case ('quiet') {
+          <div class="gw-card" id="ov-month-empty">
+            <div class="gw-empty gw-empty--compact">
+              <span class="gw-empty__icon"><svg lucideIcon="chart-column" class="gw-icon"></svg></span>
+              <p class="gw-empty__title">No calls in the last 30 days</p>
+              <p class="gw-empty__text">Older calls are still in <a class="gw-link" routerLink="/activity">Activity</a>.</p>
+            </div>
+          </div>
+        }
+        @default {
+          <dl class="gw-grid gw-grid--4" id="ov-month-stats">
+            @for (tile of tiles(); track tile.id) {
+              <div class="gw-stat" [attr.data-stat]="tile.id">
+                <dt class="gw-stat__label">{{ tile.label }}</dt>
+                <dd class="gw-stat__value">{{ tile.value }}@if (tile.unit) { <span class="gw-stat__unit">{{ tile.unit }}</span>}</dd>
+                <dd class="gw-stat__meta">{{ tile.meta }}</dd>
+              </div>
+            }
+          </dl>
+          <div class="gw-grid gw-grid--2">
+            @if (calls(); as ch) {
+              <ng-container [ngTemplateOutlet]="chartCard" [ngTemplateOutletContext]="{ $implicit: ch, id: 'ov-month-calls', title: 'Calls per day', caption: 'Calls per day by decision, last 30 days', gutter: null }" />
+            }
+            @if (traffic(); as ch) {
+              <ng-container [ngTemplateOutlet]="chartCard" [ngTemplateOutletContext]="{ $implicit: ch, id: 'ov-month-traffic', title: 'Traffic per day', caption: 'Traffic in and out per day, last 30 days', gutter: 'var(--gw-space-12)' }" />
+            }
+          </div>
+        }
+      }
+    } @else if (error(); as e) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The last 30 days didn't load</p>
+          <p class="gw-alert__body">{{ errorText(e) }}</p>
+        </div>
+        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-disabled]="loading() ? 'true' : null">Try again</button></div>
+      </div>
+    } @else if (slow()) {
+      <div class="gw-card" aria-hidden="true">
+        <div class="gw-card__body gw-stack">
+          <span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--text"></span>
+        </div>
+      </div>
+      <p class="gw-sr-only" role="status">Loading the last 30 days</p>
+    }
+  </section>
+}

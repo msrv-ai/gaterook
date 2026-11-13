@@ -12,6 +12,7 @@ const OWNED_ENTRIES = new Set(['gateway.db', 'gateway.db-wal', 'gateway.db-shm',
   'cache', 'connectors', 'clients', 'bin', 'mcp', 'connection-imports', 'demo-user-home', 'electron']);
 function ownedEntry(name: string): boolean {
   return OWNED_ENTRIES.has(name) || /^master\.keyset\.replaced-\d+$/.test(name)
+    || /^master\.keyset\.osk\.unreadable-\d+$/.test(name)
     || /^\.master\.keyset\.tmp-\d+$/.test(name)
     || /^(desktop\.json|master\.keyset\.osk|\.reset-pending)\.\d+\.[a-f0-9]{12}\.tmp$/.test(name);
 }

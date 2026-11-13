@@ -1,7 +1,7 @@
 import { DOCUMENT, Injector, Signal, WritableSignal, afterNextRender, computed, inject, signal, untracked } from '@angular/core';
 import { FieldTree, SchemaPath, SchemaPathTree, form, hidden, required, validate } from '@angular/forms/signals';
 import { ApiError } from '../core/api/api-error';
-import { SecretInputs, StoredSecret } from '../core/api/connections.api';
+import { SecretInputs, StoredSecret, SuggestedField, SuggestedOption } from '../core/api/connections.api';
 import { JsonObject, JsonValue } from '../core/api/types';
 import {
   CompiledForm,
@@ -16,6 +16,7 @@ import {
   inUse,
   initialValue,
   isForbidden,
+  isRequired,
   isVisible,
   sameJson,
   setAt,
@@ -28,7 +29,7 @@ import { REFERENCE_SCHEMES, isTargetKey, referenceKind, secretSourceId } from '.
  * spec's `secretSources` (several Vaults: one each, named).
  */
 export interface StoreOption {
-  /** `vault`, `gcp-sm`, `aws-sm`. */
+  /** `vault`, `gcp-sm`, `aws-sm`, `azure-kv`. */
   readonly kind: string;
   /** The store's name, which the reference is bound to; `null` for a store the core picks itself. */
   readonly store: string | null;
@@ -71,6 +72,11 @@ export interface SchemaFormOptions {
   readonly env?: string | null;
   /** The connection's metadata the core found (`x-options-from: metadata.kubeconfigContexts`), if any. */
   readonly metadata?: JsonObject | null;
+  /**
+   * Whether `current` is a saved config (edit, duplicate) rather than a new connection's starting values (a preset):
+   * suggestions then fill in empty fields only, never a default. By default, whenever `current` is given.
+   */
+  readonly saved?: boolean;
   readonly injector?: Injector;
 }
 
@@ -157,6 +163,8 @@ export class SchemaForm {
   private readonly initial: JsonObject;
   /** The values came from a stored config (edit, duplicate): an env change only tightens them. */
   private readonly fromStored: boolean;
+  /** The values are a saved connection's: suggestions fill in empty fields only. */
+  private readonly saved: boolean;
   private readonly listeners = new Set<(action: SecretAction) => void>();
   private readonly jsonErrors = signal<Readonly<Record<string, string>>>({});
   private readonly serverErrors = signal<readonly ServerError[]>([]);
@@ -184,6 +192,7 @@ export class SchemaForm {
     this.envState.set(env);
     this.metadata.set(options.metadata ?? null);
     this.fromStored = !!options.current;
+    this.saved = options.saved ?? !!options.current;
     // A new config starts with the env's defaults (TLS on for prod); a stored one keeps its values.
     this.model = signal(this.blankText(initialValue(schema, options.current ?? null, options.current ? null : env)));
     this.initial = this.model();
@@ -231,7 +240,18 @@ export class SchemaForm {
    * of a sign-in that has a client ID; nothing while Sign-in is left empty).
    */
   needed(node: SchemaNode): boolean {
-    return node.required && node.within.every((path) => inUse(this.compiled, path, this.model(), this.filled()));
+    return (isRequired(node, this.model()) || node.requiredEnv.includes(this.env()))
+      && node.within.every((path) => inUse(this.compiled, path, this.model(), this.filled()));
+  }
+
+  /**
+   * "Optional" after the label: nothing is filled in for the person and the field isn't required right now. Not
+   * inside a collapsed section such as Advanced settings, where every field is.
+   */
+  optionalNow(node: SchemaNode): boolean {
+    return node.optional && !this.needed(node)
+      && !this.displaySections().some((section) => section.collapsed && containsNode(section, node))
+      && !this.compiled.all.some((section) => section.kind === 'object' && section.collapsed && containsNode(section, node));
   }
 
   loginUsername(node: SchemaNode): boolean {
@@ -251,7 +271,7 @@ export class SchemaForm {
    */
   textReferable(node: SchemaNode): boolean {
     return node.kind === 'text' && !node.unit && !node.optionsFrom && !isTargetKey(node.key)
-      && node.schema['x-file-picker'] === undefined;
+      && node.schema['x-file-picker'] === undefined && node.schema['x-local-path'] !== true;
   }
 
   /**
@@ -262,6 +282,8 @@ export class SchemaForm {
     if (node.kind === 'secret') return true;
     if (!this.textReferable(node)) return false;
     const parent = node.path.slice(0, -1);
+    // A flat schema keeps everything at its root: only the identity of a sign-in gets the menu there, not a namespace.
+    if (!parent.length && !IDENTITY_KEY.test(node.key)) return false;
     return this.compiled.all.some((n) => n.kind === 'secret' && n.path.length === node.path.length
       && parent.every((part, i) => part === n.path[i]));
   }
@@ -405,7 +427,11 @@ export class SchemaForm {
         const before = defaultOn(node, prev);
         const after = defaultOn(node, next);
         const now = getAt(model, node.path);
-        if (sameJson(before, after) || !(sameJson(now, before) || (now === '' && before === null))) continue;
+        // A stored value that was the default before the schema changed it (x-previous-default) is a default too.
+        const previous = node.schema['x-previous-default'];
+        const untouched = sameJson(now, before) || (now === '' && before === null)
+          || (this.fromStored && previous !== undefined && sameJson(now, previous));
+        if (sameJson(before, after) || !untouched) continue;
         if (this.fromStored && node.envDefault[next] === undefined) continue;
         model = setAt(model, node.path, after);
       }
@@ -444,6 +470,13 @@ export class SchemaForm {
   optionsOf(node: SchemaNode): readonly FieldOption[] {
     if (!node.optionsFrom) return node.options;
     const options = metadataOptions(getAt(this.metadata(), node.optionsFrom));
+    // What the helpers found now (a kubeconfig's contexts) comes before what the last test recorded.
+    const found = this.suggestions()[node.pointer]?.options ?? [];
+    for (const o of [...found].reverse()) {
+      const at = options.findIndex((x) => x.value === o.value);
+      if (at >= 0) options.splice(at, 1);
+      options.unshift({ value: o.value, title: o.label ?? o.value, description: o.detail });
+    }
     const current = getAt(this.model(), node.path);
     if (typeof current === 'string' && current && !options.some((o) => o.value === current)) {
       options.push({ value: current, title: current, description: null });
@@ -668,6 +701,186 @@ export class SchemaForm {
     });
   }
 
+  // ─── Suggestions ───
+
+  /**
+   * Sections the page shows that the schema doesn't have as such (the collapsed Advanced settings that gather optional
+   * fields): Save opens one that holds an error, as it opens a schema's own collapsed section.
+   */
+  readonly displaySections = signal<readonly SchemaNode[]>([]);
+
+  /** What the setup helpers found, by field pointer (`/context`): offered under the field, its value filled in. */
+  readonly suggestions = signal<Readonly<Record<string, SuggestedField>>>({});
+  /**
+   * The values suggestions filled in and where they came from, by pointer: such a field follows new suggestions until
+   * the person changes it, and its hint names the source even after a newer answer no longer mentions it.
+   */
+  readonly autoFilled = signal<Readonly<Record<string, { readonly value: JsonValue; readonly source: string | null }>>>({});
+
+  /** The helpers' latest findings; values are filled in at once ({@link prefill}). */
+  setSuggestions(fields: Readonly<Record<string, SuggestedField>>): void {
+    this.suggestions.set(fields);
+    untracked(() => this.prefill());
+  }
+
+  suggestionFor(node: SchemaNode): SuggestedField | null {
+    return this.suggestions()[node.pointer] ?? null;
+  }
+
+  /**
+   * The options worth offering under a field: those that aren't its value already (a list's items it already has),
+   * and for a choice only those it can take.
+   */
+  offered(node: SchemaNode): readonly SuggestedOption[] {
+    const s = this.suggestionFor(node);
+    if (!s) return [];
+    const v = getAt(this.model(), node.path);
+    const taken = Array.isArray(v) ? v.map(String) : v === null || v === '' ? [] : [String(v)];
+    const allowed = node.kind === 'select' && !node.optionsFrom ? new Set(this.optionsOf(node).map((o) => String(o.value))) : null;
+    return s.options.filter((o) => !taken.includes(o.value) && (!allowed || allowed.has(o.value))
+      && this.typedSuggestion(node, o.value) !== null);
+  }
+
+  /** Whether the person changed anything since the form opened: a value, or a secret typed. */
+  readonly changed = computed(() => !sameJson(this.model(), this.initial)
+    || Object.values(this.secrets()).some((typed) => typed.trim() !== ''));
+
+  /** Whether the field holds what a suggestion filled in (its hint says so). */
+  wasFilled(node: SchemaNode): boolean {
+    const filled = this.autoFilled()[node.pointer];
+    return filled !== undefined && sameJson(filled.value, getAt(this.model(), node.path));
+  }
+
+  /** Where the value a suggestion filled in came from ("~/.kube/config"), while the field still holds it. */
+  filledFrom(node: SchemaNode): string | null {
+    return this.wasFilled(node) ? this.autoFilled()[node.pointer].source : null;
+  }
+
+  /** The person picked an option under a field: it is set (or added to a list) as if typed. */
+  applySuggestion(node: SchemaNode, raw: string): void {
+    const value = this.typedSuggestion(node, raw);
+    if (value === null) return;
+    if (node.kind === 'tags') {
+      const v = getAt(this.model(), node.path);
+      const items = Array.isArray(v) ? v : [];
+      if (!items.some((x) => sameJson(x, value))) this.set(node, [...items, value]);
+    } else {
+      this.set(node, value);
+    }
+    this.autoFilled.update((f) => omit(f, node.pointer));
+    this.touch(node);
+  }
+
+  /**
+   * Fills in each suggested value while its field shows, the person hasn't changed it, and it is empty, holds its
+   * default (a new connection only) or what an earlier suggestion put there.
+   */
+  private prefill(): void {
+    let model = this.model();
+    const filled = { ...this.autoFilled() };
+    let changed = false;
+    for (const node of this.compiled.all) {
+      const s = this.suggestions()[node.pointer];
+      if (!s?.value || node.kind === 'object' || node.kind === 'secret' || node.readOnly || !isVisible(node, model)) continue;
+      const value = this.typedSuggestion(node, s.value);
+      if (value === null) continue;
+      // `x-keep-default-with-store`: the default stays while a store of that kind is connected (SSH's Vault SSH CA).
+      const keep = node.schema['x-keep-default-with-store'];
+      if (typeof keep === 'string' && this.stores().some((store) => store.kind === keep && store.available)) continue;
+      const now = getAt(model, node.path);
+      // A typed address the helpers found the scheme of (Auto http:// or https://) is completed once its field is left.
+      const completes = this.completesScheme(node, now, value) && this.doc.activeElement?.id !== this.id(node);
+      if (this.dirtyByPerson(node) && !completes) continue;
+      const empty = now === null || now === '' || (Array.isArray(now) && !now.length);
+      const before = filled[node.pointer];
+      const ours = before !== undefined && sameJson(before.value, now);
+      const atDefault = !this.saved && sameJson(now, defaultOn(node, this.env()));
+      if (!(empty || ours || atDefault || completes) || sameJson(now, value)) continue;
+      model = setAt(model, node.path, node.kind === 'tags' ? [value] : value);
+      filled[node.pointer] = { value: node.kind === 'tags' ? [value] : value, source: s.source };
+      changed = true;
+    }
+    if (changed) {
+      this.model.set(model);
+      this.autoFilled.set(filled);
+    }
+  }
+
+  /** `value` is `now` with the scheme the helpers found in front (`localhost:6333` → `http://localhost:6333`). */
+  private completesScheme(node: SchemaNode, now: JsonValue, value: JsonValue): boolean {
+    return node.kind === 'text' && typeof now === 'string' && typeof value === 'string' && !!now.trim()
+      && !now.includes('://') && /^[a-z][a-z0-9+.-]*:\/\//i.test(value) && value.slice(value.indexOf('://') + 3) === now.trim();
+  }
+
+  /**
+   * The person left a URL field typed without a scheme: the scheme the helpers found for that address goes in front
+   * (Auto http:// or https://). Nothing happens before they found it, or for an address they didn't try.
+   */
+  completeScheme(node: SchemaNode): void {
+    const now = getAt(this.model(), node.path);
+    const found = this.suggestionFor(node)?.options.find((o) => this.completesScheme(node, now, o.value));
+    if (!found) return;
+    this.set(node, found.value);
+    const source = this.suggestionFor(node)?.source ?? null;
+    this.autoFilled.update((f) => ({ ...f, [node.pointer]: { value: found.value, source } }));
+  }
+
+  /** Whether the person typed into or picked the field (a value a suggestion set doesn't count). */
+  private dirtyByPerson(node: SchemaNode): boolean {
+    if (!this.dirty(node)) return false;
+    const filled = untracked(this.autoFilled)[node.pointer];
+    return !(filled !== undefined && sameJson(filled.value, getAt(untracked(this.model), node.path)));
+  }
+
+  /** A suggested text as the field's value: a number for a number field, one of a choice's options; else `null`. */
+  private typedSuggestion(node: SchemaNode, raw: string): JsonValue {
+    switch (node.kind) {
+      case 'number':
+        return /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : null;
+      case 'checkbox':
+        return raw === 'true' ? true : raw === 'false' ? false : null;
+      case 'select':
+      case 'segmented':
+      case 'choice-cards': {
+        if (node.optionsFrom) return raw;
+        const option = node.options.find((o) => String(o.value) === raw);
+        return option ? option.value : null;
+      }
+      case 'text':
+      case 'tags':
+      case 'textarea':
+        return raw;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Whether the form holds everything it needs to sign in: every required field that shows is filled in and valid,
+   * and every required secret is typed, stored or referenced. Shows no message: sign-in helpers wait for it.
+   */
+  readonly ready = computed(() => this.readyExcept([]));
+
+  /** {@link ready}, leaving out the fields at `pointers` (the choice a lookup is about to offer). */
+  readyExcept(pointers: readonly string[]): boolean {
+    if (!pointers.length) {
+      if (!this.tree().valid()) return false;
+    } else {
+      for (const node of this.compiled.all) {
+        if (node.kind === 'object' || node.kind === 'secret' || pointers.includes(node.pointer) || !this.visible(node)) continue;
+        if (!this.field(node)().valid()) return false;
+      }
+    }
+    for (const node of this.compiled.all) {
+      if (node.kind !== 'secret' || !this.visible(node) || !this.needed(node)) continue;
+      const state = this.secretState(node);
+      if (state === 'stored' || state === 'reference') continue;
+      const typed = this.secrets()[node.pointer] ?? '';
+      if (!typed.trim() || (referenceKind(typed) && !this.fieldReference(node))) return false;
+    }
+    return true;
+  }
+
   // ─── Submit ───
 
   /** Shows every message as after Save, without moving focus (a view that opens on a refused form). */
@@ -690,7 +903,7 @@ export class SchemaForm {
     const invalid = untracked(() => this.compiled.all.filter((node) => this.problem(node) !== null))
       .filter((node) => !ignorePointers.includes(node.pointer));
     if (!invalid.length) return true;
-    for (const section of this.compiled.all.filter((n) => n.kind === 'object')) {
+    for (const section of [...this.compiled.all.filter((n) => n.kind === 'object'), ...untracked(this.displaySections)]) {
       if (section.collapsed && invalid.some((n) => containsNode(section, n))) this.setExpanded(section, true);
     }
     this.focus(invalid[0]);
@@ -728,7 +941,7 @@ export class SchemaForm {
     this.serverErrors.set(mine);
     const first = this.compiled.all.find((n) => this.visible(n) && mine.some((m) => m.pointer === n.pointer));
     if (first) {
-      for (const section of this.compiled.all) {
+      for (const section of [...this.compiled.all, ...untracked(this.displaySections)]) {
         if (section.kind === 'object' && containsNode(section, first)) this.setExpanded(section, true);
       }
       this.focus(first);
@@ -746,6 +959,7 @@ export class SchemaForm {
     this.jsonErrors.set({});
     this.serverErrors.set([]);
     this.submitted.set(false);
+    this.autoFilled.set({});
     untracked(() => this.tree().reset());
     this.enforceLocks(untracked(this.envState));
   }
@@ -776,14 +990,15 @@ export class SchemaForm {
       // A text field read from a store holds its reference, or keeps the stored one: checked as a reference, not as
       // the field's value.
       const active = () => this.visible(node) && !this.fieldKind(node) && this.textState(node) !== 'reference';
-      if (node.required && node.kind === 'tags') {
+      const requirable = node.required || node.requiredWhen.length > 0 || node.requiredEnv.length > 0;
+      if (requirable && node.kind === 'tags') {
         // An empty list is a value to `required`; "at least one" is the rule here.
         validate(path, ({ value }) => {
           const v = value();
           return active() && this.needed(node) && (!Array.isArray(v) || v.length === 0)
             ? { kind: 'required', message: requiredMessage(node) } : null;
         });
-      } else if (node.required) {
+      } else if (requirable) {
         required(path, { message: requiredMessage(node), when: () => active() && this.needed(node) });
       }
       validate(path, ({ value }) => {
@@ -811,6 +1026,9 @@ export class SchemaForm {
   }
 }
 
+/** Root fields that name who signs in (a user, an application or client ID, an access key ID). */
+const IDENTITY_KEY = /^(user|username|login|clientId|applicationId|accessKeyId|appId|keyId|tenantId|accountId)$/i;
+
 /** Options from connection metadata: `["kind-dev"]`, `[{name, server}]` or `{"kind-dev": "https://…"}`. */
 function metadataOptions(v: JsonValue): FieldOption[] {
   const str = (x: JsonValue | undefined): string | null => (typeof x === 'string' && x ? x : null);
@@ -834,7 +1052,8 @@ function metadataOptions(v: JsonValue): FieldOption[] {
 
 /** "HashiCorp Vault" for `vault`: how a field's menu and hints name a kind of store. */
 export function kindTitle(kind: string): string {
-  return kind === 'vault' ? 'Vault' : kind === 'gcp-sm' ? 'GCP Secret Manager' : kind === 'aws-sm' ? 'AWS Secrets Manager' : kind;
+  return kind === 'vault' ? 'Vault' : kind === 'gcp-sm' ? 'GCP Secret Manager' : kind === 'aws-sm' ? 'AWS Secrets Manager'
+    : kind === 'azure-kv' ? 'Azure Key Vault' : kind;
 }
 
 function stringAt(model: JsonObject, path: readonly string[]): string {

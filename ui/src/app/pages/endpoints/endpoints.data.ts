@@ -1,6 +1,6 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
-import { EndpointStart, EndpointSummary, EndpointsApi, TokenRow, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointDeleted, EndpointStart, EndpointSummary, EndpointsApi, TokenRow, TokensApi } from '../../core/api/endpoints.api';
 import { TemplatesApi } from '../../core/api/templates.api';
 import { OAuthApi, OAuthGrant } from '../../core/api/tunnel.api';
 import { JsonValue } from '../../core/api/types';
@@ -238,7 +238,7 @@ export class EndpointsData {
   }
 
   /** Deletes (the dialog names it, so its slug is the confirmation the core asks for); the card goes at once. */
-  async remove(slug: string): Promise<{ readonly clients: string[]; readonly tokensRevoked: string[]; readonly rejectedApprovals: number }> {
+  async remove(slug: string): Promise<EndpointDeleted> {
     const result = await this.api.delete(slug, slug);
     this.rowsSignal.update((rows) => (rows ? rows.filter((r) => r.slug !== slug) : rows));
     this.tokensSignal.update((m) => {

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "view": {
+      "enum": [
+        "tunnels",
+        "tunnel",
+        "configuration"
+      ],
+      "default": "tunnels",
+      "description": "tunnels: Cloudflare Tunnels of the account with their status; tunnel: one tunnel and its connectors; configuration: a remotely managed tunnel's ingress rules."
+    },
+    "tunnel": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "A tunnel ID."
+    },
+    "status": {
+      "enum": [
+        "inactive",
+        "degraded",
+        "healthy",
+        "down"
+      ],
+      "description": "Only tunnels in this status."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Only the tunnel with this name."
+    },
+    "includeDeleted": {
+      "type": "boolean",
+      "description": "Also list deleted tunnels."
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Page of the list, from 1."
+    },
+    "perPage": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "Tunnels per page."
+    }
+  }
+}

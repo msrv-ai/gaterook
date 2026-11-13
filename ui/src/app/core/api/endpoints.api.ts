@@ -38,6 +38,16 @@ export interface EndpointSummary {
   readonly version: number;
 }
 
+/** What `DELETE /api/endpoints/{slug}` did (admin.endpoints.EndpointsController.Deleted). */
+export interface EndpointDeleted {
+  /** The AI apps disconnected, by name: their entries left their configs and their access ended. */
+  readonly clients: string[];
+  readonly tokensRevoked: string[];
+  readonly rejectedApprovals: number;
+  /** What is left for the person in an AI app ("Remove the extension … in Claude Desktop: Settings › Extensions."). */
+  readonly notes: string[];
+}
+
 export interface WiredConnection {
   readonly enabled?: boolean;
   readonly name: string;
@@ -66,6 +76,35 @@ export interface EndpointSettings {
    * what Settings › Instructions shows in the empty field (step API).
    */
   readonly defaultInstructions?: string | null;
+  /** `settings.toolList` as set: `auto` and no pins unless the person chose (ARCHITECTURE.md §5.7). */
+  readonly toolList?: EndpointToolList;
+  /** What `tools/list` shows now. */
+  readonly toolListState?: EndpointToolListState;
+}
+
+/** Whether `tools/list` shows every tool, or GateRook's own and the pinned connections' (`find_tools` finds the rest). */
+export type ToolListMode = 'auto' | 'all' | 'search';
+
+export interface EndpointToolList {
+  readonly mode: ToolListMode;
+  /** Connections whose tools are listed while the endpoint searches the others. */
+  readonly pinned?: string[];
+  /** How many of the tools agents call most are listed while the endpoint searches (10 unless set). */
+  readonly mostUsed?: number;
+}
+
+export interface EndpointToolListState {
+  readonly search: boolean;
+  /** The tools the model may call. */
+  readonly tools: number;
+  /** How many of them `tools/list` shows. */
+  readonly listedTools: number;
+  /** Their names, titles, descriptions and input schemas as AI apps get them, in UTF-8 bytes. */
+  readonly bytes: number;
+  readonly searchAboveTools: number;
+  readonly searchAboveBytes: number;
+  /** The tools listed because agents call them most here (30 days, counted daily), most called first. */
+  readonly mostUsedTools?: string[];
 }
 
 /** The ways to start a new endpoint (`POST /api/endpoints` `startFrom`). */
@@ -92,6 +131,12 @@ export interface EndpointDetail {
   readonly settings: EndpointSettings;
 }
 
+/** A tool "Set all to…" sets: its key and the definition its row showed (`ToolRow.definitionHash`). */
+export interface BulkTool {
+  readonly toolKey: string;
+  readonly definitionHash: string | null;
+}
+
 /** One tool × connection pair of the tool-policy-list. */
 export interface ToolRow {
   readonly toolKey: string;
@@ -102,7 +147,7 @@ export interface ToolRow {
   readonly mode: ToolMode;
   readonly storedMode: ToolMode;
   readonly readOnlyAllowed: boolean;
-  /** Why Read only is unavailable or the mode is locked. */
+  /** Why Read only is unavailable or the mode is locked, or why a stored Read only or Bypass is held in Approval. */
   readonly reason: string | null;
   readonly readOnlyConfirmed: boolean;
   readonly definitionHash: string | null;
@@ -157,6 +202,8 @@ export interface EndpointSettingsUpdate extends WithReason {
   readonly protocol?: JsonObject;
   readonly approvalWait?: JsonObject;
   readonly oauthEnabled?: boolean;
+  /** A merge patch: `pinned: null` clears the pins. */
+  readonly toolList?: { readonly mode?: ToolListMode; readonly pinned?: string[] | null; readonly mostUsed?: number };
   readonly version: number;
   readonly confirm?: string | null;
 }
@@ -191,7 +238,7 @@ export class EndpointsApi {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/enable`, body);
   }
 
-  delete(slug: string, confirmSlug: string, reason?: string | null): Promise<{ readonly clients: string[]; readonly tokensRevoked: string[]; readonly rejectedApprovals: number }> {
+  delete(slug: string, confirmSlug: string, reason?: string | null): Promise<EndpointDeleted> {
     return this.api.delete(ApiClient.path`/api/endpoints/${slug}`, { confirmSlug, reason });
   }
 
@@ -219,10 +266,15 @@ export class EndpointsApi {
     return this.api.get(ApiClient.path`/api/endpoints/${slug}/tools`);
   }
 
-  /** The core answers with every group again (admin.endpoints `setMode`): one change can move other pairs' locks. */
+  /**
+   * The core answers with every group again (admin.endpoints `setMode`): one change can move other pairs' locks.
+   * `definitionHash` is the row's, sent when the person picks the mode: an external MCP server's tool keeps Read only
+   * or Bypass for that definition, and a tool that changed since gets 409 for those two modes. A save of the limits
+   * alone leaves it out.
+   */
   setMode(
     slug: string,
-    request: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly overrides?: JsonObject | null; readonly version: number } & WithReason,
+    request: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly definitionHash?: string | null; readonly overrides?: JsonObject | null; readonly version: number } & WithReason,
   ): Promise<ToolGroup[]> {
     return this.api.put(ApiClient.path`/api/endpoints/${slug}/tools`, request);
   }
@@ -249,8 +301,15 @@ export class EndpointsApi {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/confirm-read-only`, request);
   }
 
-  /** "Set all to…": `DEFAULT` restores defaults; ineligible reads and unconfirmed plugin tools are skipped for Read only. */
-  bulk(slug: string, request: { readonly group: string; readonly mode: ToolMode | 'DEFAULT' } & WithReason): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
+  /**
+   * "Set all to…": `DEFAULT` restores defaults; ineligible reads and unconfirmed plugin tools are skipped for Read only.
+   * `tools` are the tools the person saw, each with the `definitionHash` its row showed: only those change, and the
+   * core answers 409 when one of them changed since (for Read only and Bypass).
+   */
+  bulk(
+    slug: string,
+    request: { readonly group: string; readonly mode: ToolMode | 'DEFAULT'; readonly tools: readonly BulkTool[] } & WithReason,
+  ): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/bulk`, request);
   }
 

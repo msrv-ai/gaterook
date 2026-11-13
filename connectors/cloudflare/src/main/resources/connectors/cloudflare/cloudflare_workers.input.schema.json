@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "view": {
+      "enum": [
+        "scripts",
+        "settings",
+        "versions",
+        "version",
+        "deployments",
+        "routes",
+        "domains"
+      ],
+      "default": "scripts",
+      "description": "scripts: the account's Workers; settings: one Worker's bindings, compatibility and observability; versions, version and deployments of one Worker; routes of a zone; domains: custom domains."
+    },
+    "script": {
+      "type": "string",
+      "pattern": "^[a-z0-9_][a-z0-9_-]{0,62}$",
+      "description": "The Worker's name, as cloudflare_workers lists it."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "A version ID, for view version."
+    },
+    "zone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "The zone, for view routes; for view domains, only that zone's domains."
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Page of the list, from 1."
+    },
+    "perPage": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "Versions or deployments per page."
+    }
+  }
+}

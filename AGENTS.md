@@ -27,6 +27,8 @@ This repository contains the complete application source, tests and fixtures, ru
 
 Do not add production release orchestration or production installer workflows to this repository. Keep local development builds and reusable build inputs independent of release operations.
 
+The connector modules that are built against the connector API alone (ClickHouse, DuckDB, H2, Microsoft Access) have their source in the public modules repository, [gaterook/gaterook-plugins](https://github.com/gaterook/gaterook-plugins), with the guide for people who write modules; do not add their sources here. That repository compiles against this one's `connector-api`, `plugin-protocol` and `plugin-host` artifacts. A change to the connector API, to the manifest that `ModuleManifests` writes or reads, or to what the module host provides can break those modules or change the bytes their packages build to: say so in your report, raise `ApiVersion.CURRENT` with the `connector-api` artifact's version when the API changes, and name the documents that must follow (`docs/connector-spi.md` here, `docs/module-architecture.md` there).
+
 Preserve runtime behavior, dependency relationships, resources, and third-party notices. Use **GateRook** as the product name and `gaterook` as its slug. Existing Java packages, protocol names, persisted paths, application IDs, and client settings are compatibility contracts: do not rename them indiscriminately. Do not choose or replace the application license without an explicit instruction.
 
 ## Internal AI work

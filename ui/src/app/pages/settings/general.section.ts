@@ -31,14 +31,15 @@ import {
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /** The switches of General and the key each one saves (`PUT /api/settings/general`). */
-type GeneralKey = 'openAtLogin' | 'startHidden' | 'autoUpdate' | 'singleKeyShortcuts';
+type GeneralKey = 'openAtLogin' | 'startHidden' | 'autoUpdate' | 'betaUpdates' | 'singleKeyShortcuts';
 
 /**
  * Settings › General: how the app starts, stays up to date, answers
  * the keyboard and where its core listens. Every switch applies at once (`PUT /api/settings/general`, a toast names
  * the setting and its value; a refusal puts the switch back). Startup is applied by Electron too
  * (`gwDesktop.applyGeneral`), updates come from Electron's updater (`checkForUpdates`, `onUpdateState`), single-key
- * shortcuts switch the app's "/" hook at once (`GwSingleKeysToggle`).
+ * shortcuts switch the app's "/" hook at once (`GwSingleKeysToggle`). "Get beta versions" adds the beta channel to
+ * every check; Electron reads the choice from the core, and a change of it checks again, so the status follows.
  *
  * Core: the port is read only here; "Change port" asks first (`gw-dialog--warning`, static, the field has focus):
  * which URLs change, who connects again, what happens to calls in flight and waiting requests. The core refuses a
@@ -68,6 +69,7 @@ export class GwGeneralSettings {
   protected readonly openAtLogin = computed(() => boolOf(this.values(), 'openAtLogin', true));
   protected readonly startHidden = computed(() => boolOf(this.values(), 'startHidden', true));
   protected readonly autoUpdate = computed(() => boolOf(this.values(), 'autoUpdate', true));
+  protected readonly betaUpdates = computed(() => boolOf(this.values(), 'betaUpdates', false));
   protected readonly busy = signal<GeneralKey | null>(null);
 
   // ── Updates ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -155,6 +157,7 @@ export class GwGeneralSettings {
       await this.data.save('general', { [key]: on });
       if (key === 'openAtLogin' || key === 'startHidden') await this.desktop.applyGeneral({ [key]: on });
       this.toasts.show(savedToast(label, onOff(on)));
+      if (key === 'betaUpdates') void this.followChannels();
     } catch (err) {
       // Single-key shortcuts already switched in this window (kit: the switch is the app's own); the core's copy
       // stays as it was, which the toast says.
@@ -162,6 +165,19 @@ export class GwGeneralSettings {
       this.toasts.show({ tone: 'danger', title: `${label} wasn’t saved`, body: this.errorText(err) });
     } finally {
       this.busy.set(null);
+    }
+  }
+
+  /**
+   * The channels changed: a check shows what they offer now, and withdraws a pre-release the stable channel doesn't
+   * have. It says nothing by itself; the saved toast already answered the switch.
+   */
+  private async followChannels(): Promise<void> {
+    if (!this.desktop.available) return;
+    try {
+      await this.desktop.checkForUpdates();
+    } catch {
+      // The next check, automatic or asked for, reads the same choice.
     }
   }
 

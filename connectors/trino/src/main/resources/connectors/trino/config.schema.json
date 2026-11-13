@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trino / Presto",
+  "type": "object",
+  "x-card": {
+    "description": "Catalogs, schemas and SQL reads checked by Trino's own plan. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "url",
+    "auth"
+  ],
+  "properties": {
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[^/?#]+/?$",
+      "title": "Coordinator URL",
+      "examples": [
+        "https://trino.example.com:8443"
+      ],
+      "description": "The coordinator, with https:// (or http:// on this computer) and its port."
+    },
+    "engine": {
+      "title": "Engine",
+      "enum": [
+        "trino",
+        "presto"
+      ],
+      "default": "trino",
+      "x-enumTitles": [
+        "Trino",
+        "Presto"
+      ],
+      "description": "Trino, or Presto (prestodb) with its X-Presto headers; the form fills it in from the coordinator's /v1/info."
+    },
+    "auth": {
+      "type": "object",
+      "title": "Authentication",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "title": "Sign in with",
+          "enum": [
+            "basic",
+            "jwt",
+            "none"
+          ],
+          "default": "basic",
+          "x-enumTitles": [
+            "User and password",
+            "JWT bearer token",
+            "No authentication (dev, or a coordinator on this computer)"
+          ]
+        },
+        "user": {
+          "type": "string",
+          "title": "User",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[ -~]+$",
+          "examples": [
+            "gaterook_reader"
+          ],
+          "description": "Statements run as this user. Give it read access only wherever you can: Trino's access control is the boundary. With a JWT, empty means the token's user."
+        }
+      },
+      "patternProperties": {
+        "^(password|token)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "basic"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "user",
+              "password"
+            ],
+            "properties": {
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "title": "Password",
+                "description": "Stored encrypted by GateRook. It travels over TLS only, unless the coordinator runs on this computer."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "jwt"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "minLength": 1,
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "title": "JWT",
+                "description": "Sent as a bearer token, over TLS only unless the coordinator runs on this computer."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "none"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "user"
+            ]
+          }
+        }
+      ]
+    },
+    "catalog": {
+      "type": "string",
+      "title": "Default catalog",
+      "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$",
+      "examples": [
+        "hive"
+      ],
+      "x-advanced": true,
+      "x-suggest": true,
+      "description": "The catalog of table names without one; required with a default schema. Empty: every name needs its catalog."
+    },
+    "schema": {
+      "type": "string",
+      "title": "Default schema",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[ -~]+$",
+      "x-advanced": true,
+      "description": "The schema of table names without one; needs a default catalog."
+    },
+    "catalogs": {
+      "type": "array",
+      "title": "Catalogs",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_*?-]{1,128}$"
+      },
+      "description": "The catalogs agents may use; * matches any characters. Every table Trino's plan reads must be in one of them. Empty: every catalog the user may read."
+    },
+    "caCertificate": {
+      "type": "string",
+      "maxLength": 20000,
+      "x-widget": "textarea",
+      "title": "CA certificate (PEM)",
+      "description": "Only for a private CA. Empty: the system trust store."
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "A scan limit per statement. Policies set row limits and timeouts per environment.",
+      "properties": {
+        "maxScanMb": {
+          "type": "integer",
+          "title": "Data scanned per statement",
+          "minimum": 1,
+          "maximum": 104857600,
+          "x-unit": "MB",
+          "x-stricter": "min",
+          "description": "Trino stops a statement that reads more from storage (query_max_scan_physical_bytes). Trino only; empty: Trino's own limit."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "schema"
+        ]
+      },
+      "then": {
+        "required": [
+          "catalog"
+        ]
+      }
+    }
+  ]
+}

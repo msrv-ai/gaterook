@@ -25,6 +25,7 @@
       },
       "default": [],
       "x-stricter": "intersect",
+      "x-empty": "none",
       "x-inherit": false,
       "description": "A request goes out only if it starts with a base URL of its connection and of this list. Never inherited."
     },
@@ -60,13 +61,9 @@
       "title": "Max response size",
       "minimum": 1,
       "maximum": 10240,
-      "default": 512,
+      "default": 1024,
       "x-unit": "KB",
-      "x-stricter": "min",
-      "x-env-default": {
-        "stage": 256,
-        "prod": 256
-      }
+      "x-stricter": "min"
     },
     "toolTimeoutSeconds": {
       "type": "integer",

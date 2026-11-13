@@ -394,11 +394,21 @@
           @if (f.revokes) {
             <div class="gw-kv__row"><dt class="gw-kv__key">Revokes</dt><dd class="gw-kv__value">@for (p of f.revokes; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
           }
-          @if (l.method !== 'mcpb') {
+          @if (l.method !== 'mcpb' && !f.byHand) {
             <!-- A config file is edited: its copy is kept first (the extension has no file to back up). -->
             <div class="gw-kv__row"><dt class="gw-kv__key">Backup</dt>@if (matchingPreview()) {<dd class="gw-kv__value gw-mono">{{ f.backup ?? 'None: the file is gone' }}</dd>} @else {<dd class="gw-kv__value"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Preparing…</dd>}</div>
           }
         </dl>
+        @if (f.byHand; as b) {
+          <!-- The core can't change the file (it doesn't parse, can't be written, sits where this edition doesn't write): the access still ends. -->
+          <div class="gw-alert gw-alert--warning gw-alert--compact">
+            <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">@for (p of b.title; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+              <p class="gw-alert__body">@for (p of b.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+            </div>
+          </div>
+        }
       }
       <!-- The core's notes: what stays (an extension Claude Desktop keeps until removed there, an entry changed outside). -->
       @for (n of leavingNotes(); track $index) {

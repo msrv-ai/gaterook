@@ -73,10 +73,11 @@ export type DesktopCoreState =
       readonly port?: number;
     };
 
+/** `beta` marks an offered `version` that only the beta channel has: a pre-release, not yet a stable release. */
 export type UpdateState =
-  | { readonly state: 'checking' | 'available' | 'downloaded' | 'installing' | 'up-to-date'; readonly version?: string; readonly lastCheckedAt?: string }
-  | { readonly state: 'downloading'; readonly version?: string; readonly percent?: number; readonly lastCheckedAt?: string }
-  | { readonly state: 'error'; readonly message: string; readonly version?: string; readonly lastCheckedAt?: string };
+  | { readonly state: 'checking' | 'available' | 'downloaded' | 'installing' | 'up-to-date'; readonly version?: string; readonly beta?: boolean; readonly lastCheckedAt?: string }
+  | { readonly state: 'downloading'; readonly version?: string; readonly beta?: boolean; readonly percent?: number; readonly lastCheckedAt?: string }
+  | { readonly state: 'error'; readonly message: string; readonly version?: string; readonly beta?: boolean; readonly lastCheckedAt?: string };
 
 /** The listeners `usePort` may move: the local API's, the tunnel's public one, or both. */
 export interface DesktopPorts {
@@ -103,6 +104,11 @@ export interface GwDesktop {
   openFile(purpose: string): Promise<string | null>;
   /** Shows the native picker and returns the selected private key path, without reading its contents. */
   choosePrivateKeyFile(): Promise<string | null>;
+  /**
+   * Shows the native picker for a SQLite database (or, with `duckdb` or `access`, a DuckDB or Access one) and returns
+   * its path; the core or the plugin opens the file, not main.
+   */
+  chooseDatabaseFile?(kind?: 'sqlite' | 'duckdb' | 'access'): Promise<string | null>;
   /** Selects the repository folder for an AI prompt without reading its files. */
   chooseRepository?(): Promise<string | null>;
   /**
@@ -184,6 +190,7 @@ export class DesktopBridge {
 
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+  readonly databasePickerAvailable = typeof this.desktop?.chooseDatabaseFile === 'function';
   readonly repositoryPickerAvailable = typeof this.desktop?.chooseRepository === 'function';
   readonly vaultTokenPickerAvailable = typeof this.desktop?.chooseVaultTokenFile === 'function';
   readonly aiPromptAvailable = typeof this.desktop?.openAiPrompt === 'function';
@@ -222,6 +229,10 @@ export class DesktopBridge {
 
   async choosePrivateKeyFile(): Promise<string | null> {
     return this.desktop?.choosePrivateKeyFile?.() ?? null;
+  }
+
+  async chooseDatabaseFile(kind: 'sqlite' | 'duckdb' | 'access' = 'sqlite'): Promise<string | null> {
+    return (kind === 'sqlite' ? this.desktop?.chooseDatabaseFile?.() : this.desktop?.chooseDatabaseFile?.(kind)) ?? null;
   }
 
   async chooseRepository(): Promise<string | null> {

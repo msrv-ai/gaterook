@@ -28,7 +28,7 @@ import {
   toolsCell,
   viaText,
 } from './client-view';
-import { answerWithin, consentTools, consentWants, oauthClientLabel, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
+import { answerWithin, consentAsks, consentClient, consentTools, consentWants, oauthClientLabel, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
 import { DEMO_GRANTS, DEMO_TUNNEL_OFF, DEMO_TUNNEL_ON, DEMO_CONSENT } from '../../../dev/fixtures-clients';
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
@@ -136,6 +136,26 @@ describe('client-card view', () => {
     expect(d.hunks[0].lines).toEqual([{ t: 'del', v: 'a' }, { t: 'add', v: 'b' }]);
     expect(changeSummary({ added: 7, removed: 1 })).toBe('7 additions, 1 deletion');
     expect(changeSummary({ added: 7, removed: 0 })).toBe('7 additions');
+  });
+
+  it('says what the person removes by hand when the core can’t change the file, and removes nothing itself', () => {
+    const link = DEMO_CLIENTS.codex.links[0];
+    const preview = {
+      ...DEMO_DISCONNECT_CODEX,
+      files: [],
+      byHand: { file: '~/.codex/config.toml', entry: 'gaterook-dev', reason: "The file isn't valid TOML (line 3, column 7). GateRook changes nothing." },
+    };
+    const f = disconnectFacts(DEMO_CLIENTS.codex, link, preview);
+    expect(f.removes).toBeNull();
+    expect(f.backup).toBeNull();
+    expect(words(f.revokes!)).toBe("The helper's grant codex-laptop; no new tokens are issued to it");
+    expect(words(f.byHand!.title)).toBe("GateRook can't change ~/.codex/config.toml");
+    expect(words(f.byHand!.body)).toBe(
+      "The file isn't valid TOML (line 3, column 7). GateRook changes nothing. Disconnect still revokes the access; remove [mcp_servers.gaterook-dev] from ~/.codex/config.toml by hand.",
+    );
+    expect(f.byHand!.body.filter((p) => p.code).map((p) => p.text)).toContain('[mcp_servers.gaterook-dev]');
+    // An ordinary preview has nothing for the person to do by hand.
+    expect(disconnectFacts(DEMO_CLIENTS.codex, link, DEMO_DISCONNECT_CODEX).byHand).toBeNull();
   });
 
   it('lists what Disconnect removes, revokes and keeps', () => {
@@ -264,6 +284,21 @@ describe('claude.ai card view (tunnel and OAuth)', () => {
     expect(tunnelHistory({ ...DEMO_TUNNEL_OFF, history: [] }, NOW, () => '')).toMatch(/never published$/);
     expect(tunnelHistory(DEMO_TUNNEL_ON, NOW, () => 'just now')).toBe('Public since just now');
     expect(whilePublic(DEMO_TUNNEL_OFF, DEMO_GRANTS)).toEqual({ calls: 19, lastAt: '2026-10-22T12:08:14+02:00' });
+  });
+
+  it('names a local sign-in by the app that registered, a tunnel one by its host', () => {
+    // VS Code registers insiders.vscode.dev as its first callback, whichever VS Code signs in.
+    const vsCode = { ...DEMO_CONSENT, ingress: 'LOCAL' as const, clientHost: 'insiders.vscode.dev', clientName: 'Visual Studio Code', clientKind: 'dcr' as const, redirectHost: '127.0.0.1' };
+    expect(consentClient(vsCode)).toBe('Visual Studio Code');
+    expect(consentAsks(vsCode)).toBe('An app on this computer registered as Visual Studio Code asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.');
+    expect(consentClient({ ...vsCode, clientName: ' ' })).toBe('insiders.vscode.dev');
+    const unnamed = { ...vsCode, clientHost: '127.0.0.1', clientName: '127.0.0.1' };
+    expect(consentClient(unnamed)).toBe('127.0.0.1');
+    expect(consentAsks(unnamed)).toBe('An app on this computer asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.');
+    // Through the tunnel anyone can register any name: the consent keeps the host its redirect vouches for.
+    expect(consentClient({ ...DEMO_CONSENT, ingress: 'TUNNEL', clientName: 'Visual Studio Code', clientKind: 'dcr' })).toBe('claude.ai');
+    expect(consentClient(DEMO_CONSENT)).toBe('claude.ai');
+    expect(consentAsks(DEMO_CONSENT)).toBe('Someone signed in to claude.ai asked to connect. Allow it only if it was you and the code matches the one on the claude.ai page.');
   });
 
   it('a consent says what it wants and how long it waits', () => {

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "collection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The collection (an index on Pinecone, a class on Weaviate). vector_list_collections lists them."
+    },
+    "namespace": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Pinecone: the namespace (empty: the default one). Weaviate: the tenant of a multi-tenant collection. Milvus: the partition. Not used by Qdrant and Chroma."
+    },
+    "ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": [
+          "string",
+          "integer"
+        ],
+        "description": "A record id: text, or an integer where the store's ids are integers (Qdrant, Milvus with Int64 keys)."
+      },
+      "description": "The records to fetch. Leave out to page through the records a filter matches (or all of them)."
+    },
+    "filter": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "Records whose metadata match, in MongoDB's form: {\"genre\": \"drama\", \"year\": {\"$gte\": 2020}}. Operators $eq $ne $gt $gte $lt $lte $in $nin $exists, and $and / $or with a list. The store evaluates it; a field it doesn't index may be refused."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Records per page, when paging."
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "nextCursor of the previous page."
+    },
+    "includeVectors": {
+      "type": "boolean",
+      "default": false,
+      "description": "Also return each record's vector values."
+    }
+  }
+}

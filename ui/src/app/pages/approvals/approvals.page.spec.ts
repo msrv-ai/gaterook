@@ -6,8 +6,10 @@ import { approvalsMatcher } from '../../app.routes';
 import { ActivityApi, ActivityEvent } from '../../core/api/activity.api';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalDecision, ApprovalDetail, ApprovalItem, ApprovalList, ApprovalStatus, ApprovalsApi } from '../../core/api/approvals.api';
+import { ConnectionList, ConnectionsApi } from '../../core/api/connections.api';
 import { Notifications, NotificationsApi } from '../../core/api/notifications.api';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
+import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { ACTIVATION_DELAY_MS } from '../../kit/activation-guard';
 import { Announcer } from '../../kit/announcer';
@@ -94,6 +96,11 @@ class FakeCore {
   listFails: ApiError | null = null;
   notifications: Notifications | ApiError = new ApiError('not-available', 404, {});
   events: ActivityEvent[] = [];
+  /** Connection types by name, as `GET /api/connections` lists them. */
+  types: Record<string, string> = { 'dev-db': 'postgres', 'dev-cluster': 'kubernetes', 'billing-api': 'http' };
+  /** Whether the core is running, and how often another instance answered (CoreStore). */
+  readonly running = signal(true);
+  readonly instanceChanges = signal(0);
 
   seed(): void {
     this.pending = [K8S, SQL, HTTP];
@@ -150,6 +157,9 @@ beforeEach(() => {
     }),
   };
   const activity: Partial<ActivityApi> = { events: vi.fn(async () => ({ events: core.events, nextCursor: null })) };
+  const connections: Partial<ConnectionsApi> = {
+    list: vi.fn(async () => ({ items: Object.entries(core.types).map(([name, type]) => ({ name, type })), total: 0 }) as unknown as ConnectionList),
+  };
   const notifications: Partial<NotificationsApi> = {
     get: vi.fn(async () => {
       if (core.notifications instanceof ApiError) throw core.notifications;
@@ -166,6 +176,8 @@ beforeEach(() => {
       { provide: ApprovalsApi, useValue: approvals },
       { provide: ActivityApi, useValue: activity },
       { provide: NotificationsApi, useValue: notifications },
+      { provide: ConnectionsApi, useValue: connections },
+      { provide: CoreStore, useValue: { running: core.running, instanceChanges: core.instanceChanges } as Partial<CoreStore> },
       // A stream that never connects: the tests emit the core's events themselves.
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
@@ -437,6 +449,55 @@ describe('Approvals page', () => {
     expect(text(card.querySelector('h3'))).toBe('S Slack');
     expect(text(card.querySelector('.gw-card__description'))).toContain('Posted to #deploy-approvals at 14:29:13');
     expect(card.querySelector('figure.gw-approval-notification__preview')).not.toBeNull();
+  });
+
+  it('colours a SQL action in the dialect of its connection', async () => {
+    core.details.set(SQL.id, detail(SQL, 'UPDATE orders SET n = n # 2 WHERE id = 1 -- why'));
+    core.types['dev-db'] = 'mysql';
+    const { detail: shown } = await open(`/approvals/${SQL.id}`);
+    // MySQL: # starts a comment.
+    expect(Array.from(shown()!.querySelectorAll('.gw-code-block .gw-tok-comment')).map(text)).toEqual(['# 2 WHERE id = 1 -- why']);
+  });
+
+  it('on PostgreSQL # is an operator: what follows it runs and is coloured as code', async () => {
+    core.details.set(SQL.id, detail(SQL, 'UPDATE orders SET n = n # 2 WHERE id = 1 -- why'));
+    core.types['dev-db'] = 'postgres';
+    const { detail: shown } = await open(`/approvals/${SQL.id}`);
+    expect(Array.from(shown()!.querySelectorAll('.gw-code-block .gw-tok-comment')).map(text)).toEqual(['-- why']);
+  });
+
+  it('without the connection’s type a SQL action is coloured only where every dialect agrees', async () => {
+    core.details.set(SQL.id, detail(SQL, 'UPDATE orders SET n = n # 2 WHERE id = 1 -- why'));
+    core.types = {};
+    const { detail: shown } = await open(`/approvals/${SQL.id}`);
+    expect(Array.from(shown()!.querySelectorAll('.gw-code-block .gw-tok-comment')).map(text)).toEqual(['-- why']);
+  });
+
+  it('another core instance answering (a restart, no stream reopen): the queue and the open request are read again', async () => {
+    const { rows, detail: shown, settle } = await open(`/approvals/${SQL.id}`);
+    expect(shown()?.getAttribute('data-state')).toBe('pending');
+    // While the core restarted, it expired the open request and a new one arrived: no event of either reached here.
+    const NEW = item({ id: 'ap_new000000001', tool: 'sql_execute', requestedAt: '2026-10-22T14:29:50+02:00', expiresAt: '2026-10-22T14:39:50+02:00' });
+    core.resolve(SQL.id, 'expired', 'core');
+    core.pending = [...core.pending, NEW];
+    core.details.set(NEW.id, detail(NEW, 'DELETE FROM sessions WHERE id = 9;'));
+    core.instanceChanges.set(1);
+    await settle();
+    expect(rows().map((r) => r.getAttribute('data-ap-item'))).toContain(NEW.id);
+    expect(rows().map((r) => r.getAttribute('data-ap-item'))).not.toContain(SQL.id);
+    expect(shown()?.getAttribute('data-state')).toBe('expired');
+  });
+
+  it('a core that was away and is back: everything is read again', async () => {
+    const { rows, settle } = await open();
+    core.running.set(false);
+    await settle();
+    const NEW = item({ id: 'ap_new000000002', tool: 'sql_execute', requestedAt: '2026-10-22T14:29:55+02:00', expiresAt: '2026-10-22T14:39:55+02:00' });
+    core.pending = [...core.pending, NEW];
+    core.details.set(NEW.id, detail(NEW, 'DELETE FROM sessions WHERE id = 10;'));
+    core.running.set(true);
+    await settle();
+    expect(rows().map((r) => r.getAttribute('data-ap-item'))).toContain(NEW.id);
   });
 
   it('a deep link to a request that doesn’t exist says so, focused', async () => {

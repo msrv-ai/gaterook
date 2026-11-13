@@ -2,7 +2,9 @@ import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api'
 import { InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { CatalogEntry, CatalogIndex } from '../../core/api/plugins.api';
+import { moduleCard, moduleList } from './connectors.fixtures';
 import {
+  catalogOffer,
   catalogViews,
   compareVersions,
   connectionsQuery,
@@ -13,15 +15,20 @@ import {
   installedCountText,
   installedViews,
   joinAnd,
+  listsCheckToast,
   matches,
   mcpServerView,
+  moduleCatalogViews,
   npmPackage,
   onEndpointsText,
+  onThisComputer,
   pluginUpdate,
   processStatus,
   serverActivityQuery,
   serverPaths,
   serverStatus,
+  signInHost,
+  signInText,
   templateEndpoints,
   templateModes,
   templateSignature,
@@ -183,6 +190,35 @@ describe('connectors view: Installed', () => {
     expect(installedCountText(views, 1, 'rabbit')).toBe('1 of 4 installed connectors');
   });
 
+  it('shows a type of the person’s own module as a module, unsigned, between the built-ins and the plugins', () => {
+    const module = { id: 'shop', version: '1.2.0', state: 'ready', step: null, sizeBytes: 2_700_000, installed: true, message: null, signed: false, listedVersion: null };
+    const orders = type({ id: 'orders', name: 'Orders', version: '1.0.0', signed: false, tools: 2, module, process: { state: 'running', pid: 77, rssMb: 61, detail: null } });
+    const shipments = type({ id: 'shipments', name: 'Shipments', signed: false, tools: 1, module });
+    // GateRook's own module is one of the built-in connectors: nothing sets it apart here.
+    const cassandra = type({ id: 'cassandra', name: 'Cassandra', module: { ...module, id: 'cassandra', signed: true } });
+    const views = installedViews([rabbit, orders, postgres, shipments, cassandra], conns, null, []);
+    expect(views.map((v) => v.key)).toEqual(['type:postgres', 'type:cassandra', 'module:orders', 'module:shipments', 'plugin:rabbitmq']);
+    const own = views[2];
+    expect(own.kind).toBe('module');
+    expect(own.module?.id).toBe('shop');
+    expect(own.card).toMatchObject({ kind: 'module', signed: false, version: '1.2.0', action: null, tools: 2 });
+    expect(own.card.status).toEqual({ tone: 'success', text: 'Running · 61 MB' });
+    expect(views[1].module ?? null).toBeNull();
+    expect(views[1].card).toMatchObject({ kind: 'built-in', signed: null, action: 'add' });
+    expect(installedCountText(views, views.length, '')).toBe('2 built-in, 2 from your own module, 1 plugin');
+    expect(matches(own.search, 'unsigned module')).toBe(true);
+
+    // GateRook's list has the module too: its build is there to return to, after what needs the person first.
+    const listed = { ...orders, module: { ...module, listedVersion: '1.3.0' } };
+    expect(installedViews([listed], [], null, [])[0].card.status).toEqual({ tone: 'info', text: 'GateRook’s build available · ', mono: 'v1.3.0' });
+    expect(installedViews([{ ...listed, module: { ...listed.module, state: 'installing' } }], [], null, [])[0].card.status).toEqual({ tone: 'info', text: 'Installing GateRook’s build' });
+    expect(installedViews([{ ...listed, enabled: false }], [], null, [])[0].card.status?.text).toBe('Switched off');
+    expect(installedViews([{ ...listed, verified: false }], [], null, [])[0].state).toBe('changed-outside');
+    // A core that says nothing of whose build a module is knows only GateRook's own.
+    const { signed: _, ...unsaid } = module;
+    expect(installedViews([{ ...orders, module: unsaid }], [], null, [])[0].kind).toBe('built-in');
+  });
+
   it('offers the catalog’s newer version of a plugin, after what needs the person first', () => {
     const index = catalog([entry({ id: 'rabbitmq', kind: 'plugin', name: 'RabbitMQ', version: '0.4.0', installed: '0.3.0' })]);
     expect(pluginUpdate(rabbit, index)?.to).toBe('0.4.0');
@@ -231,6 +267,72 @@ describe('connectors view: Catalog', () => {
 
   it('finds tool names only where they have an underscore', () => {
     expect(toolLiterals('Reads queues with rabbitmq_queues; plain words stay plain.')).toEqual(['rabbitmq_queues']);
+  });
+
+  it('offers GateRook’s own modules that aren’t installed, once per connector type', () => {
+    const views = moduleCatalogViews([
+      {
+        name: 'Databases',
+        cards: [
+          moduleCard('duckdb', 'DuckDB'),
+          // Part of this build, the person's own or GateRook's installed module, and a variant of a type: none is an offer.
+          moduleCard('postgres', 'PostgreSQL', { module: null }),
+          moduleCard('orders', 'Orders', {}, { installed: true, state: 'ready', signed: false }),
+          moduleCard('neo4j', 'Neo4j', {}, { installed: true, state: 'ready' }),
+          moduleCard('duckdb', 'MotherDuck', { variant: 'motherduck' }),
+          moduleCard('h2', 'H2', {}, { state: 'installing', step: 'downloading', sizeBytes: 2_775_406 }),
+          moduleCard('msaccess', 'Microsoft Access', {}, { state: 'failed', message: 'No network.', sizeBytes: 3_566_458 }),
+        ],
+      },
+      { name: 'Data warehouses', cards: [moduleCard('clickhouse', 'ClickHouse', { tools: 6 }, { version: '1.0.0', sizeBytes: 57_032 }), moduleCard('duckdb', 'DuckDB')] },
+    ]);
+    expect(views.map((v) => v.key)).toEqual(['module:duckdb', 'module:h2', 'module:msaccess', 'module:clickhouse']);
+    const duckdb = views[0];
+    expect(duckdb.entry).toBeNull();
+    expect(duckdb.action).toBe('add-connection');
+    expect(duckdb.note).toBe('Not part of the installer: adding a connection downloads it (32 MB).');
+    expect(duckdb.card).toMatchObject({ type: 'duckdb', variant: null, kind: 'built-in', version: '1.1.0', signed: null, tools: 4, action: 'add', status: null });
+    expect(matches(duckdb.search, 'duck')).toBe(true);
+    expect(matches(duckdb.search, 'databases')).toBe(true);
+    expect(matches(duckdb.search, 'module')).toBe(true);
+    expect(views[1].card.status).toEqual({ tone: 'info', text: 'Downloading' });
+    expect(views[1].note).toContain('(2.6 MB)');
+    expect(views[2].card.status).toEqual({ tone: 'warning', text: 'The download failed' });
+    expect(views[3].note).toBe('Not part of the installer: adding a connection downloads it (56 KB).');
+    expect(moduleCatalogViews([])).toEqual([]);
+  });
+
+  it('words what Check now found: a list it couldn’t reach, what is new, or nothing', () => {
+    const groups = [{ name: 'Databases', cards: [moduleCard('duckdb', 'DuckDB'), moduleCard('h2', 'H2')] }];
+    const index = catalog([entry({ id: 'jira', kind: 'plugin', name: 'Jira' })]);
+    const checked = moduleList({ configured: true, checkedAt: '2026-10-23T09:00:00Z', offline: false });
+    // GateRook's modules come first in what the Catalog offers, then the signed catalog's entries.
+    const offer = catalogOffer(groups, index);
+    expect(offer.map((x) => x.key)).toEqual(['module:duckdb', 'module:h2', 'plugin:jira']);
+    expect(catalogOffer(null, null)).toEqual([]);
+    expect(catalogOffer(groups, null).map((x) => x.key)).toEqual(['module:duckdb', 'module:h2']);
+
+    expect(listsCheckToast(offer, offer, index, checked)).toEqual({ tone: 'success', title: 'The catalog is up to date' });
+    expect(listsCheckToast(offer.slice(2), offer, index, checked)).toEqual({ tone: 'success', title: '2 new connectors in the catalog', body: 'DuckDB and H2' });
+    expect(listsCheckToast(offer.slice(0, 2), offer, index, checked)).toEqual({ tone: 'success', title: '1 new connector in the catalog', body: 'Jira' });
+    // What left the lists is no news; the Catalog simply shows less.
+    expect(listsCheckToast(offer, offer.slice(1), index, checked).title).toBe('The catalog is up to date');
+
+    // A list the core couldn't reach comes before anything else, the list of modules first.
+    const lost = moduleList({ configured: true, checkedAt: '2026-10-22T11:00:00Z', offline: true, problem: ' The list can’t be reached: timeout ' });
+    const stale: CatalogIndex = { ...index, offline: true, problem: 'The catalog can’t be reached: timeout' };
+    expect(listsCheckToast(offer.slice(2), offer, stale, lost)).toEqual({
+      tone: 'warning',
+      title: "GateRook's list of connectors couldn't be checked",
+      body: 'The list can’t be reached: timeout',
+    });
+    expect(listsCheckToast(offer, offer, stale, checked)).toEqual({ tone: 'warning', title: "The catalog couldn't be checked", body: 'The catalog can’t be reached: timeout' });
+    expect(listsCheckToast(offer, offer, { ...stale, problem: null }, checked)).toEqual({ tone: 'warning', title: "The catalog couldn't be checked", body: null });
+
+    // Nothing to check is no failure: a build that reads no catalog, and one without a channel for modules.
+    const none: CatalogIndex = { checkedAt: null, source: 'none', offline: true, signature: null, entries: [], problem: 'No catalog is configured for this build.' };
+    expect(listsCheckToast(offer, offer, none, checked).title).toBe('The catalog is up to date');
+    expect(listsCheckToast(offer, offer, index, moduleList()).title).toBe('The catalog is up to date');
   });
 });
 
@@ -290,6 +392,25 @@ describe('connectors view: Templates', () => {
 });
 
 describe('connectors view: MCP servers', () => {
+  it('names the host of a sign-in only when it is a name, never an IP address or localhost', () => {
+    expect(signInHost('mcp.sentry.dev')).toBe('mcp.sentry.dev');
+    expect(signInHost('mcp.example.com:8443')).toBe('mcp.example.com');
+    for (const host of ['127.0.0.1', '127.0.0.1:7781', 'localhost', 'auth.localhost', '10.1.2.3', '[::1]', '[::1]:7781', '::1', 'fe80::1', ' ', null, undefined]) {
+      expect(signInHost(host), String(host)).toBeNull();
+    }
+    expect(['127.0.0.1', '127.1.2.3:7781', 'localhost', 'Auth.LOCALHOST', '[::1]:7781', '::1'].map(onThisComputer)).toEqual([true, true, true, true, true, true]);
+    expect(['10.1.2.3', 'mcp.sentry.dev', 'localhost.example.com', '', null].map(onThisComputer)).toEqual([false, false, false, false, false]);
+    // The row of a server says where it is signed in only by a name.
+    const signedIn = (issuer: string) => signInText(mcpServerView(
+      connection('tracker-mcp', 'mcp-server'),
+      detail('tracker-mcp', { transport: 'http', url: 'http://127.0.0.1:7781/mcp', auth: { type: 'oauth' } }),
+      null, null, null, null,
+      { server: 'tracker-mcp', state: 'signed-in', issuer },
+    ));
+    expect(signedIn('https://mcp.sentry.dev')).toEqual({ tone: 'success', text: 'Signed in at mcp.sentry.dev' });
+    expect(signedIn('http://127.0.0.1:7781')).toEqual({ tone: 'success', text: 'Signed in' });
+  });
+
   it('splits a command line at whitespace with quotes, never as a shell', () => {
     expect(tokenizeCommand('npx -y @sentry/mcp-server@0.12.0').argv).toEqual(['npx', '-y', '@sentry/mcp-server@0.12.0']);
     expect(tokenizeCommand(`node "/Users/me/My Tools/index.js" --flag='a b' ""`).argv).toEqual(['node', '/Users/me/My Tools/index.js', '--flag=a b', '']);

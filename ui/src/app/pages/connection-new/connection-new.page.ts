@@ -19,11 +19,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { ApiError, isApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, TestOutcome } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, Suggested, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
-import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
+import { MasterKeyApi, SecretRow, SecretsApi, rotationUnconfirmed } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
 import { compactReferenceError } from '../../core/secret-reference-feedback';
@@ -35,17 +35,28 @@ import { AccessChanges, GwAccessSwitch } from '../../kit/access-switch';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, InitialCredentialReference, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, InitialCredentialReference, ProdDefault, SuggestionRequest, signInTarget } from '../../kit/elements/connection-form/connection-form';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
 import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/cloud-projects';
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts, usesGoogleAdc } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
+import { withCompatibleServices } from '../../kit/elements/shared/compatible-services';
+import { connectorCategories, filterConnectorGroups } from '../../kit/elements/shared/connector-categories';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
 import { MODES, healthLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
+import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
+import { ModulesApi } from '../../core/api/modules.api';
+import { McpProfile, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { formatBytes } from '../../core/time/time-format';
+import { ConnectorsData } from '../connectors/connectors.data';
+import { failureText } from '../connectors/dialogs/failure';
+import { FEATURED_MCP_SERVERS } from '../connectors/mcp-featured-servers';
+import { RegistryResult } from '../connectors/mcp-registry-results';
+import { DirectPluginInstaller, GwPluginReviewDialog, PluginInstaller } from '../connectors/dialogs/plugin-review.dialog';
 import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
 import { getAt, setAt } from '../../schema-form/compile';
@@ -85,6 +96,7 @@ import {
   testSummary,
   testTarget,
   testToast,
+  toolCount,
   toolPreview,
   toolsLine,
   toolsSentence,
@@ -92,10 +104,33 @@ import {
   usedByMeta,
   usedByRows,
 } from './connection-new-view';
+import { GwConnectionCalls } from './connection-calls';
 import { ConnectionToolModes } from './connection-tool-modes';
+import { GwMcpConfigure, McpReviewed } from './mcp/mcp-configure';
+import { EndpointOutcome, GwMcpEndpoints, McpFirstEndpoint, McpServerConnected } from './mcp/mcp-endpoints';
+import {
+  EXTERNAL_KEY,
+  MCP_SERVER_TYPE,
+  McpChoice,
+  OFFICIAL_REGISTRY,
+  PASTE_KEY,
+  RegistryFinder,
+  featuredKey,
+  isMcpKey,
+  mcpGroups,
+  officialEntry,
+  pasteGroup,
+  profileKey,
+  readPaste,
+  registryCard,
+  registryEntry,
+  registryKey,
+  registryLabel,
+} from './mcp/mcp-picker';
+import { GwMcpReview } from './mcp/mcp-review';
 
-/** The connector type of external MCP servers, which Add MCP server adds (Connectors › MCP servers). */
-const MCP_SERVER_TYPE = 'mcp-server';
+/** What step 1 shows: every kind, the connector types, or the MCP servers (`?show=mcp`). */
+export type PickerShow = 'all' | 'connectors' | 'mcp';
 
 /** A load of the page: under way, done, or why not (an area whose backend isn't merged answers `not-available`). */
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -131,8 +166,9 @@ export function errorText(e: ApiError | null): string {
  *   endpoint, the core's own preview and `POST /api/endpoints/{slug}/connections/{name}`.
  * - **Duplicate** (`?duplicate=<name>`): the wizard from Configure with the settings of `GET …/{name}/duplicate`;
  *   credentials are never copied.
- * - **Edit** (`/connections/<name>`): health (live through `connection.health`), Test connection, Settings with
- *   stored secrets (Replace, Rotate where the source can), references and Delete, and Tools with endpoint modes.
+ * - **Edit** (`/connections/<name>`): health (live through `connection.health`), its calls over the last 30 days
+ *   (`GwConnectionCalls`), Test connection, Settings with stored secrets (Replace, Rotate where the source can),
+ *   references and Delete, and Tools (counted in its tab) with endpoint modes.
  *   Both tab panels stay mounted so changing tabs preserves the settings draft.
  *
  * Step changes move focus to the step's heading and announce "Step 2 of 4: Configure", as the kit's page script does.
@@ -158,17 +194,31 @@ interface ReferenceChange {
     GwDialogClose,
     GwCodeBlock,
     GwConnectorPicker,
+    GwSearchClear,
+    GwSearchClearButton,
+    GwPluginReviewDialog,
     GwConnectionForm,
     GwConnectionTest,
     GwAccessSwitch,
     ConnectionToolModes,
+    GwConnectionCalls,
+    GwMcpConfigure,
+    GwMcpReview,
+    GwMcpEndpoints,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // A catalog plugin chosen here installs through Connectors' review, straight with the plugins API. An MCP server's
+  // steps review, start and list it through the same data as Connectors › MCP servers.
+  providers: [{ provide: PluginInstaller, useClass: DirectPluginInstaller }, ConnectorsData],
   host: { class: 'gw-page gw-page--narrow', '[class.gw-form--sticky-actions]': "mode() === 'edit'" },
   templateUrl: './connection-new.page.html',
 })
 export class ConnectionNewPage {
   private readonly typesApi = inject(ConnectorTypesApi);
+  private readonly pluginsApi = inject(PluginsApi);
+  private readonly modulesApi = inject(ModulesApi);
+  private readonly mcpApi = inject(McpServersApi);
+  private readonly mcpData = inject(ConnectorsData);
   private readonly connections = inject(ConnectionsApi);
   private readonly accessChanges = inject(AccessChanges);
   private readonly endpointsApi = inject(EndpointsApi);
@@ -194,6 +244,18 @@ export class ConnectionNewPage {
   readonly variant = input<string | null>(null);
   /** `?duplicate=<name>`: the wizard from Configure with that connection's settings. */
   readonly duplicate = input<string | null>(null);
+  /** `?show=mcp` (Add MCP server, Connectors and Overview): step 1 opens on the MCP servers. */
+  readonly show = input<string | null>(null);
+  /** `?profile=<id>`: Configure on GateRook's verified profile of that vendor's server (Connectors' Cloud platforms). */
+  readonly profile = input<string | null>(null);
+  /** `?registry=<name>`: Configure on that entry of the Official MCP Registry (Connectors' Popular cards). */
+  readonly registry = input<string | null>(null);
+  /** `?registryServer=<name>`: Configure on a search result of the registry the core searches (Connectors' Use). */
+  readonly registryServer = input<string | null>(null);
+  /** `?catalog=<id>@<version>`: Configure on that MCP server of GateRook's signed catalog (Connectors › Catalog). */
+  readonly catalogEntry = input<string | null>(null, { alias: 'catalog' });
+  /** `?endpoint=<slug>` (Overview's Add service): the endpoint step 4 chooses first, when it may take the connection. */
+  readonly endpoint = input<string | null>(null);
 
   readonly mode = computed<Mode>(() => (this.name() ? 'edit' : this.duplicate() ? 'duplicate' : 'add'));
   protected readonly formMode = computed<'create' | 'duplicate' | 'edit'>(() => {
@@ -215,18 +277,150 @@ export class ConnectionNewPage {
   protected readonly catalogError = signal<ApiError | null>(null);
   readonly selected = signal<string | null>(null);
   protected readonly pickError = signal<string | null>(null);
-  protected readonly groups = computed(() => this.catalog()?.groups ?? []);
-  protected readonly card = computed(() => findCard(this.groups(), this.selected()));
+  /**
+   * The core's cards, with a card for every compatible service of a built-in type (Supabase after PostgreSQL). The
+   * generic MCP server type isn't among them: MCP servers have their own section after the connector types.
+   */
+  protected readonly groups = computed(() =>
+    withCompatibleServices(this.catalog()?.groups ?? [])
+      .map((g) => ({ ...g, cards: g.cards.filter((c) => c.type !== MCP_SERVER_TYPE) }))
+      .filter((g) => g.cards.length));
+  /** The search above the picker: it filters the types by name, other names and category, and reads a paste. */
+  protected readonly typeQuery = signal('');
+  /** All, Connectors or MCP servers (the switch beside the search). */
+  readonly showKind = signal<PickerShow>('all');
+  /** The core's groups split into the picker's categories (SQL databases, NoSQL databases, Data warehouses…). */
+  protected readonly categories = computed(() => connectorCategories(this.groups()));
+  /** GateRook's verified profiles of vendors' own MCP servers; none from a core without them. */
+  protected readonly mcpProfiles = signal<readonly McpProfile[]>([]);
+  /** The MCP section before the registry: External MCP server, the verified profiles, the Popular picks. */
+  protected readonly mcpSection = computed(() => mcpGroups(this.mcpProfiles()));
+  /** The Official MCP Registry, searched from three characters of the search (never with a paste). */
+  protected readonly finder = new RegistryFinder((q, cursor) => this.mcpData.searchRegistry(q, cursor ?? null));
+  /** "the Official MCP Registry", or the registry the core is set to once an answer names it. */
+  protected readonly registryWords = computed(() => registryLabel(this.finder.registry()));
+  protected readonly registryTitle = computed(() => {
+    const registry = this.finder.registry();
+    return registry && registry !== OFFICIAL_REGISTRY ? 'MCP registry' : 'Official MCP Registry';
+  });
+  protected readonly registryGroup = computed(() => {
+    const results = this.finder.results();
+    return results.length && this.finder.searched() !== null ? { name: this.registryTitle(), cards: results.map(registryCard) } : null;
+  });
+  /** A configuration, URL, command or connection string pasted into the search: its card stands alone. */
+  protected readonly pasteRead = computed(() => readPaste(this.typeQuery()));
+  protected readonly pasted = computed(() => {
+    const read = this.pasteRead();
+    return read ? pasteGroup(read, findCard(this.groups(), 'postgres')) : null;
+  });
+  /** Every card that can be chosen, the ones the search hides too: what Continue looks the choice up in. */
+  protected readonly pickable = computed(() => [
+    ...this.groups(),
+    ...this.mcpSection(),
+    ...(this.registryGroup() ? [this.registryGroup()!] : []),
+    ...(this.pasted() ? [this.pasted()!] : []),
+  ]);
+  protected readonly card = computed(() => findCard(this.pickable(), this.selected()));
+  /** What the picker shows: the paste's card alone, else the connector categories, then the MCP section. */
+  protected readonly pickerGroups = computed(() => {
+    if (this.pasteRead()) return this.pasted() ? [this.pasted()!] : [];
+    const show = this.showKind();
+    const query = this.typeQuery();
+    return [
+      ...(show !== 'mcp' ? filterConnectorGroups(this.categories(), query) : []),
+      ...(show !== 'connectors' ? filterConnectorGroups(this.mcpSection(), query) : []),
+      ...(show !== 'connectors' && this.registryGroup() ? [this.registryGroup()!] : []),
+    ];
+  });
+  /** The registry is asked about this query (three characters or more, not a paste, MCP servers shown). */
+  protected readonly registryAsked = computed(() =>
+    this.showKind() !== 'connectors' && !this.pasteRead() && this.typeQuery().trim().length >= 3);
+  /** "34 connector types and 28 MCP servers", or what matches while searching (a status region reads it). */
+  protected readonly typeCountText = computed(() => {
+    if (this.pasteRead()) return this.pasted() ? 'Read from your paste: one card, chosen' : 'GateRook can’t read this paste';
+    const count = (groups: readonly { readonly cards: readonly unknown[] }[]) => groups.reduce((n, g) => n + g.cards.length, 0);
+    const query = this.typeQuery().trim();
+    const show = this.showKind();
+    const types = count(query ? filterConnectorGroups(this.categories(), query) : this.categories());
+    const servers = count(query ? filterConnectorGroups(this.mcpSection(), query) : this.mcpSection());
+    const parts = [
+      ...(show !== 'mcp' ? [`${types} connector ${types === 1 ? 'type' : 'types'}`] : []),
+      ...(show !== 'connectors' ? [`${servers} MCP ${servers === 1 ? 'server' : 'servers'}`] : []),
+    ];
+    const registry = this.registryAsked()
+      ? this.finder.searching() ? `; searching ${this.registryWords()}`
+        : this.finder.searched() !== null ? `; ${this.finder.results().length} in ${this.registryWords()}` : ''
+      : '';
+    return `${parts.join(' and ')}${query ? ` match “${query}”` : ''}${registry}`;
+  });
+  /** Nothing to choose: no type or server matches and the registry found nothing (or isn't asked). */
+  protected readonly nothingMatches = computed(() =>
+    !this.pickerGroups().length && !this.pasteRead() && !(this.registryAsked() && this.finder.searching()));
+  /**
+   * The connector module the picked type's form is waiting for: one of GateRook's own connectors that isn't part of
+   * the installer. The form's request installs it; `module.state` says which step it is at. Nothing is asked.
+   */
+  protected readonly moduleDownload = signal<{
+    readonly id: string;
+    readonly name: string;
+    readonly sizeBytes: number;
+    readonly step: string;
+    readonly message: string | null;
+  } | null>(null);
+  /** What step 2 says while the module arrives ("Downloading Cassandra (9.4 MB). This happens once."). */
+  protected readonly moduleDownloadText = computed(() => {
+    const m = this.moduleDownload();
+    if (!m) return '';
+    switch (m.step) {
+      case 'runtime':
+        return `Preparing the Java runtime that ${m.name} runs on. This happens once.`;
+      case 'verifying':
+        return `Checking the download of ${m.name}.`;
+      case 'installing':
+        return `Installing ${m.name}.`;
+      default:
+        return `Downloading ${m.name} (${formatBytes(m.sizeBytes)}). This happens once.`;
+    }
+  });
+  /** A catalog plugin that isn't installed yet: Continue reviews and installs it first. */
+  protected readonly installPicked = computed(() => {
+    const c = this.card();
+    return c && !c.available && c.catalogRef ? c : null;
+  });
   /** "3 connections use PostgreSQL" under the picker (ARCHITECTURE.md §8.4). */
   protected readonly usage = computed(() => {
     const c = this.card();
     return c ? usage(c) : null;
   });
-  /**
-   * External MCP server is chosen: it is added as on Connectors › MCP servers (review, sign-in, then an endpoint), not
-   * through this form — a connection saved here would have no reviewed tools and no sign-in.
-   */
-  protected readonly mcpServerPicked = computed(() => this.card()?.type === MCP_SERVER_TYPE);
+  /** An MCP server card is chosen: Continue starts the MCP steps (Configure, Review, Add to endpoint). */
+  protected readonly mcpServerPicked = computed(() => isMcpKey(this.selected()));
+  /** The note under the picker for a chosen MCP server: where it comes from; nothing runs before its review. */
+  protected readonly mcpNote = computed(() => {
+    const key = this.selected();
+    if (!isMcpKey(key)) return null;
+    if (key === EXTERNAL_KEY) return 'You enter its command or URL next. Nothing runs before the review.';
+    if (key === PASTE_KEY) return 'Filled in from your paste. Nothing runs before the review.';
+    const profile = this.mcpProfiles().find((p) => profileKey(p.id) === key);
+    if (profile) return `${profile.publisher}’s own server with GateRook’s verified profile. Nothing runs before the review.`;
+    // A Popular pick always comes from the official registry; a search result from the one the core searched.
+    const from = key!.startsWith(registryKey('')) ? this.registryWords() : 'the Official MCP Registry';
+    return `From ${from}. Nothing runs before the review.`;
+  });
+
+  // ─── MCP server: steps 2–4 ───
+  /** The MCP server chosen in step 1 (Configure started from it); null on a connector type. */
+  protected readonly mcpChoice = signal<McpChoice | null>(null);
+  /** Continue is reading a Popular card's entry from the registry. */
+  protected readonly resolvingMcp = signal(false);
+  /** What the review is about (Configure's request and the core's answer). */
+  protected readonly mcpReviewed = signal<McpReviewed | null>(null);
+  /** The server once it connected (or started): it is saved, with its tools Off until step 4. */
+  protected readonly mcpServer = signal<McpServerConnected | null>(null);
+  /** Which steps the wizard runs: a connector type's or an MCP server's. */
+  readonly flow = computed<'connector' | 'mcp'>(() => (this.mcpChoice() ? 'mcp' : 'connector'));
+  private readonly mcpConfigure = viewChild(GwMcpConfigure);
+  private readonly mcpReview = viewChild(GwMcpReview);
+  private readonly mcpEndpoints = viewChild(GwMcpEndpoints);
 
   // ─── Step 2: the form ───
   protected readonly spec = signal<ConnectionFormSpec | null>(null);
@@ -258,6 +452,11 @@ export class ConnectionNewPage {
   protected readonly formProblem = signal<{ readonly title: string; readonly message: string } | null>(null);
   private readonly policies = signal<{ readonly all: Policies; readonly schema: JsonObject | null } | null>(null);
   readonly form = viewChild(GwConnectionForm);
+  private readonly pluginReview = viewChild.required(GwPluginReviewDialog);
+  /** The catalog plugin being checked before its review opens (Continue shows it busy). */
+  protected readonly checkingPlugin = signal<string | null>(null);
+  /** The card whose plugin the review installs: Configure opens on it once it is installed. */
+  private reviewing: string | null = null;
   private readonly editTabs = viewChild(GwTabs);
   /** The duplicate's settings: picking its type again keeps them, another type starts fresh. */
   private copied: { readonly type: string; readonly env: Env; readonly config: JsonObject } | null = null;
@@ -328,10 +527,11 @@ export class ConnectionNewPage {
     const tools = this.configuredTools();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
     const dynamic = card ? card.tools === null : false;
+    const signed = card?.signed ?? this.typeDetail()?.type.signed ?? false;
     const chosen = this.chosen();
     return this.choices()
       .filter((c) => !c.refusal && chosen.includes(c.slug))
-      .map((c) => ({ choice: c, preview: toolPreview(tools, kind, dynamic, c) }));
+      .map((c) => ({ choice: c, preview: toolPreview(tools, kind, dynamic, c, signed) }));
   });
   /** The type's tools that change data; their initial modes are shown before saving. */
   protected readonly mutatingTools = computed(() =>
@@ -354,8 +554,28 @@ export class ConnectionNewPage {
     return { icon: 'lock-keyhole', text: first ? `The ${words} ${verb} encrypted on this computer when you save` : `The ${words} ${verb} encrypted with your master key on save` };
   });
 
-  protected readonly steps = computed(() =>
-    stepperSteps(
+  protected readonly steps = computed(() => {
+    if (this.flow() === 'mcp') {
+      const configure = this.mcpConfigure();
+      const server = this.mcpServer();
+      const choice = this.mcpChoice();
+      const title = choice?.origin === 'external' ? 'External MCP server' : `${this.card()?.name ?? this.mcpReviewed()?.name ?? 'MCP server'} · MCP server`;
+      const done = this.ready();
+      return stepperSteps(
+        done ? 5 : this.step(),
+        {
+          typeName: title,
+          name: configure?.name().trim() || this.mcpReviewed()?.name || '',
+          env: configure?.environment() ?? 'dev',
+          test: server ? { passed: true, text: `${server.http ? 'Connected' : 'Started'}${server.tools === null ? '' : ` · ${server.tools} ${server.tools === 1 ? 'tool' : 'tools'}`}` } : null,
+          endpoints: this.mcpEndpoints()?.chosen() ?? [],
+        },
+        this.firstRun(),
+        done ? (done.endpointCreated ? null : done.endpoint) : this.reusesFirstEndpoint() ? this.firstEndpointSlug() : null,
+        'mcp',
+      );
+    }
+    return stepperSteps(
       this.ready() ? 5 : this.step(),
       {
         typeName: this.card()?.name ?? this.spec()?.name ?? null,
@@ -367,8 +587,8 @@ export class ConnectionNewPage {
       this.firstRun(),
       this.ready() ? (this.ready()!.endpointCreated ? null : this.ready()!.endpoint)
         : this.reusesFirstEndpoint() ? this.firstEndpointSlug() : null,
-    ),
-  );
+    );
+  });
 
   // ─── First run (kit connection-new ?state=first-run) ───
 
@@ -378,10 +598,23 @@ export class ConnectionNewPage {
    * from the core when the wizard opens (false until it answers, and for duplicates and the edit view).
    */
   readonly firstRun = signal(false);
+  /** The names of the connections there are: a proposed Name never takes one. */
+  protected readonly takenNames = signal<readonly string[]>([]);
+  /** Which endpoints each existing connection is on: Overview's Add service says how many aren't on its endpoint. */
+  private readonly existingUse = signal<readonly (readonly string[])[]>([]);
+  /** Connections that already exist and aren't on the endpoint the page was opened for (`?endpoint=`). */
+  protected readonly existingNotOn = computed(() => {
+    const slug = this.endpoint();
+    return slug ? this.existingUse().filter((usedBy) => !usedBy.includes(slug)).length : 0;
+  });
   private readonly firstEndpoint = signal<EndpointSummary | null>(null);
+  /** The first endpoint is named after this environment: the connection's, or the MCP server's. */
+  private readonly firstEnv = computed<Env>(() => this.flow() === 'mcp'
+    ? (this.mcpServer()?.env ?? this.mcpConfigure()?.environment() ?? 'dev')
+    : this.current().env);
   protected readonly firstEndpointSlug = computed(() => {
     const endpoint = this.firstEndpoint();
-    const env = this.current().env;
+    const env = this.firstEnv();
     // A live client or token must not cross the production boundary with an empty endpoint.
     return endpoint && !(env === 'prod' && endpoint.env !== 'prod' && (endpoint.tokens.active > 0 || endpoint.clients.length > 0))
       ? endpoint.slug : env;
@@ -401,12 +634,15 @@ export class ConnectionNewPage {
     readonly local: boolean;
     readonly tested: boolean;
     readonly health: ReturnType<typeof healthLook> | null;
+    /** An MCP server (saved when it connected) rather than a connection saved by the wizard. */
+    readonly mcp: { readonly http: boolean } | null;
   } | null>(null);
-  /** The first endpoint's tools as Save will create them (prod: nothing in Approval, read only by default). */
+  /** The first endpoint's tools as Save will create them: reads in Read only, changes in Approval, on prod too. */
   protected readonly firstPreview = computed(() => {
     const card = this.card();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
-    return firstRunPreview(this.configuredTools(), kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug());
+    const signed = card?.signed ?? this.typeDetail()?.type.signed ?? false;
+    return firstRunPreview(this.configuredTools(), kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug(), signed);
   });
   /** "sql_execute" in "Anything that changes data, like sql_execute, waits for your approval." */
   protected readonly firstMutating = computed(() => this.mutatingTools()[0] ?? null);
@@ -428,7 +664,7 @@ export class ConnectionNewPage {
   /** The ready card's Tools row, from the endpoint's tools as the core answered them. */
   protected readonly readyTools = computed(() => {
     const r = this.ready();
-    return r ? toolsSentence(r.tools, r.env) : null;
+    return r ? toolsSentence(r.tools) : null;
   });
 
   // ─── Edit view ───
@@ -456,6 +692,8 @@ export class ConnectionNewPage {
   protected readonly usedBy = computed(() =>
     usedByRows(this.detail()?.usedBy ?? [], (this.typeDetail()?.tools ?? []).map((t) => t.name)),
   );
+  /** The Tools tab's count: the rows its table lists. */
+  protected readonly toolCount = computed(() => toolCount(this.usedBy()));
   /** Saved endpoint membership exists independently of the connection's tool rows. */
   private readonly assignedEndpoints = signal<readonly string[]>([]);
   protected readonly uses = computed(() => endpointUses(this.usedBy(), this.endpoints() ?? [], this.assignedEndpoints()));
@@ -516,8 +754,38 @@ export class ConnectionNewPage {
       this.duplicate();
       this.type();
       this.variant();
+      this.show();
+      this.profile();
+      this.registry();
+      this.registryServer();
+      this.catalogEntry();
       untracked(() => void this.start(mode));
     });
+    // The Official MCP Registry follows the search while MCP servers are shown.
+    effect(() => {
+      const query = this.typeQuery();
+      const asked = this.showKind() !== 'connectors';
+      untracked(() => this.finder.find(asked ? query : ''));
+    });
+    destroy.onDestroy(() => this.finder.stop());
+    // What a paste reads is the choice; clearing the paste clears it.
+    effect(() => {
+      const pasted = this.pasted();
+      untracked(() => {
+        if (pasted) this.onPick(cardKey(pasted.cards[0]));
+        else if (this.selected() === PASTE_KEY || this.selected() === 'postgres:paste') this.selected.set(null);
+      });
+    });
+    const offModule = this.events.on('module.state', (m) => {
+      const waiting = this.moduleDownload();
+      if (waiting && waiting.id === m.id) this.moduleDownload.set({ ...waiting, step: m.step, message: m.message ?? null });
+    });
+    destroy.onDestroy(offModule);
+    // GateRook's list of connector modules arrived or changed while the page is open: its cards follow.
+    const offList = this.events.on('module.list', () => {
+      if (this.catalog()) void this.reloadCatalog();
+    });
+    destroy.onDestroy(offList);
     const offHealth = this.events.on('connection.health', (h) => {
       if (this.mode() !== 'edit' || h.name !== this.name()) return;
       this.healthRevision++;
@@ -554,12 +822,13 @@ export class ConnectionNewPage {
   }
 
   private async start(mode: Mode): Promise<void> {
-    if (mode === 'add' && this.type() === MCP_SERVER_TYPE) {
-      // ?type=mcp-server (Connectors' External MCP server card): straight to Add MCP server.
-      this.addMcpServer(true);
-      return;
-    }
     const gen = ++this.gen;
+    this.mcpChoice.set(null);
+    this.mcpReviewed.set(null);
+    this.mcpServer.set(null);
+    this.resolvingMcp.set(false);
+    const show = this.show();
+    this.showKind.set(show === 'mcp' || show === 'connectors' ? show : 'all');
     ++this.toolRun;
     this.toolResult.set(null);
     ++this.databaseRun;
@@ -579,7 +848,10 @@ export class ConnectionNewPage {
     this.ready.set(null);
     this.firstRun.set(false);
     this.firstEndpoint.set(null);
-    if (mode === 'add') void this.checkFirstRun(gen);
+    if (mode === 'add') {
+      void this.checkFirstRun(gen);
+      void this.loadProfiles();
+    }
     if (mode === 'edit') {
       await this.startEdit(this.name()!, gen);
       return;
@@ -590,12 +862,84 @@ export class ConnectionNewPage {
       await this.startDuplicate(this.duplicate()!, gen);
       return;
     }
-    this.selected.set(defaultCardKey(this.groups(), this.type(), this.variant()));
+    if (await this.startFromLink(gen)) return;
+    // Add MCP server opens on the MCP section with nothing chosen yet: External MCP server leads it.
+    this.selected.set(this.showKind() === 'mcp' ? null : defaultCardKey(this.groups(), this.type(), this.variant()));
     // Deep link to a step (kit: #step-2…#step-4): the step opens without moving focus.
     const m = /^step-([2-4])$/.exec(this.route.snapshot.fragment ?? '');
     if (m && this.selected() && (await this.openType(this.selected()!, true)) && gen === this.gen) {
       this.go(Number(m[1]) as StepNumber, { initial: true });
     }
+  }
+
+  /**
+   * A link to an MCP server's setup opens its Configure: `?type=mcp-server` (External MCP server), `?profile=`,
+   * `?registry=` (a Popular pick, read from the Official MCP Registry first; a server it can't use stays in step 1 with
+   * the reason), `?registryServer=` (a search result, read from the registry the core searches) and
+   * `?catalog=<id>@<version>`. True when the link was one of these.
+   */
+  private async startFromLink(gen: number): Promise<boolean> {
+    if (this.type() === MCP_SERVER_TYPE) {
+      this.showKind.set('mcp');
+      this.selected.set(EXTERNAL_KEY);
+      this.startMcp({ origin: 'external' }, true);
+      return true;
+    }
+    const profileId = this.profile();
+    if (profileId) {
+      const profile = (await this.loadProfiles()).find((p) => p.id === profileId);
+      if (gen !== this.gen) return true;
+      if (profile) {
+        this.showKind.set('mcp');
+        this.selected.set(profileKey(profile.id));
+        this.startMcp({ origin: 'profile', profile }, true);
+        return true;
+      }
+    }
+    const registryName = this.registry();
+    if (registryName) {
+      this.showKind.set('mcp');
+      const featured = FEATURED_MCP_SERVERS.find((f) => f.registryName === registryName);
+      this.selected.set(featured ? featuredKey(featured) : null);
+      const choice = await this.officialChoice(registryName, featured?.name ?? registryName);
+      if (choice && gen === this.gen) this.startMcp(choice, true);
+      return true;
+    }
+    const serverName = this.registryServer();
+    if (serverName) {
+      this.showKind.set('mcp');
+      this.selected.set(null);
+      const choice = await this.registryChoice(serverName);
+      if (choice && gen === this.gen) this.startMcp(choice, true);
+      return true;
+    }
+    const entry = this.catalogEntry();
+    const at = entry ? entry.lastIndexOf('@') : -1;
+    if (entry && at > 0) {
+      const id = entry.slice(0, at);
+      const version = entry.slice(at + 1);
+      const name = await this.pluginsApi.catalog().then((c) => c.entries.find((e) => e.id === id)?.name ?? id, () => id);
+      if (gen !== this.gen) return true;
+      this.showKind.set('mcp');
+      this.selected.set(null);
+      this.startMcp({ origin: 'catalog', id, version, name }, true);
+      return true;
+    }
+    return false;
+  }
+
+  private profilesLoad: Promise<readonly McpProfile[]> | null = null;
+
+  /** GateRook's verified profiles, asked once per page; a core without them has none. */
+  private loadProfiles(): Promise<readonly McpProfile[]> {
+    this.profilesLoad ??= this.mcpApi.profiles().then(
+      (p) => (Array.isArray(p) ? p : []),
+      () => [],
+    ).then((profiles) => {
+      this.mcpProfiles.set(profiles);
+      return profiles;
+    });
+    return this.profilesLoad;
   }
 
   private async loadCatalog(gen: number): Promise<void> {
@@ -613,6 +957,42 @@ export class ConnectionNewPage {
     }
   }
 
+  /**
+   * Enter in the search never submits step 1 (that would continue with a type the search may hide): when exactly one
+   * available type matches, it picks that one.
+   */
+  protected onTypeSearchEnter(event: Event): void {
+    event.preventDefault();
+    if (this.registryAsked()) this.finder.find(this.typeQuery(), true);
+    const shown = this.pickerGroups().flatMap((g) => g.cards).filter((c) => c.available);
+    if (this.typeQuery().trim() && shown.length === 1) this.onPick(cardKey(shown[0]));
+  }
+
+  /** The switch beside the search: every kind, the connector types, or the MCP servers. */
+  protected setShow(show: PickerShow): void {
+    this.showKind.set(show);
+    // A choice the switch hides isn't the one Continue should take.
+    const key = this.selected();
+    if (key && !this.pickerGroups().some((g) => g.cards.some((c) => cardKey(c) === key))) this.selected.set(null);
+  }
+
+  /** "Enter it by hand" in the empty search: External MCP server's Configure. */
+  protected enterByHand(): void {
+    this.typeQuery.set('');
+    this.selected.set(EXTERNAL_KEY);
+    this.startMcp({ origin: 'external' });
+  }
+
+  /** Show more of the registry's results; the keyboard moves to the first new one. */
+  protected async moreRegistry(): Promise<void> {
+    const first = await this.finder.more();
+    if (!first) return;
+    afterNextRender(() => {
+      const radios = Array.from(this.doc.querySelectorAll<HTMLInputElement>('#type-picker .gw-choice-card__input'));
+      radios.find((r) => r.value === registryKey(first.server.name))?.focus();
+    }, { injector: this.injector });
+  }
+
   protected retryCatalog(): void {
     void this.start(this.mode());
   }
@@ -625,9 +1005,11 @@ export class ConnectionNewPage {
     try {
       const [rows, endpoints] = await Promise.all([this.connections.list(), this.endpointsApi.list()]);
       if (gen !== this.gen) return;
+      this.takenNames.set(rows.items.map((r) => r.name));
+      this.existingUse.set(rows.items.map((r) => r.usedBy));
       this.endpoints.set(endpoints);
       this.endpointsState.set('ready');
-      if (!this.chosenTouched) this.chosen.set(initialEndpoints(this.choices(), this.current().env));
+      if (!this.chosenTouched) this.chosen.set(this.initialChosen());
       const first = isFirstRun(rows.total, endpoints);
       this.firstRun.set(first);
       if (!first) return;
@@ -654,7 +1036,7 @@ export class ConnectionNewPage {
       // A Logs connection is one card per back end: the one whose preset the copied config holds.
       const cards = this.groups()
         .flatMap((g) => g.cards)
-        .filter((c) => c.type === draft.type);
+        .filter((c) => c.type === draft.type && !c.compatibleWith);
       const preset = (c: (typeof cards)[number]) =>
         !!c.presetConfig &&
         typeof c.presetConfig === 'object' &&
@@ -746,7 +1128,7 @@ export class ConnectionNewPage {
 
   /** The form for a card: its type's schema with a Logs back end's preset, or a duplicate's copied settings. */
   private async openType(key: string, initial = false): Promise<boolean> {
-    const card = findCard(this.groups(), key);
+    const card = findCard(this.pickable(), key);
     if (!card && !this.copied) return false;
     if (this.specCard() === key && this.spec()) return true;
     const type = card?.type ?? this.copied!.type;
@@ -759,8 +1141,17 @@ export class ConnectionNewPage {
     this.specState.set('loading');
     this.specError.set(null);
     this.formProblem.set(null);
+    // A type of a connector module that isn't here yet: the form's request installs it and waits for it.
+    const module = card?.module && card.module.state !== 'ready' ? card.module : null;
+    this.moduleDownload.set(module
+      ? { id: module.id, name: card!.name, sizeBytes: module.sizeBytes, step: module.step ?? 'queued', message: null }
+      : null);
     try {
-      const [spec, detail] = await Promise.all([this.typesApi.form(type), this.typesApi.get(type).catch(() => null)]);
+      // The form first: it is what installs a module, and the type's detail exists only once it is here.
+      const spec = await this.typesApi.form(type);
+      const detail = await this.typesApi.get(type).catch(() => null);
+      this.moduleDownload.set(null);
+      if (module) void this.reloadCatalog();
       this.startConfig.set(keepCopy ? this.copied!.config : this.preset(card));
       this.typeDetail.set(detail);
       this.spec.set(spec);
@@ -774,7 +1165,37 @@ export class ConnectionNewPage {
     } catch (e) {
       this.specError.set(isApiError(e) ? e : null);
       this.specState.set('error');
+      if (module) void this.explainModule(module.id, key);
       return false;
+    }
+  }
+
+  /** The catalog read again, quietly: the card of a module that just arrived no longer says it downloads. */
+  private async reloadCatalog(): Promise<void> {
+    const gen = this.gen;
+    try {
+      const catalog = await this.typesApi.catalog();
+      if (gen === this.gen) this.catalog.set(catalog);
+    } catch {
+      // The cards stay as they were.
+    }
+  }
+
+  /**
+   * Why a connector module didn't arrive, in the core's words: the form's own error only says the type isn't there.
+   * Still downloading after the form stopped waiting is no failure: Try again joins the same download.
+   */
+  private async explainModule(id: string, key: string): Promise<void> {
+    const waiting = this.moduleDownload();
+    try {
+      const found = (await this.modulesApi.list()).modules.find((m) => m.id === id);
+      if (this.specCard() === key || this.selected() !== key || this.specState() !== 'error') return;
+      const message = found?.state === 'installing'
+        ? `${waiting?.name ?? 'The connector'} is still downloading. Try again in a moment.`
+        : found?.message ?? waiting?.message ?? null;
+      this.moduleDownload.set(waiting ? { ...waiting, step: found?.state ?? 'failed', message } : null);
+    } catch {
+      // The form's error stands.
     }
   }
 
@@ -790,7 +1211,16 @@ export class ConnectionNewPage {
 
   protected async continueFromType(): Promise<void> {
     const key = this.selected();
-    if (!key || !findCard(this.groups(), key)?.available) {
+    if (isMcpKey(key)) {
+      await this.continueMcp(key!);
+      return;
+    }
+    const picked = findCard(this.pickable(), key);
+    if (key && picked && !picked.available && picked.catalogRef) {
+      await this.reviewPlugin(key, picked.name, picked.catalogRef);
+      return;
+    }
+    if (!key || !picked?.available) {
       this.pickError.set('Choose a connector type to continue.');
       afterNextRender(() => this.doc.querySelector<HTMLInputElement>('#step-1 .gw-choice-card__input:not([aria-disabled])')?.focus(), {
         injector: this.injector,
@@ -798,17 +1228,163 @@ export class ConnectionNewPage {
       return;
     }
     this.pickError.set(null);
-    if (findCard(this.groups(), key)?.type === MCP_SERVER_TYPE) {
-      this.addMcpServer(false);
-      return;
-    }
+    this.mcpChoice.set(null);
     this.go(2);
     await this.openType(key);
   }
 
-  /** Add MCP server on Connectors › MCP servers, whose review signs in and whose last step adds it to an endpoint. */
-  private addMcpServer(replaceUrl: boolean): void {
-    void this.router.navigate(['/connectors'], { queryParams: { add: MCP_SERVER_TYPE }, fragment: 'mcp-servers', replaceUrl });
+  /**
+   * The MCP server chosen in step 1 opens Configure: a Popular card's entry is read from the Official MCP Registry
+   * first (Continue shows it busy), the others fill Configure at once.
+   */
+  private async continueMcp(key: string): Promise<void> {
+    if (this.resolvingMcp()) return;
+    this.pickError.set(null);
+    let choice: McpChoice | null = null;
+    if (key === EXTERNAL_KEY) choice = { origin: 'external' };
+    else if (key === PASTE_KEY) {
+      const read = this.pasteRead();
+      if (read?.kind === 'mcp') choice = { origin: 'paste', server: read.server };
+    } else {
+      const profile = this.mcpProfiles().find((p) => profileKey(p.id) === key);
+      const result = this.finder.results().find((r) => registryKey(r.server.name) === key);
+      const featured = FEATURED_MCP_SERVERS.find((f) => featuredKey(f) === key);
+      if (profile) choice = { origin: 'profile', profile };
+      else if (result) choice = result.use.kind === 'none' ? null : { origin: 'registry', result, registry: this.finder.registry() };
+      else if (featured) choice = await this.officialChoice(featured.registryName, featured.name);
+      if (!choice && !featured) this.pickError.set('Choose what to connect to continue.');
+    }
+    if (choice) this.startMcp(choice);
+  }
+
+  /** A Popular pick: its server of the Official MCP Registry by its exact name. */
+  private officialChoice(name: string, title: string): Promise<McpChoice | null> {
+    return this.resolveChoice(title, async () =>
+      ({ result: await officialEntry((q) => this.mcpData.searchRegistry(q), name), registry: OFFICIAL_REGISTRY }));
+  }
+
+  /** A search result Connectors opened: the same entry of the registry the core searches. */
+  private registryChoice(name: string): Promise<McpChoice | null> {
+    return this.resolveChoice(name, () => registryEntry((q) => this.mcpData.searchRegistry(q), name));
+  }
+
+  /** Reads a registry entry while Continue shows it busy; the reason goes under the picker when it can't be used. */
+  private async resolveChoice(
+    title: string,
+    find: () => Promise<{ readonly result: RegistryResult; readonly registry: string | null }>,
+  ): Promise<McpChoice | null> {
+    const gen = this.gen;
+    this.resolvingMcp.set(true);
+    try {
+      const { result, registry } = await find();
+      return gen === this.gen ? { origin: 'registry', result, registry } : null;
+    } catch (e) {
+      if (gen === this.gen) this.pickError.set(`${title} can’t be set up from the registry: ${failureText(e, 'The registry didn’t answer.')}`);
+      return null;
+    } finally {
+      if (gen === this.gen) this.resolvingMcp.set(false);
+    }
+  }
+
+  /** Configure on the chosen MCP server; a server saved earlier in this visit is kept, its steps start over. */
+  private startMcp(choice: McpChoice, initial = false): void {
+    this.mcpChoice.set(choice);
+    this.mcpReviewed.set(null);
+    this.mcpServer.set(null);
+    this.go(2, { initial });
+    afterNextRender(() => this.mcpConfigure()?.load(choice, this.current().env), { injector: this.injector });
+  }
+
+  /** Configure's Continue: the core reviewed what would run. */
+  protected onMcpReviewed(reviewed: McpReviewed): void {
+    this.mcpReviewed.set(reviewed);
+    this.mcpReview()?.load(reviewed);
+    this.go(3);
+  }
+
+  /**
+   * The server connected (or started): it is saved now, so the wizard can't go back past this point. In first run its
+   * last step offers the first endpoint, as a connection's does: the empty default, or one named after its environment.
+   */
+  protected onMcpConnected(server: McpServerConnected): void {
+    this.mcpServer.set(server);
+    const first: McpFirstEndpoint | null = this.firstRun()
+      ? { slug: this.firstEndpointSlug(), url: this.firstUrl(), reuse: this.reusesFirstEndpoint(), starterEnv: this.firstEndpoint()?.env ?? null, address: this.core.address() }
+      : null;
+    void this.mcpEndpoints()?.load(server, this.endpoint(), first);
+    this.go(4);
+  }
+
+  /**
+   * Add to endpoint or Not now: the server's own page, as after saving a connection. A first run that put it on its
+   * first endpoint ends on the "<name> is ready" card instead.
+   */
+  protected async onMcpFinished(outcome: EndpointOutcome): Promise<void> {
+    const server = this.mcpServer();
+    if (!server) return;
+    const first = outcome.first;
+    if (!first) {
+      void this.router.navigate(['/connections', server.name], { replaceUrl: true });
+      return;
+    }
+    const gen = this.gen;
+    const groups: ToolGroup[] | null = await this.endpointsApi.tools(first.slug).catch(() => null);
+    const detail = await this.connections.get(server.name).catch(() => null);
+    if (gen !== this.gen) return;
+    const h = detail?.health;
+    this.ready.set({
+      name: server.name,
+      env: server.env,
+      endpoint: first.slug,
+      url: first.url,
+      createdAt: new Date(this.time.now()).toISOString(),
+      endpointCreated: first.created,
+      tools: toolsLine((groups ?? []).filter((g) => g.connection === server.name).flatMap((g) => g.tools)),
+      local: true,
+      tested: true,
+      health: h && h.state !== 'unknown' ? healthLook(h.state, h.latencyMs) : null,
+      mcp: { http: server.http },
+    });
+    afterNextRender(() => this.doc.getElementById('fr-done-t')?.focus(), { injector: this.injector });
+  }
+
+  /**
+   * A catalog plugin chosen before it is installed: the core checks the signed package, Connectors' review shows what
+   * it is (a danger confirmation for an unsigned one), and once it is installed Configure opens on it.
+   */
+  private async reviewPlugin(key: string, name: string, catalogRef: string): Promise<void> {
+    if (this.checkingPlugin()) return;
+    const opener = this.doc.activeElement instanceof HTMLElement ? this.doc.activeElement : null;
+    this.checkingPlugin.set(key);
+    try {
+      const check = await this.pluginsApi.check({ catalog: catalogRef });
+      this.reviewing = key;
+      this.pluginReview().show(check, null, opener);
+    } catch (e) {
+      this.toasts.show({ tone: 'danger', title: `${name} wasn't checked`, body: failureText(e, 'This build of the gateway core can’t install plugins yet.') });
+    } finally {
+      this.checkingPlugin.set(null);
+    }
+  }
+
+  /** The review closed: after an install, the catalog again and Configure on the plugin's type. */
+  protected async onPluginReviewClosed(result: string): Promise<void> {
+    const key = this.reviewing;
+    this.reviewing = null;
+    if (result !== 'installed' || !key) return;
+    const gen = this.gen;
+    try {
+      const catalog = await this.typesApi.catalog();
+      if (gen !== this.gen) return;
+      this.catalog.set(catalog);
+    } catch {
+      return;
+    }
+    if (!findCard(this.pickable(), key)?.available) return;
+    this.selected.set(key);
+    this.pickError.set(null);
+    this.go(2);
+    await this.openType(key);
   }
 
   protected retrySpec(): void {
@@ -819,13 +1395,15 @@ export class ConnectionNewPage {
   /** Back / Continue: the panel, the stepper, focus on the step's heading and "Step 2 of 4: Configure". */
   go(n: StepNumber, opts: { readonly focus?: string | false | null; readonly initial?: boolean } = {}): void {
     this.step.set(n);
-    if (n === 3) this.testIfChanged();
-    if (n === 4) void this.loadEndpoints();
+    const mcp = this.flow() === 'mcp';
+    if (n === 3 && !mcp) this.testIfChanged();
+    if (n === 4 && !mcp) void this.loadEndpoints();
     if (opts.initial) return;
     if (opts.focus !== false) {
       afterNextRender(
         () => {
-          const target = (opts.focus && this.doc.getElementById(opts.focus)) || this.doc.getElementById(`step-${n}-title`);
+          const heading = n > 1 && mcp ? `step-${n}-mcp-title` : `step-${n}-title`;
+          const target = (opts.focus && this.doc.getElementById(opts.focus)) || this.doc.getElementById(heading);
           target?.focus();
         },
         { injector: this.injector },
@@ -844,6 +1422,26 @@ export class ConnectionNewPage {
     this.nameProblem.set(null);
     this.draft.set(value);
     this.go(3);
+  }
+
+  /**
+   * The setup helpers' lookups. Quiet: a failure (an incomplete draft, a stored secret that would go to a new host)
+   * offers nothing new and never asks the person anything; Test connection still does.
+   */
+  async loadSuggestions(request: SuggestionRequest): Promise<void> {
+    const form = this.form();
+    const spec = this.spec();
+    if (!form || !spec) return;
+    const gen = this.gen;
+    let result: Suggested | null = null;
+    try {
+      result = await this.connections.suggest({ type: spec.type, env: request.value.env, config: request.value.config,
+        secrets: request.value.secrets, scope: request.scope,
+        ...(this.mode() === 'edit' ? { existing: this.name() } : {}) });
+    } catch {
+      result = null;
+    }
+    if (gen === this.gen && form === this.form()) form.completeSuggestions(request.key, request.scope, result);
   }
 
   /** The Configure form owns selection state; requests and stored-secret consent stay with the page. */
@@ -1002,32 +1600,42 @@ export class ConnectionNewPage {
     };
   }
 
-  /** Trust the key or certificate the test stopped for: the core patches the draft and tests again. */
+  /**
+   * Trust the key or certificate the test stopped for. The core patches the draft; it cannot test an unsaved draft
+   * again (it keeps none of its credentials), so without a retest of its own the wizard tests the patched draft.
+   */
   async trust(confirmationId: string): Promise<void> {
     if (this.trusting()) return;
     this.trusting.set(true);
+    let testAgain = false;
     try {
       const r = await this.connections.confirmDraft(confirmationId);
       const form = this.form();
       if (form && r.config && Object.keys(r.config).length) form.state().model.update((m) => merge(m, r.config) as JsonObject);
-      const v = form?.value() ?? this.draft();
-      if (v) {
-        this.draft.set(v);
-        this.testedKey = draftKey(this.spec()?.type ?? null, v);
+      if (r.retest) {
+        const v = form?.value() ?? this.draft();
+        if (v) {
+          this.draft.set(v);
+          this.testedKey = draftKey(this.spec()?.type ?? null, v);
+        }
+        this.outcome.set(r.retest);
+        this.testedAt.set(new Date(this.time.now()).toISOString());
+      } else {
+        testAgain = true;
       }
-      if (r.retest) this.outcome.set(r.retest);
-      this.testedAt.set(new Date(this.time.now()).toISOString());
     } catch (e) {
       this.toasts.show({ tone: 'danger', title: "Couldn't trust it", body: isApiError(e) ? e.detail : 'Test again, then trust what it shows.' });
     } finally {
       this.trusting.set(false);
     }
+    if (testAgain) await this.runTest();
   }
 
-  /** "Change user": back to Configure with focus on the User field. */
+  /** "Change user" (or, for a database file, "Choose another file"): back to Configure, focus on that field. */
   protected changeUser(): void {
     const s = this.form()?.state();
-    const node = s?.compiled.all.find((n) => /^(user|username|login)$/i.test(n.key));
+    const node = s?.compiled.all.find((n) => /^(user|username|login)$/i.test(n.key))
+      ?? s?.compiled.all.find((n) => n.key === 'file');
     this.go(2, { focus: node && s ? s.id(node) : null });
   }
 
@@ -1048,7 +1656,15 @@ export class ConnectionNewPage {
     } else {
       this.endpointsState.set('ready');
     }
-    if (!this.chosenTouched) this.chosen.set(initialEndpoints(this.choices(), this.current().env));
+    if (!this.chosenTouched) this.chosen.set(this.initialChosen());
+  }
+
+  /** The endpoints step 4 starts with: the one the page was opened for (`?endpoint=`) when it may take it, else the usual. */
+  private initialChosen(): string[] {
+    const choices = this.choices();
+    const wanted = this.endpoint();
+    if (wanted && choices.some((c) => c.slug === wanted && !c.refusal)) return [wanted];
+    return initialEndpoints(choices, this.current().env);
   }
 
   protected retryEndpoints(): void {
@@ -1131,9 +1747,9 @@ export class ConnectionNewPage {
 
   /**
    * First run, once the connection exists: reuse the empty default endpoint or create the first endpoint named after
-   * its environment. On prod nothing waits for approval — "prod
-   * is read only by default" (kit), so the tools the core starts in Approval are set Off. Then the "<name> is ready"
-   * card replaces the wizard. A step that fails says so and leads to the connection's own page.
+   * its environment, with every tool in the mode the core starts it in: reads run at once, changes wait for approval,
+   * on prod too. Then the "<name> is ready" card replaces the wizard. A step that fails says so and leads to the
+   * connection's own page.
    */
   private async finishFirstRun(v: ConnectionFormValue): Promise<void> {
     let slug = this.firstEndpointSlug();
@@ -1181,19 +1797,7 @@ export class ConnectionNewPage {
       return stop(e);
     }
     const mine = (groups: readonly ToolGroup[]) => groups.filter((g) => g.connection === v.name).flatMap((g) => g.tools);
-    let groups: ToolGroup[] | null = await this.endpointsApi.tools(slug).catch(() => null);
-    const notOff: string[] = [];
-    if (v.env === 'prod' && groups) {
-      for (const key of mine(groups).filter((t) => t.mode === 'APPROVAL').map((t) => t.toolKey)) {
-        const row: ToolGroup['tools'][number] | undefined = mine(groups).find((t) => t.toolKey === key);
-        if (!row || row.mode !== 'APPROVAL') continue;
-        try {
-          groups = await this.endpointsApi.setMode(slug, { toolKey: row.toolKey, connection: v.name, mode: 'OFF', version: row.version });
-        } catch {
-          notOff.push(row.name);
-        }
-      }
-    }
+    const groups: ToolGroup[] | null = await this.endpointsApi.tools(slug).catch(() => null);
     const detail = await this.connections.get(v.name).catch(() => null);
     const outcome = this.outcome();
     const h = detail?.health;
@@ -1208,25 +1812,11 @@ export class ConnectionNewPage {
       local: this.secretLocal(),
       tested: this.summary()?.passed === true,
       health: h && h.state !== 'unknown' ? healthLook(h.state, h.latencyMs) : outcome?.ok ? healthLook('healthy', outcome.latencyMs) : null,
+      mcp: null,
     });
     this.saving.set(false);
     afterNextRender(() => this.doc.getElementById('fr-done-t')?.focus(), { injector: this.injector });
-    if (notOff.length) {
-      const one = notOff.length === 1;
-      this.toasts.show({
-        tone: 'warning',
-        title: `Connection ${v.name} saved`,
-        body: `Added to endpoint ${slug}, but ${list(notOff)} still ${one ? 'waits' : 'wait'} for approval there. Turn ${one ? 'it' : 'them'} off on the endpoint.`,
-      });
-    } else if (v.env === 'prod' && !groups) {
-      this.toasts.show({
-        tone: 'warning',
-        title: `Connection ${v.name} saved`,
-        body: `Added to endpoint ${slug}. Its tools couldn't be read back: check that nothing waits for approval there.`,
-      });
-    } else {
-      this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug, endpointCreated) });
-    }
+    this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug, endpointCreated) });
   }
 
   /** The core refused the new connection: the name (409) or a field (422) go back to Configure to be fixed. */
@@ -1251,7 +1841,7 @@ export class ConnectionNewPage {
   private applyFormErrors(error: ApiError, focus = true, submittedName = this.current().name): void {
     if (focus) this.showSettings();
     const others = this.form()?.applyServerError(error) ?? error.errors;
-    const name = this.mode() !== 'edit' ? others.find((item) => item.field === '/name') : undefined;
+    const name = others.find((item) => item.field === '/name');
     if (name) this.nameProblem.set({ name: submittedName, message: name.message });
     const rest = others.filter((item) => item !== name);
     const problem = rest.length || !error.errors.length
@@ -1370,31 +1960,40 @@ export class ConnectionNewPage {
       }
     }
     this.saving.set(true);
+    // A new name is saved with the settings; the rest of the page then follows the connection to its new address.
+    const renamed = value.name !== name ? value.name : null;
     try {
       // New secrets and fields read from a store go with the settings; a stored one changes through its own control.
       const secrets = Object.fromEntries(Object.entries(value.secrets).filter(([field]) => !changed.has(field)
         && !existingFields.has(field)));
       await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm,
-        ...(Object.keys(secrets).length ? { secrets } : {}) });
+        ...(renamed ? { name: renamed } : {}), ...(Object.keys(secrets).length ? { secrets } : {}) });
       // The settings are saved first: a reference the core refuses then leaves them as saved, and says why.
       const failed = await this.applyReferenceChanges(changes, reason);
+      const saved = renamed ?? name;
       if (failed.length) {
         const fields = this.spec()?.secretFields ?? [];
         this.toasts.show({
           tone: 'danger',
-          title: `The ${secretWord(fields, failed[0].field)} reference of ${name} didn't change`,
+          title: `The ${secretWord(fields, failed[0].field)} reference of ${saved} didn't change`,
           body: `${failed[0].detail} The other settings are saved.`,
         });
       } else {
         this.toasts.show({
           tone: 'success',
-          title: `Connection ${name} saved`,
-          body: completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
+          title: renamed ? `Connection ${name} renamed to ${renamed}` : `Connection ${name} saved`,
+          body: renamed ? 'Agents use the new name from their next tool list. Its endpoints, policies and secret names follow it; past calls keep the old name.'
+            : completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
             : changes.length ? 'The new settings and references apply from the next call. Calls in flight finish with the old ones.'
             : 'The new settings apply from the next call. Calls in flight finish with the old ones.',
         });
       }
-      await this.reloadDetail();
+      if (renamed) {
+        this.announcer.announce(`Renamed to ${renamed}`);
+        await this.router.navigate(['/connections', renamed], { replaceUrl: true });
+      } else {
+        await this.reloadDetail();
+      }
     } catch (e) {
       const err = isApiError(e) ? e : null;
       if (err?.kind === 'conflict' && err.confirm === 'danger') {
@@ -1402,6 +2001,12 @@ export class ConnectionNewPage {
       } else if (err?.kind === 'conflict' && err.confirm === 'send-secret-to-new-host') {
         this.newHost.set({ title: err.title, detail: err.detail, value, reason });
         this.hostDialog()?.openAfterRender();
+      } else if (renamed && err?.kind === 'conflict' && err.title === 'Name in use') {
+        // Said under the Name until it changes; nothing was saved.
+        this.nameProblem.set({ name: renamed, message: err.detail });
+        this.showSettings();
+        const nameId = `${this.form()?.idPrefix() ?? 'cf'}-name`;
+        afterNextRender(() => this.doc.getElementById(nameId)?.focus(), { injector: this.injector });
       } else if (err?.kind === 'conflict') {
         this.toasts.show({ tone: 'warning', title: `${name} changed meanwhile`, body: `${err.detail} Its current settings are shown again.` });
         await this.reloadDetail().catch(() => undefined);
@@ -1634,6 +2239,12 @@ export class ConnectionNewPage {
       });
       await this.refreshSecrets();
     } catch (e) {
+      if (rotationUnconfirmed(e)) {
+        // The source may already use the new value, which the core keeps until the next Rotate settles it.
+        this.toasts.show({ tone: 'warning', title: `Rotation of ${name}/${r.key} unconfirmed`, body: e.detail });
+        await this.refreshSecrets();
+        return;
+      }
       this.toasts.show({ tone: 'warning', title: `${name}/${r.key} wasn't rotated`, body: isApiError(e) ? e.detail : "The core didn't answer." });
     }
   }

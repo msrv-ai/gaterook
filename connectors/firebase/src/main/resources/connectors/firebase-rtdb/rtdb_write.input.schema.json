@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "operation",
+    "path"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "operation": {
+      "enum": [
+        "set",
+        "update",
+        "delete"
+      ],
+      "description": "set: replace the data at path with value. update: change the children value names and keep the others; a key may be a path further down, such as profile/city, and null removes that child. delete: remove the data at path and everything under it."
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 25000,
+      "description": "Where to write, such as /users/alice. set and delete need a path below the root."
+    },
+    "value": {
+      "description": "set: the new data, any JSON but null. update: an object of the children to change. A person approves the exact request."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

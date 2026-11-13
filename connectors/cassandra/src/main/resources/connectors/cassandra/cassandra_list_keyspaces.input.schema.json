@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "keyspace": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_]{1,48}$",
+      "description": "Only this keyspace, as Cassandra stores it. Leave it out to list every keyspace agents may use."
+    }
+  }
+}

@@ -2,8 +2,9 @@
 // The UI's development loop in one command (ARCHITECTURE.md §8.1, README "UI development"):
 //
 //   npm run dev -w ui            # or: node ui/scripts/dev.mjs [--port 4300] [--core-port 7465] [--keep] [--no-demo]
+//                                #     [--no-plugins] [--core-flag <JVM flag>]...
 //
-// 1. app/target/app.jar is built once if it is missing (mvn -pl app -am -DskipTests package; under the shared
+// 1. app/target/app.jar is built once if it is missing (mvn -pl app -am -DskipTests -Pall-bundled package; under the shared
 //    heavy-build lock when `flock` exists).
 // 2. A fresh launch secret (32 random bytes, base64url) and free local ports.
 // 3. The core on the JVM in dev mode (-Dgateway.dev=true + GW_DEV_INTERNAL_SECRET), with GW_DEMO=1 on an empty home
@@ -12,6 +13,19 @@
 //    and AI apps' first run, then setup once a connection is added. The AI apps it finds then live in a sandbox
 //    (<home>/demo-user-home, -Dgateway.clients.user-home) where Claude Desktop, Codex and Cursor are installed, so
 //    Connect never touches this computer's real apps (the demo world does the same on its own).
+//    The plugins of this checkout come from a local signed catalog on loopback (ui/scripts/dev-catalog.mjs: the
+//    plugin JARs and plugin-host.jar are built once if missing), so Add connection and Connectors › Catalog offer
+//    and install them as a release does. The connector modules whose source lives in the modules repository
+//    (ClickHouse, DuckDB, H2, Microsoft Access) come from a local signed list of modules beside it, made of the
+//    packages built in a checkout of gaterook/gaterook-plugins (GATEROOK_MODULES_REPO, or gaterook-plugins beside
+//    this checkout), and install when one is chosen, as in a release. Without a built package there, the core reads
+//    the list GateRook publishes, as every build does, and downloads from it.
+//    --no-plugins starts without a catalog, a list of modules or a plugin host: the core is told to read no list
+//    (-Dgateway.lists=none), since it couldn't run a module.
+//    --core-flag passes one more flag to the core's JVM, as often as it is given. To see connector modules arrive as
+//    in a release whatever is built beside this checkout, build app.jar without -Pall-bundled and start with
+//    --no-plugins --core-flag -Dgateway.lists=official --core-flag -Dgateway.pluginHostJar=<plugin-host.jar>:
+//    the core then reads GateRook's published list of modules and downloads from it.
 // 4. Waits for the core's ready line, then `ng serve` with ui/proxy.conf.mjs signing every /api request with the
 //    secret as Electron's main process does.
 //
@@ -25,6 +39,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createRequire } from 'node:module';
+import { startDevCatalog } from './dev-catalog.mjs';
 
 const UI = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(UI, '..');
@@ -36,6 +51,8 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const flag = (name) => args.includes(name);
+/** Every value of an option that may be given several times. */
+const options = (name) => args.flatMap((a, i) => (a === name && args[i + 1] ? [args[i + 1]] : []));
 
 /** A port the OS says is free right now (0 = let it choose). */
 function freePort(preferred = 0) {
@@ -55,8 +72,9 @@ function java() {
 }
 
 function buildJar() {
-  console.log('[dev] app/target/app.jar is missing: building it once (mvn -pl app -am -DskipTests package)');
-  const mvn = ['mvn', '-B', '-ntp', '-pl', 'app', '-am', '-DskipTests', 'package'];
+  // -Pall-bundled: the development core also holds the connectors that connectors/delivery.json delivers as modules.
+  console.log('[dev] app/target/app.jar is missing: building it once (mvn -pl app -am -DskipTests -Pall-bundled package)');
+  const mvn = ['mvn', '-B', '-ntp', '-pl', 'app', '-am', '-DskipTests', '-Pall-bundled', 'package'];
   const lock = join(homedir(), '.cache', 'mcp-gateway', 'heavy.lock');
   const hasFlock = spawnSync('flock', ['--version'], { stdio: 'ignore' }).status === 0;
   if (hasFlock) mkdirSync(dirname(lock), { recursive: true });
@@ -97,6 +115,8 @@ async function main() {
   }
   const coreEnv = { ...process.env, GW_DEV_INTERNAL_SECRET: secret, ...(demo ? { GW_DEMO: '1' } : {}) };
   if (!demo) delete coreEnv.CODEX_HOME; // Codex's real home would win over the sandbox's ~/.codex
+  const catalog = flag('--no-plugins') ? null : await startDevCatalog({ root: ROOT, home, java: java() });
+  if (catalog) process.on('exit', catalog.stop);
 
   console.log(`[dev] core: 127.0.0.1:${corePort} (public ${publicPort}), home ${home}${demo ? ', demo world' : `, empty; AI apps in ${userHome}`}`);
   const core = spawn(
@@ -112,6 +132,11 @@ async function main() {
       // recorded; the deferred first round is a second lock for a core before that. Test connection and Test all
       // still check for real.
       ...(demo ? ['-Dgateway.connections.health-interval=1m', '-Dgateway.connections.health-initial-delay=7d'] : [`-Dgateway.clients.user-home=${userHome}`]),
+      ...(catalog?.properties ?? []),
+      // A core without a plugin host can run no connector module, so it doesn't offer the ones GateRook publishes
+      // either; a --core-flag -Dgateway.lists=… decides otherwise.
+      ...(catalog || options('--core-flag').some((f) => f.startsWith('-Dgateway.lists=')) ? [] : ['-Dgateway.lists=none']),
+      ...options('--core-flag'),
       '-jar',
       JAR,
     ],

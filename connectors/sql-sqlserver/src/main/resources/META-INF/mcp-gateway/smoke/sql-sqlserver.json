@@ -1,0 +1,17 @@
+{
+  "area": "sql-sqlserver",
+  "module": "connectors/sql-sqlserver",
+  "connectorTypes": ["sqlserver"],
+  "description": "Touches of the SQL Server connector type for the native smoke (report 15 §6): its driver is in the image and refuses a connection it must refuse, without a server.",
+  "touches": [
+    {
+      "name": "sqlserver-driver-refused",
+      "connection": {"type": "sqlserver", "env": "dev",
+        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "app", "sslMode": "disable"},
+                   "credentials": {"user": "gw_reader"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "sql.connect"}
+    }
+  ]
+}

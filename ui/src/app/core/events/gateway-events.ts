@@ -32,6 +32,10 @@ export interface GatewayEvents {
     readonly endpoint: string;
     readonly token: string | null;
     readonly durationMs: number | null;
+    /** What the app sent: set on the call's received row only. */
+    readonly requestBytes?: number | null;
+    /** What went back to the app: set on its completed row. */
+    readonly resultBytes?: number | null;
     readonly rule: string | null;
     readonly approvalId: string | null;
     readonly traceId: string | null;
@@ -77,6 +81,23 @@ export interface GatewayEvents {
    */
   'ui.open': { readonly path?: string };
   'plugin.state': { readonly id: string; readonly state: string; readonly [key: string]: unknown };
+  /**
+   * One of GateRook's connector modules moved a step in its installation: `queued`, `runtime` (the Java runtime it
+   * runs on), `downloading`, `verifying`, `installing`, then `ready` or `failed` (`message` says why).
+   */
+  'module.state': {
+    readonly id: string;
+    readonly version: string;
+    readonly step: string;
+    readonly sizeBytes: number;
+    readonly message?: string;
+    readonly types?: readonly string[];
+  };
+  /**
+   * The core accepted another list of GateRook's connector modules than it held: the pages that show the listed
+   * modules (Add connection, Connectors › Catalog) read them again. `modules`: how many it lists now.
+   */
+  'module.list': { readonly modules: number };
   'mcp-server.state': { readonly name: string; readonly state: string; readonly [key: string]: unknown };
   /** A sign-in in the browser changed (`id`), or a stored server's sign-in did (`server`, `needs-sign-in`). */
   'mcp-server.sign-in': { readonly id?: string; readonly server: string; readonly state: string; readonly message?: string };

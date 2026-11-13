@@ -1,7 +1,7 @@
 package gaterook.plugins.rabbitmq;
 
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.ConnectorException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;

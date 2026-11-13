@@ -1,0 +1,17 @@
+{
+  "area": "redshift",
+  "module": "connectors/redshift",
+  "connectorTypes": ["redshift"],
+  "description": "Touches of the Redshift connector for the native smoke (report 15 §6): the SQL reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "redshift-classify-without-io",
+      "connection": {"type": "redshift", "env": "dev",
+        "config": {"region": "eu-central-1", "target": {"kind": "cluster", "cluster": "acme-analytics"},
+          "database": "dev", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
+      "call": {"tool": "redshift_query", "arguments": {"sql": "DELETE FROM sales.orders WHERE true"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.redshift.query-writes"}
+    }
+  ]
+}

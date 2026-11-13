@@ -65,13 +65,13 @@
           ],
           "default": "auto",
           "x-enumTitles": [
-            "Auto (SSL if available)",
+            "Auto (TLS when the server offers it, not verified)",
             "Off (disable)",
             "Encrypt, don't verify (require)",
             "Verify the CA (verify-ca)",
             "Verify the CA and host name (verify-full)"
           ],
-          "description": "Auto uses SSL when the server supports it, otherwise connects without encryption. Use verify-full to verify the certificate and host name.",
+          "description": "Auto encrypts when the server offers TLS, without checking its certificate, and connects unencrypted when it doesn't. verify-full checks the certificate and host name.",
           "x-section": "/advanced"
         },
         "caCertificate": {
@@ -141,7 +141,8 @@
           "items": {
             "type": "string",
             "maxLength": 200
-          }
+          },
+          "description": "Only these databases are available to agents, within the selected ones. Empty: every database the user may use."
         },
         "allowedFunctions": {
           "type": "array",
@@ -153,7 +154,7 @@
             "maxLength": 200,
             "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
           },
-          "description": "Your own functions that only read, as name or database.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+          "description": "Your own functions that only read: a name for calls without a database, database.name for calls with one. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
         },
         "connectTimeoutMs": {
           "type": "integer",

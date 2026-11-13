@@ -7,13 +7,17 @@ GateRook's MCP Firewall scopes AI access to selected SQL Server databases and to
 The built-in **SQL Server** connector (`sqlserver`) uses Microsoft's JDBC driver over TCP with SQL authentication.
 Create a connection with its host, TCP port (default **1433**), SQL login and password, then load and select the
 databases it may expose. A named instance must have a known TCP port. Windows integrated authentication,
-Microsoft Entra authentication and in-app password rotation are not supported.
+Microsoft Entra authentication and in-app password rotation are not supported. Once the login signs in, the form fills
+in **Default schema** with the database user's default schema, which calls require, and offers the schemas for the
+allowlist.
 
 TLS defaults to **verify-full**, which validates the certificate and host name. Add a PEM CA certificate for a
 private CA. **require** encrypts without validating the certificate; it is suitable for the disposable test fixture.
 **disable** does not request encryption, although the server may require it. Connection testing reports effective
 permissions and TLS status; if a restricted login cannot inspect TLS metadata, the UI reports what the connection
 settings establish or leaves the status unknown. It does not require granting server-state permissions to a reader.
+Membership of `db_datareader` is reported as read access: the empty schema that each fixed database role owns gives
+no way to create or change objects.
 
 ## Bound reads and review exact SQL
 
@@ -29,6 +33,15 @@ refused even with approval. Transactions, session commands, temporary objects, s
 `OUTPUT` clauses and external rowsets cannot run through this connector. Views and computed expressions retain
 the permissions and behavior configured on the server; GateRook's table rules are not a replacement for database grants.
 
+T-SQL needs no separator between statements, and a SQL parser can take a reserved statement word for an alias. GateRook
+therefore also reads the text by the server's own tokens, not only through the parser. Outside parentheses, a read may
+use only the reserved words of a single query: a statement word such as `DELETE` or `COMMIT`, a second `SELECT` that no
+set operator or `WITH` introduces, a number with letters stuck to it, or parentheses or `CASE ... END` that do not
+balance make the call "not analyzed", and it is refused as a read. Comments, strings and quoted names are never words,
+and neither is a word after the dot of a qualified name such as `c.precision`. A bracketed name with an escaped closing
+bracket, such as `[a]]b]`, is not analyzed either, because the parser would end it at the first bracket; write such a
+name in double quotes (`"a]b"`).
+
 Writes use `sql_execute`, require approval by default, and run one analyzed statement in a transaction. Existing
 DDL and table policies still apply. Before requesting approval, GateRook estimates DML impact using
 `SHOWPLAN_XML`, which does not execute the change and requires `SHOWPLAN` permission. If the login cannot obtain
@@ -40,9 +53,15 @@ a connection. With a restricted table allowlist and a different default schema, 
 avoid SQL Server's fallback lookup in `dbo`. Identifier comparisons in GateRook's allowlists are exact, even when the
 server uses a case-insensitive collation.
 
+## Delivery
+
+SQL Server is a dialect of the SQL connector and its own unit of delivery: a [connector module](connector-delivery.md#connector-modules) that this release still compiles in ([the bridge](connector-delivery.md#the-bridge-between-two-releases)). The release after downloads it when a connection needs it, about 9 MB, and runs it in a separate Java process. For a person who has a SQL Server connection, this release installs the module ahead.
+
 ## Verify with a disposable database
 
 For local verification, use the opt-in [SQL Server test service](../test-services/README.md#sql-server).
+`SqlServerModuleCoreProcessIT` runs the connector as its module against that service, in a core that doesn't compile
+SQL Server in (`-Pservices,sqlserver-it -Dgateway.withoutBridge`).
 JVM checks and database integration tests do not establish native-image or installer compatibility.
 
 Microsoft documents the [JDBC read-only limitation](https://learn.microsoft.com/en-us/sql/connect/jdbc/reference/setreadonly-method-sqlserverconnection?view=sql-server-ver17),

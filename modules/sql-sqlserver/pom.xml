@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SQL Server as a connector module (docs/connector-delivery.md): the package GateRook downloads when a connection
+  needs the connector. It is the SQL connector of connectors/sql with the SQL Server dialect that
+  connectors/sql-sqlserver registers, the Microsoft JDBC driver and the shared connector code in one JAR, plus the
+  manifest that ModuleManifests writes from the connector itself.
+
+  The SQL connector's shared code names classes of the PostgreSQL and SQLite drivers where it reads their errors, so
+  those two drivers' classes come along (SQLite without its native libraries). MySQL's driver stays out.
+
+  The host provides the connector API, Jackson and SLF4J: they are never part of the package. The module's version is
+  module.json's and has nothing to do with the application's: it changes only when the package does
+  (scripts/modules.mjs). The reactor's fixed outputTimestamp makes the build reproducible, so the same sources give
+  the same bytes and the SHA-256 the signed list pins can be compared with a rebuild.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>${revision}</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>modules-sql-sqlserver</artifactId>
+  <name>GateRook · Modules · SQL Server</name>
+
+  <properties>
+    <!-- The version of module.json; scripts/modules.mjs keeps the two equal. -->
+    <module.version>2.0.1</module.version>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-sql-sqlserver</artifactId>
+      <version>${project.version}</version>
+      <exclusions>
+        <!-- Only the MySQL dialect uses it. -->
+        <exclusion>
+          <groupId>com.mysql</groupId>
+          <artifactId>mysql-connector-j</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- Served by the module host, parent-first: never part of the package. -->
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Build time only: ModuleManifests writes the manifest from the module's connectors. -->
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>plugin-protocol</artifactId>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>sql-sqlserver-${module.version}</finalName>
+    <resources>
+      <!-- The versions in the package's license notes are the build's own. -->
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+    <plugins>
+      <!-- The manifest, written from the connectors the module class gives: it can't disagree with the code. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>module-manifest</id>
+            <phase>process-classes</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <java classname="com.gaterook.plugin.protocol.ModuleManifests" fork="true" failonerror="true"
+                      classpathref="maven.compile.classpath">
+                  <arg value="${project.basedir}/module.json"/>
+                  <arg value="${project.build.outputDirectory}/mcp-gateway-plugin.json"/>
+                </java>
+                <!-- None of the bundled libraries carries the Apache License's text under a name of its own. -->
+                <copy file="${project.basedir}/../../LICENSE"
+                      tofile="${project.build.outputDirectory}/META-INF/LICENSE-Apache-2.0.txt"/>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration combine.self="override">
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                    <exclude>META-INF/versions/*/module-info.class</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+                <!-- The connectors' registration as Spring beans is the compiled-in delivery's. -->
+                <filter>
+                  <artifact>com.gaterook:connectors-sql</artifact>
+                  <excludes>
+                    <exclude>com/gaterook/connectors/sql/boot/**</exclude>
+                    <exclude>META-INF/spring/**</exclude>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                  </excludes>
+                </filter>
+                <filter>
+                  <artifact>com.gaterook:connectors-sql-sqlserver</artifact>
+                  <excludes>
+                    <exclude>com/gaterook/connectors/sql/boot/**</exclude>
+                    <exclude>META-INF/spring/**</exclude>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                  </excludes>
+                </filter>
+                <!-- SQLite's classes only: the shared code reads its errors, nothing here opens a SQLite file. -->
+                <filter>
+                  <artifact>org.xerial:sqlite-jdbc</artifact>
+                  <excludes>
+                    <exclude>org/sqlite/native/**</exclude>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <!--
+                The libraries' own license and notice files stay as they are; META-INF/LICENSE-SqlServer-module.txt
+                says which is whose.
+              -->
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

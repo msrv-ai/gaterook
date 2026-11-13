@@ -1,0 +1,12 @@
+{
+  "jsonrpc" : "2.0",
+  "method" : "call/clientLog",
+  "params" : {
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "level" : "warning",
+    "logger" : "neo4j",
+    "data" : {
+      "message" : "The plan scans every node"
+    }
+  }
+}

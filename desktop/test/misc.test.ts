@@ -4,7 +4,8 @@ import { describe, it } from 'node:test';
 import { CORE_ENV_ALLOWLIST, coreArgv, coreEnv } from '../src/main/core-command.ts';
 import { clientId, defaultFileName, filePurpose, linkId, revealKind } from '../src/main/file-purposes.ts';
 import { resolveLayout } from '../src/main/layout.ts';
-import { autoUpdateWanted, checkEveryMs, due, friendlyUpdateError, namesPublisher, updatesUnavailable, updateStateFor } from '../src/main/updates.ts';
+import { autoUpdateWanted, betaUpdatesWanted, checkEveryMs, compareVersions, due, friendlyUpdateError, namesPublisher,
+  updatesUnavailable, updateStateFor } from '../src/main/updates.ts';
 import { openableConfig, revealableFolder } from '../src/main/file-purposes.ts';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tempDir } from './helpers.ts';
@@ -27,6 +28,19 @@ describe('starting the core', () => {
     assert.deepEqual(args.slice(-2), ['-jar', '/repo/app/target/app.jar']);
     assert.ok(args.includes('-Dgateway.clients.bridge-jar=/repo/bridge-cli/target/gw-bridge.jar'));
     assert.ok(!args.some((a) => a.startsWith('-Dgateway.resources')));
+    assert.ok(!args.some((a) => a.startsWith('-Dgateway.pluginHostJar')));
+  });
+
+  it('gives a core run from the repository the host of connector modules', () => {
+    // An installed app has the host in its bundle; without this flag a development core lists the modules GateRook
+    // publishes and can run none of them.
+    const host = '/repo/plugin-host/target/plugin-host.jar';
+    const jar = coreArgv({ kind: 'jar', java: '/jdk/bin/java', jar: '/repo/app/target/app.jar' },
+      { home: '/h', resources: null, pluginHostJar: host });
+    assert.ok(jar.args.indexOf(`-Dgateway.pluginHostJar=${host}`) < jar.args.indexOf('-jar'));
+    const native = coreArgv({ kind: 'native', binary: '/repo/app/target/gaterook-core', libDir: '/repo/app/target' },
+      { home: '/h', resources: null, pluginHostJar: host });
+    assert.ok(native.args.includes(`-Dgateway.pluginHostJar=${host}`));
   });
 
   it('passes the Store client policy to native, JVM and custom cores only on Windows', () => {
@@ -121,6 +135,28 @@ describe('layout', () => {
       'the renamed UI project when none is built yet');
     assert.throws(() => resolveLayout({ ...base, devBuild: true, packaged: false, env: { GW_CORE_COMMAND: '"sh"' } }), /JSON array/);
   });
+
+  it('a development run takes the host of connector modules from the build of its repository', () => {
+    const { dir, remove } = tempDir('layout-host');
+    try {
+      const repo = join(dir, 'repo');
+      const host = join(repo, 'plugin-host', 'target', 'plugin-host.jar');
+      const run = (env: NodeJS.ProcessEnv, packaged = false) => resolveLayout({ ...base, appPath: join(repo, 'desktop'),
+        devBuild: true, packaged, env });
+      assert.equal(run({ JAVA_HOME: '/jdk' }).pluginHostJar, null, 'nothing is built yet');
+      mkdirSync(join(repo, 'plugin-host', 'target'), { recursive: true });
+      writeFileSync(host, 'jar');
+      assert.equal(run({ JAVA_HOME: '/jdk' }).pluginHostJar, host);
+      assert.equal(run({ GW_CORE_BINARY: join(repo, 'app', 'target', 'gaterook-core') }).pluginHostJar, host);
+      // A staged folder brings its own host, a test's core is started exactly as the test says, and an installed app
+      // has the host in its bundle.
+      assert.equal(run({ JAVA_HOME: '/jdk', GW_RESOURCES: join(dir, 'staged') }).pluginHostJar, null);
+      assert.equal(run({ GW_CORE_COMMAND: '["node","fake.mjs"]' }).pluginHostJar, null);
+      assert.equal(run({ JAVA_HOME: '/jdk' }, true).pluginHostJar, null);
+    } finally {
+      remove();
+    }
+  });
 });
 
 describe('files for the core', () => {
@@ -176,6 +212,10 @@ describe('updates', () => {
     assert.deepEqual(updateStateFor({ type: 'checking-for-update' }, '2026-10-26T10:00:00.000Z'),
       { state: 'checking', lastCheckedAt: '2026-10-26T10:00:00.000Z' });
     assert.deepEqual(updateStateFor({ type: 'update-available', version: '0.5.0' }, null), { state: 'available', version: '0.5.0' });
+    assert.deepEqual(updateStateFor({ type: 'update-available', version: '0.5.0', beta: false }, null),
+      { state: 'available', version: '0.5.0' }, 'a stable release carries no mark');
+    assert.deepEqual(updateStateFor({ type: 'update-available', version: '0.6.0', beta: true }, '2026-10-26T10:00:00.000Z'),
+      { state: 'available', version: '0.6.0', beta: true, lastCheckedAt: '2026-10-26T10:00:00.000Z' });
     assert.deepEqual(updateStateFor({ type: 'update-not-available' }, null), { state: 'up-to-date' });
     assert.deepEqual(updateStateFor({ type: 'update-downloaded', version: '0.5.0' }, null), { state: 'downloaded', version: '0.5.0' });
     assert.equal(updateStateFor({ type: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' }, null).state, 'error');
@@ -220,5 +260,31 @@ describe('updates', () => {
     assert.equal(autoUpdateWanted(true, false), true);
     assert.equal(autoUpdateWanted(undefined, false), false, 'stopped or locked core: what it said last');
     assert.equal(autoUpdateWanted(undefined, undefined), true, 'never answered: the core\'s default');
+  });
+
+  it('offers beta versions only to a person who asked for them', () => {
+    assert.equal(betaUpdatesWanted(true, false), true, 'the core says now');
+    assert.equal(betaUpdatesWanted(false, true), false);
+    assert.equal(betaUpdatesWanted(undefined, true), true, 'stopped or locked core: what it said last');
+    assert.equal(betaUpdatesWanted(undefined, false), false);
+    assert.equal(betaUpdatesWanted(undefined, undefined), false, 'never answered: the core\'s default');
+  });
+
+  it('orders versions as Semantic Versioning does', () => {
+    // https://semver.org/#spec-item-11, oldest first.
+    const ordered = ['0.9.2', '0.9.10', '0.10.0-alpha', '0.10.0-alpha.1', '0.10.0-alpha.beta', '0.10.0-beta', '0.10.0-beta.2',
+      '0.10.0-beta.11', '0.10.0-rc.1', '0.10.0', '0.10.1', '1.0.0', '10.0.0'];
+    for (let i = 0; i < ordered.length; i++) {
+      for (let j = 0; j < ordered.length; j++) {
+        assert.equal(compareVersions(ordered[i]!, ordered[j]!), Math.sign(i - j), `${ordered[i]} against ${ordered[j]}`);
+      }
+    }
+    assert.equal(compareVersions('1.0.0+build.5', '1.0.0+build.7'), 0, 'build metadata does not order versions');
+    assert.equal(compareVersions('1.0.0-rc.1+a', '1.0.0+a'), -1);
+    assert.equal(compareVersions('9007199254740993.0.0', '9007199254740992.0.0'), 1, 'beyond what a double tells apart');
+    for (const invalid of ['', '1.0', '1.0.0.0', 'v1.0.0', '01.0.0', '1.0.0-', '1.0.0-01', '1.0.0-a..b', ' 1.0.0', 'latest']) {
+      assert.equal(compareVersions(invalid, '1.0.0'), null, `"${invalid}" is not a version`);
+      assert.equal(compareVersions('1.0.0', invalid), null);
+    }
   });
 });

@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  The assembly: core + every connector (ARCHITECTURE.md §2.1). Its only code is tests (e2e under
-  src/test/java/ai/msrv/gaterook/e2e/<area>/, native smoke) and the `native` profile. Because this is where the whole
-  classpath meets, this is where the strict dependency rules run: upper bounds, convergence, no duplicate classes.
+  The assembly: core + every connector that is compiled into the core (ARCHITECTURE.md §2.1, connectors/delivery.json).
+  Its only code is tests (e2e under src/test/java/com/gaterook/e2e/<area>/, native smoke) and the `native` profile.
+  Because this is where the whole classpath meets, this is where the strict dependency rules run: upper bounds,
+  convergence, no duplicate classes.
+
+  A connector whose delivery is `module` is not a dependency here: the native image is built from this classpath, and
+  such a connector either can't be compiled into it (the Cassandra driver) or is too heavy to ship to everybody. The
+  profile `all-bundled` adds them for a JVM run that wants every connector in one process (`npm run build` uses it).
 
   JVM:    mvn -pl app -am -DskipTests package && java -jar app/target/app.jar
   Native: flock ~/.cache/mcp-gateway/native.lock env JAVA_HOME=<Liberica NIK 25> mvn -pl app -am -Pnative -DskipTests package
@@ -12,7 +17,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
   </parent>
@@ -21,7 +26,13 @@
   <name>GateRook · App</name>
 
   <properties>
-    <start-class>ai.msrv.gaterook.core.GatewayApplication</start-class>
+    <gateway.e2e.officialLists>false</gateway.e2e.officialLists>
+    <!--
+      e2e/modules: a checkout of gaterook/gaterook-plugins with its packages built, for the tests of the connector
+      modules whose source lives there (-Dgateway.modulesRepo=<folder>). Without one those tests are skipped.
+    -->
+    <gateway.modulesRepo></gateway.modulesRepo>
+    <start-class>com.gaterook.core.GatewayApplication</start-class>
     <spring-boot.run.skip>false</spring-boot.run.skip>
     <!--
       The builder's heap. With every connector, the plugin host's admin side and the audit export (K4, K5) 8g runs out
@@ -31,53 +42,125 @@
     <native.builder.xmx>10g</native.builder.xmx>
     <!-- Desktop CPUs: no AVX2 assumption; the amd64/x86_64 profiles raise it to x86-64-v2. -->
     <native.march>-march=compatibility</native.march>
+    <!--
+      The image builder's optimization level. -Os makes the core 68 MB smaller (379.0 MB to 311.3 MB) and slower: the
+      warm start's median goes from 257 ms to 344 ms, a fake SQL read through MCP from 1.25 ms to 1.47 ms, a SQLite
+      read from 2.26 ms to 2.70 ms (macOS arm64, GraalVM CE 25.0.2, 2026-11-12, medians). The start is a product
+      requirement (A11), so the default stays -O2; a build that prefers size passes -Dnative.optimization=-Os,
+      which the bridge's native build follows too (bridge-cli/pom.xml).
+    -->
+    <native.optimization>-O2</native.optimization>
     <!-- platform.BuildFlags.RELEASE, fixed at image build time; the `release` profile turns it on. -->
     <gateway.release>false</gateway.release>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>core</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-sql</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-mongodb</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-redis</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-ssh</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-logs</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-kubernetes</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-gcp</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-aws</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-azure</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-dynamodb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-s3</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-bigquery</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-spanner</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-firebase</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-snowflake</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-cloudflare</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-influxdb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-search</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-redshift</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-databricks</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-trino</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-athena</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
+      <artifactId>connectors-cosmosdb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-http</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-mcp-server</artifactId>
     </dependency>
 
@@ -99,7 +182,7 @@
     </dependency>
     <!-- The gw-bridge jar the clients E2E (profile mcp-clients) puts behind the shim; never in app.jar. -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>bridge-cli</artifactId>
       <scope>test</scope>
     </dependency>
@@ -129,12 +212,18 @@
       <artifactId>de.flapdoodle.embed.mongo</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Redis for the Redis e2e, in a container (LocalRedisServer). -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
     <!--
       Build order only (e2e/plugins, K6): the plugin host and the catalog's plugin JARs are packaged before the core
       process of the e2e spawns them; found by path, never on this module's classpath (PF4J stays banned here).
     -->
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugin-host</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -144,7 +233,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-jira-service-desk</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -154,17 +243,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>plugins-clickhouse</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>plugins-rabbitmq</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
@@ -247,6 +326,12 @@
             <gateway.pluginHostJar>${project.basedir}/../plugin-host/target/plugin-host.jar</gateway.pluginHostJar>
             <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
             <gateway.catalogDir>${project.basedir}/../catalog</gateway.catalogDir>
+            <!-- e2e/modules: the packages of this checkout's connector modules, by path. -->
+            <gateway.modulesDir>${project.basedir}/../modules</gateway.modulesDir>
+            <!-- e2e/modules: the checkout whose packages the other modules' tests take, or empty. -->
+            <gateway.modulesRepo>${gateway.modulesRepo}</gateway.modulesRepo>
+            <!-- e2e/modules: true reads GateRook's published list on GitHub (a manual check, needs the network). -->
+            <gateway.e2e.officialLists>${gateway.e2e.officialLists}</gateway.e2e.officialLists>
           </systemPropertyVariables>
         </configuration>
       </plugin>
@@ -254,6 +339,48 @@
   </build>
 
   <profiles>
+    <profile>
+      <id>bridge</id>
+      <!--
+        The connectors of connectors/delivery.json whose delivery is `bridge`: published as modules already and still
+        compiled into this release's core, so a person's connections work the same while the module arrives in the
+        background (docs/connector-delivery.md). On unless -Dgateway.withoutBridge is given, which builds the core
+        as the release after has it and is what the tests of those modules run against.
+      -->
+      <activation>
+        <property>
+          <name>!gateway.withoutBridge</name>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>com.gaterook</groupId>
+          <artifactId>connectors-sql-oracle</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>com.gaterook</groupId>
+          <artifactId>connectors-sql-sqlserver</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
+    <!--
+      Every connector in this one process, for JVM runs: the connectors that connectors/delivery.json delivers as
+      modules join the classpath. Never together with `native`: the Cassandra driver's own GraalVM substitutions need
+      JNR, which the root pom excludes, and the image builder stops at them.
+    -->
+    <profile>
+      <id>all-bundled</id>
+      <dependencies>
+        <dependency>
+          <groupId>com.gaterook</groupId>
+          <artifactId>connectors-cassandra</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>com.gaterook</groupId>
+          <artifactId>connectors-neo4j</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
     <!--
       The release binary (A11). Spring Boot's own `native` profile (inherited) adds process-aot and
       add-reachability-metadata; this one adds the image build itself on `package`.
@@ -276,12 +403,13 @@
                 <!-- libsqlitejdbc goes next to the binary (signed with it), not into the image. -->
                 <buildArg>-Dorg.sqlite.lib.exportPath=${project.build.directory}/native-libs</buildArg>
                 <buildArg>${native.march}</buildArg>
+                <buildArg>${native.optimization}</buildArg>
                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
                 <!--
                   The only class of ours initialized at build time (ARCHITECTURE.md §2.4): a release image can't be
                   switched into its development relaxations at run time. It holds a boolean, no secret.
                 -->
-                <buildArg>--initialize-at-build-time=ai.msrv.gaterook.core.platform.BuildFlags</buildArg>
+                <buildArg>--initialize-at-build-time=com.gaterook.core.platform.BuildFlags</buildArg>
                 <!--
                   Hibernate's HQL grammar: its static initializer deserializes the parser's ATN, 60-70 ms of the
                   native warm start when it runs (the first query of the start pays it). The builder's simulation of

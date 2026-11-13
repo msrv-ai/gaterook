@@ -21,6 +21,7 @@ import {
   handTokens,
   headerCounts,
   lastCallRow,
+  leftByHand,
   manualEndpoint,
   noClients,
   otherPaths,
@@ -115,6 +116,22 @@ describe('Clients view: Connect and Disconnect toasts', () => {
       title: 'Bridge removed from Claude Desktop',
       body: 'The extension is removed and its tokens for dev and incident-prod are revoked.',
     });
+  });
+
+  it('says the access ended and which entry to remove by hand when the core couldn’t change the file', () => {
+    const byHand = { file: '~/.codex/config.toml', entry: 'gaterook-dev', reason: "GateRook can't write it: permission denied for ~/.codex/config.toml.bak-2026-10-22." };
+    const result = { linkId: 'x', entryRemoved: false, rejectedApprovals: 0, notes: [], byHand };
+    expect(disconnectToast(codex, codex.links[0], result)).toEqual({
+      title: 'Codex disconnected',
+      body: "Access codex-laptop is revoked. GateRook couldn't change ~/.codex/config.toml: GateRook can't write it: permission denied for ~/.codex/config.toml.bak-2026-10-22. Remove [mcp_servers.gaterook-dev] from it by hand.",
+    });
+    expect(leftByHand(result)).toBe(true);
+    expect(leftByHand({ linkId: 'x', entryRemoved: true, rejectedApprovals: 0, notes: [] })).toBe(false);
+    const note = 'GateRook couldn’t remove the entry gaterook-dev from ~/.config/Claude/claude_desktop_config.json: it doesn’t parse. The access is revoked anyway; remove the entry by hand.';
+    const bridge = { revoked: [], removedFiles: [], rejectedApprovals: 0, notes: [note], byHand: [{ file: '~/.config/Claude/claude_desktop_config.json', entry: 'gaterook-dev', reason: 'it doesn’t parse.' }] };
+    expect(bridgeRemovedToast(claudeDesktop, bridge).body).toContain(note);
+    expect(leftByHand(bridge)).toBe(true);
+    expect(leftByHand({ ...bridge, byHand: [] })).toBe(false);
   });
 });
 

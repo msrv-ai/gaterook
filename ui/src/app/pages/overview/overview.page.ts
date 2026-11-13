@@ -13,7 +13,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { isApiError } from '../../core/api/api-error';
 import { ConnectionsApi } from '../../core/api/connections.api';
@@ -28,21 +28,25 @@ import { GwToggle } from '../../kit/disclosure';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
+import { safeStorage } from '../../kit/storage';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
-import { ConnectorsData } from '../connectors/connectors.data';
-import { GwMcpSetupFlow, McpSetupSource } from '../connectors/mcp-setup-flow';
 import { OverviewConnectionTools } from './overview-connection-tools';
 import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
 import { GwOverviewSetup } from './overview-setup';
+import { GwOverviewSummary } from './overview-summary';
 import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
 import { OverviewRequestPath } from './overview-request-path';
 import { GwEndpointCreate } from '../endpoints/endpoint-create';
 
 export const SKELETON_DELAY_MS = 300;
+/** The endpoint last chosen on Overview, which the page opens on the next visit. */
+export const ENDPOINT_STORAGE_KEY = 'gw-overview-endpoint';
+/** Services the map lists before Show all: two full rows of the widest, three-column grid. */
+export const VISIBLE_SERVICES = 6;
 
-/** Live connection map for Overview. */
+/** Live connection map for Overview, with the last 30 days under it (GwOverviewSummary). */
 @Component({
   selector: 'gw-overview-page',
   imports: [
@@ -61,17 +65,16 @@ export const SKELETON_DELAY_MS = 300;
     GwSearchClearButton,
     GwSearchClear,
     GwOverviewSetup,
-    GwMcpSetupFlow,
+    GwOverviewSummary,
     GwOverviewWires,
     OverviewConnectionTools,
     OverviewRequestPath,
     GwEndpointCreate,
   ],
-  providers: [OverviewData, ConnectorsData],
+  providers: [OverviewData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
   templateUrl: './overview.page.html',
-  styleUrl: './overview.page.scss',
 })
 export class OverviewPage {
   protected readonly data = inject(OverviewData);
@@ -85,7 +88,7 @@ export class OverviewPage {
   private readonly route = inject(ActivatedRoute);
   private readonly mapTitle = viewChild<ElementRef<HTMLElement>>('mapTitle');
   protected readonly setup = viewChild.required(GwOverviewSetup);
-  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
+  private readonly router = inject(Router);
   protected readonly endpointCreate = viewChild.required(GwEndpointCreate);
   protected readonly slow = signal(false);
   protected readonly overview = this.data.overview;
@@ -99,8 +102,10 @@ export class OverviewPage {
   protected readonly activity = computed(() =>
     activityLine(this.overview()?.stats ?? { calls24h: 0, denied24h: 0 }),
   );
+  // An `?endpoint=` link wins over the remembered endpoint; a slug that no longer exists falls back to the first.
   protected readonly selectedSlug = signal<string | null>(
-    this.route.snapshot.queryParamMap.get('endpoint'),
+    this.route.snapshot.queryParamMap.get('endpoint') ??
+      (safeStorage.get(ENDPOINT_STORAGE_KEY) || null),
   );
   protected readonly endpoint = computed(
     () =>
@@ -135,16 +140,28 @@ export class OverviewPage {
   protected readonly filtered = computed(() =>
     this.assigned().filter((c) => this.matches(c) && (!this.problemsOnly() || c.unreachable)),
   );
-  protected readonly native = computed(() => {
-    const rows = this.filtered().filter((c) => !c.mcp);
-    return this.expanded() || this.query().trim() || this.problemsOnly() ? rows : rows.slice(0, 4);
-  });
-  protected readonly nativeCount = computed(() => this.assigned().filter((c) => !c.mcp).length);
-  protected readonly mcp = computed(() => this.filtered().filter((c) => c.mcp));
   protected readonly unassignedMcp = computed(() =>
     this.problemsOnly() || this.data.endpoints() === null
       ? []
       : (this.connections()?.filter((c) => c.mcp && !c.assigned && this.matches(c)) ?? []),
+  );
+  /** One list: the endpoint's services, built-in and MCP alike, then installed MCP servers no endpoint uses yet. */
+  protected readonly listed = computed(() => [...this.filtered(), ...this.unassignedMcp()]);
+  protected readonly compact = computed(
+    () => !this.expanded() && !this.query().trim() && !this.problemsOnly(),
+  );
+  protected readonly shown = computed(() =>
+    this.compact() ? this.listed().slice(0, VISIBLE_SERVICES) : this.listed(),
+  );
+  protected readonly foldable = computed(
+    () => !this.query().trim() && !this.problemsOnly() && this.listed().length > VISIBLE_SERVICES,
+  );
+  /** The empty state names what is missing; installed MCP servers may still follow it when nothing is searched. */
+  protected readonly empty = computed(
+    () =>
+      this.connections() !== null &&
+      !this.filtered().length &&
+      (!this.query().trim() || !this.unassignedMcp().length),
   );
   protected readonly detailConnection = computed(
     () => this.connections()?.find((c) => `service:${c.name}` === this.selectedNode()) ?? null,
@@ -171,7 +188,8 @@ export class OverviewPage {
         ? 'Access paused'
         : 'Protected access',
   );
-  protected readonly visibleConnections = computed(() => [...this.native(), ...this.mcp()]);
+  /** Map nodes with a line to the endpoint: the listed services it uses, not the installed servers after them. */
+  protected readonly visibleConnections = computed(() => this.shown().filter((c) => c.assigned));
   protected readonly wireServices = computed(() =>
     this.visibleConnections().map((c) => ({
       id: c.name,
@@ -332,7 +350,7 @@ export class OverviewPage {
     this.trace.set(null);
   }
   protected chooseEndpoint(slug: string): void {
-    this.selectedSlug.set(slug);
+    this.select(slug);
     this.problemsOnly.set(false);
     this.expanded.set(false);
     this.resetSelection();
@@ -361,7 +379,7 @@ export class OverviewPage {
   }
   protected showProblems(ep: EndpointSummary): void {
     if (!this.problemCount(ep)) return;
-    this.selectedSlug.set(ep.slug);
+    this.select(ep.slug);
     this.query.set('');
     this.problemsOnly.set(true);
     this.expanded.set(true);
@@ -404,20 +422,18 @@ export class OverviewPage {
     void this.data.refresh();
   }
   protected added(slug: string): void {
-    this.selectedSlug.set(slug);
+    this.select(slug);
     this.clearFilters();
     void this.data.refresh();
   }
-  protected openMcp(opener: HTMLElement | null, source: McpSetupSource = 'manual'): void {
-    this.mcpSetup().open(opener, source);
-  }
-
-  protected picker(event: Event): void {
-    this.setup().showPicker(
-      this.endpoint(),
-      this.data.connections() ?? [],
-      event.currentTarget as HTMLElement,
-    );
+  /**
+   * Add service: Add connection, where every kind of service is chosen (connector types and MCP servers), with the
+   * selected endpoint chosen first in its last step.
+   */
+  protected addService(): void {
+    if (this.loading() || this.data.error()) return;
+    const endpoint = this.endpoint();
+    void this.router.navigate(['/connections/new'], { queryParams: endpoint ? { endpoint: endpoint.slug } : {} });
   }
   protected connectService(c: MapConnection, event: Event): void {
     const endpoint = this.endpoint();
@@ -480,6 +496,11 @@ export class OverviewPage {
       : error instanceof Error
         ? error.message
         : String(error);
+  }
+  /** Shows an endpoint the person chose and remembers it; automatic fallbacks never replace that choice. */
+  private select(slug: string): void {
+    this.selectedSlug.set(slug);
+    safeStorage.set(ENDPOINT_STORAGE_KEY, slug);
   }
   private focusNode(name: string, toggle = false): void {
     afterNextRender(

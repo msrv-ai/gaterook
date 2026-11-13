@@ -4,16 +4,16 @@
   and sealed cursors (rgc./rsc.). Native: the resource redis/clients/jedis/pom.properties needs a hint (report 15 §4).
   Spring only in the .boot subpackage. Built by step C3.
 
-  Tests: unit tests without a server; integration tests against the local redis-server (7.0.15 here, $GW_REDIS_BIN
-  overrides it) on ephemeral ports with data under target/. -Predis-it adds Redis 6.2.11, the binary inside
-  com.github.codemonstur:embedded-redis 1.4.4, downloaded once into ~/.cache/mcp-gateway-test/redis (SHA-256 checked).
+  Tests: unit tests without a server; integration tests against Redis 7.0.15 in containers (Testcontainers, the image
+  tags of test-services/.env), on ephemeral ports of 127.0.0.1. Nothing of Redis needs to be installed; Docker needs to
+  run. -Predis-it adds Redis 6.2.11 the same way.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>ai.msrv.gaterook</groupId>
+    <groupId>com.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
     <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -24,11 +24,11 @@
 
   <dependencies>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connector-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
+      <groupId>com.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
     <dependency>
@@ -59,11 +59,17 @@
       <artifactId>json-schema-validator</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- The ITs' servers: Redis in containers (LocalRedis). -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
-      <!-- *IT: the connector against a real redis-server started by the test (LocalRedis). -->
+      <!-- *IT: the connector against a real Redis the test starts in a container (LocalRedis). -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
@@ -73,8 +79,8 @@
 
   <profiles>
     <!--
-      Redis 6.2.11 next to the local 7.0.15 (Redis62IT; report 05 §8). A module profile with a switch rather than a
-      tag of the root pom: only this module has the test.
+      Redis 6.2.11 next to 7.0.15 (Redis62IT; report 05 §8). A module profile with a switch rather than a tag of the
+      root pom: only this module has the test.
     -->
     <profile>
       <id>redis-it</id>

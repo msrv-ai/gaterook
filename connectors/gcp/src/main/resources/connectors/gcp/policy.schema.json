@@ -16,8 +16,9 @@
       },
       "default": [],
       "x-stricter": "intersect",
+      "x-empty": "connector-default",
       "x-inherit": false,
-      "description": "ec2, rds, sqs (AWS); run, compute, sqladmin (GCP). Never inherited."
+      "description": "ec2, rds, sqs (AWS); run, compute, sqladmin (GCP); compute, web, sql (Azure). Never inherited."
     },
     "regions": {
       "type": "array",
@@ -30,6 +31,7 @@
       },
       "default": [],
       "x-stricter": "intersect",
+      "x-empty": "all",
       "x-inherit": false
     },
     "resources": {
@@ -43,8 +45,9 @@
       },
       "default": [],
       "x-stricter": "intersect",
+      "x-empty": "all",
       "x-inherit": false,
-      "description": "ARN or resource-name masks with *, e.g. arn:aws:rds:eu-central-1:*:db:stage-*. Empty: every resource of the allowed services."
+      "description": "ARN, resource-name or Azure resource ID masks with *, e.g. arn:aws:rds:eu-central-1:*:db:stage-* or /subscriptions/*/resourceGroups/stage-*. Empty: every resource of the allowed services."
     },
     "maxRangeDays": {
       "type": "integer",

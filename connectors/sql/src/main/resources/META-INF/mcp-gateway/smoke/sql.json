@@ -1,8 +1,8 @@
 {
   "area": "sql",
   "module": "connectors/sql",
-  "connectorTypes": ["postgres", "mysql", "oracle", "sqlserver"],
-  "description": "Touches of the SQL connectors for the native smoke (report 15 §6): JSqlParser, all four drivers and the pool in the image. The driver refusal and classification checks need no server; the TLS check needs a PostgreSQL (fixture postgres: local binaries, TLS with a self-signed certificate for localhost) and exercises the reflective SSL factory and Hikari.",
+  "connectorTypes": ["postgres", "mysql", "sqlite"],
+  "description": "Touches of the SQL connectors for the native smoke (report 15 §6): JSqlParser, the PostgreSQL, MySQL and SQLite drivers and the pool in the image. The driver refusal and classification checks need no server; the TLS check needs a PostgreSQL (fixture postgres: local binaries, TLS with a self-signed certificate for localhost) and exercises the reflective SSL factory and Hikari.",
   "touches": [
     {
       "name": "classify-without-io",
@@ -14,6 +14,15 @@
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.sql.query-writes"}
     },
     {
+      "name": "postgres-auto-tls-refused",
+      "connection": {"type": "postgres", "env": "dev",
+        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "app", "sslMode": "auto"},
+                   "credentials": {"user": "gw_reader"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "sql.refused"}
+    },
+    {
       "name": "mysql-driver-refused",
       "connection": {"type": "mysql", "env": "dev",
         "config": {"connection": {"host": "127.0.0.1", "port": 1, "sslMode": "disable"},
@@ -23,22 +32,18 @@
       "expect": {"ok": false, "errorCode": "sql.refused"}
     },
     {
-      "name": "oracle-driver-refused",
-      "connection": {"type": "oracle", "env": "dev",
-        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "FREEPDB1", "sslMode": "disable"},
-                   "credentials": {"user": "GW_READER"}},
-        "secrets": {"/credentials/password": "smoke-only-0001"}},
-      "test": true,
-      "expect": {"ok": false, "errorCode": "sql.refused"}
+      "name": "sqlite-classify-without-io",
+      "connection": {"type": "sqlite", "env": "dev",
+        "config": {"connection": {"file": "/nonexistent/gaterook-smoke.sqlite3"}}},
+      "call": {"tool": "sql_query", "arguments": {"sql": "PRAGMA writable_schema = 1"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.sql.forbidden"}
     },
     {
-      "name": "sqlserver-driver-refused",
-      "connection": {"type": "sqlserver", "env": "dev",
-        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "app", "sslMode": "disable"},
-                   "credentials": {"user": "gw_reader"}},
-        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "name": "sqlite-missing-file",
+      "connection": {"type": "sqlite", "env": "dev",
+        "config": {"connection": {"file": "/nonexistent/gaterook-smoke.sqlite3"}}},
       "test": true,
-      "expect": {"ok": false, "errorCode": "sql.connect"}
+      "expect": {"ok": false, "errorCode": "sql.file"}
     },
     {
       "name": "postgres-read-over-tls",

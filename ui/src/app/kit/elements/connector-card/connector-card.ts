@@ -12,15 +12,21 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ConnectorCard, ConnectorGroup, ConnectorKind } from '../../../core/api/connector-types.api';
+import { formatBytes } from '../../../core/time/time-format';
 import { GwAriaDisabled } from '../../aria-disabled';
 import { GwDialog, GwDialogClose, GwDialogOpen } from '../../dialog';
 import { GwEnableWhen } from '../../enable-when';
 import { GwIcon } from '../../icons';
+import { connectorMark } from '../shared/connector-categories';
 import { literalParts } from '../shared/literals';
 
-/** The kind badge: Built-in (neutral, it is also the trust), Template, Plugin, MCP server (outline). */
+/**
+ * The kind badge: Built-in (neutral, it is also the trust), Template, Plugin, MCP server (outline), and Module for a
+ * connector type of a module the person installed from a file, which carries its own trust badge (Unsigned).
+ */
 const KINDS: Record<string, { readonly icon: string; readonly text: string; readonly cls: string }> = {
   'built-in': { icon: 'package', text: 'Built-in', cls: 'gw-badge--neutral' },
+  module: { icon: 'package', text: 'Module', cls: 'gw-badge--outline' },
   template: { icon: 'file-code', text: 'Template', cls: 'gw-badge--outline' },
   plugin: { icon: 'puzzle', text: 'Plugin', cls: 'gw-badge--outline' },
   'mcp-server': { icon: 'plug', text: 'MCP server', cls: 'gw-badge--outline' },
@@ -91,6 +97,9 @@ export class GwConnectorCardActions {}
  * tools it brings and the one thing to do next. Installing an unsigned plugin asks first in a danger confirmation
  * that names the risk; Install stays disabled until the acknowledgement is checked, focus starts on Cancel.
  *
+ * A built-in or plugin type shows its vendor's mark (`gw-icon-tile--mark`, the picker's `connectorMark`) where it has
+ * one, else its icon; templates and MCP servers keep their icon tiles.
+ *
  * Connectors › Installed and Catalog add a line under the description
  * (`[gwConnectorCardNote]`), a status in the footer (`card.status`), their own footer actions
  * (`[gwConnectorCardActions]` with `action: null`), and `confirmUnsigned=false` where the page reviews the package
@@ -116,6 +125,10 @@ export class GwConnectorCard {
   protected readonly uid = `cn-${++nextId}`;
   protected readonly note = contentChild(GwConnectorCardNote);
   protected readonly kind = computed(() => kindBadge(this.card().kind));
+  protected readonly mark = computed(() => {
+    const c = this.card();
+    return c.kind === 'built-in' || c.kind === 'plugin' || c.kind === 'module' ? connectorMark(c.type, c.variant) : null;
+  });
   protected readonly description = computed(() => literalParts(this.card().description, this.card().literals ?? []));
   protected readonly status = computed<ConnectorCardStatus | null>(() => {
     const c = this.card();
@@ -148,8 +161,13 @@ export class GwConnectorCard {
 /**
  * `<fieldset gwConnectorPicker [groups]="catalog.groups" [(value)]="type">` (connector card component, Picker): step
  * 1 of Add connection — radio cards grouped by category, one radio group across all of them so the arrow keys move
- * through every type. Built-in types say so with their tool count; packages carry their kind and trust; a type that
- * isn't installed stays visible and focusable but unavailable (`aria-disabled`, its reason as the description).
+ * through every type. A type shows its vendor's mark (`gw-choice-card__mark`, kit `assets/integrations/`) where it has
+ * one, else its icon. The page puts the categories and the search above it (`connectorCategories`,
+ * `filterConnectorGroups`). Built-in types say so with their tool count; packages carry their kind and trust; a type that
+ * the signed catalog offers but this core hasn't installed (`catalogRef`) can be chosen: the wizard reviews and installs
+ * it on Continue. A type that is otherwise unavailable (switched off, changed outside GateRook) stays visible and
+ * focusable but unavailable (`aria-disabled`, its reason as the description). A compatible service's card
+ * (`compatibleWith`, Supabase for PostgreSQL) says which connector it uses.
  * `error` marks every card and says what to do ("Choose a connector type to continue.").
  */
 @Component({
@@ -169,6 +187,7 @@ export class GwConnectorPicker {
 
   protected readonly uid = `pk-${++nextId}`;
   protected readonly kindBadge = kindBadge;
+  protected readonly mark = connectorMark;
 
   protected key(c: ConnectorCard): string {
     return c.variant ? `${c.type}:${c.variant}` : c.type;
@@ -178,15 +197,32 @@ export class GwConnectorPicker {
     return `${this.uid}-${this.key(c).replace(/[^a-z0-9-]/gi, '-')}-${part}`;
   }
 
-  /** "Built-in · 4 tools", "Built-in Logs · 2 tools", "v1.2.0 · 5 tools", "Tools from the file". */
+  /** Whether the card can be chosen: a usable type, or a catalog plugin the wizard installs on Continue. */
+  protected selectable(c: ConnectorCard): boolean {
+    return c.available || !!c.catalogRef;
+  }
+
+  /**
+   * "Built-in · 4 tools", "Built-in Logs · 2 tools", "PostgreSQL connector · 4 tools", "v1.2.0 · 5 tools",
+   * "Installs v1.0.0 from the catalog · 6 tools", "Built-in · 3 tools · 9.4 MB download", "Your module, unsigned ·
+   * 2 tools", "Tools from the file".
+   */
   protected meta(c: ConnectorCard, group: ConnectorGroup): string {
     const tools = c.tools !== null ? `${c.tools} ${c.tools === 1 ? 'tool' : 'tools'}` : `Tools from the ${c.toolsFrom ?? 'server'}`;
+    if (c.compatibleWith) return `${c.compatibleWith} connector · ${tools}`;
+    if (!c.available && c.catalogRef) return `Installs ${c.version?.startsWith('v') ? c.version : `v${c.version}`} from the catalog · ${tools}`;
+    // One of GateRook's own connectors that isn't part of the installer: it downloads when it is chosen, once.
+    if (c.kind === 'built-in' && c.module && !c.module.installed) {
+      return `Built-in · ${tools} · ${formatBytes(c.module.sizeBytes)} download`;
+    }
+    // A connector type of a module the person installed from a file: not one of GateRook's own, and it says so.
+    if (c.kind === 'built-in' && c.module?.installed && c.module.signed === false) return `Your module, unsigned · ${tools}`;
     if (c.kind === 'built-in') return c.tools !== null ? `Built-in${c.variant ? ` ${group.name}` : ''} · ${tools}` : tools;
     if (c.kind === 'plugin' && c.version && c.available) return `${c.version.startsWith('v') ? c.version : `v${c.version}`} · ${tools}`;
     return tools;
   }
 
   protected pick(c: ConnectorCard): void {
-    if (c.available) this.value.set(this.key(c));
+    if (this.selectable(c)) this.value.set(this.key(c));
   }
 }

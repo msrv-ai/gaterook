@@ -4,4 +4,5 @@ export * from './code-block';
 export * from './code-lines';
 export * from './diff';
 export * from './highlight';
+export * from './sql-lexer';
 export * from './unicode';

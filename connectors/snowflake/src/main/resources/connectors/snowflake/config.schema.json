@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Snowflake",
+  "type": "object",
+  "x-card": {
+    "description": "Read queries, schemas and tables. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "account",
+    "user",
+    "authentication"
+  ],
+  "properties": {
+    "account": {
+      "type": "string",
+      "title": "Account identifier",
+      "maxLength": 255,
+      "pattern": "^(?:[A-Za-z][A-Za-z0-9]{0,254}-[A-Za-z0-9_]{1,255}|[A-Za-z0-9]{1,64}(?:\\.[A-Za-z0-9-]{1,64}){0,2})$",
+      "examples": [
+        "myorg-myaccount"
+      ],
+      "description": "orgname-accountname, or an account locator with its region (xy12345.eu-central-1). Not a URL: GateRook connects to <account>.snowflakecomputing.com."
+    },
+    "privateLink": {
+      "type": "boolean",
+      "title": "Private connectivity",
+      "default": false,
+      "description": "Connect to <account>.privatelink.snowflakecomputing.com: AWS PrivateLink, Azure Private Link or Google Private Service Connect."
+    },
+    "user": {
+      "type": "string",
+      "title": "User",
+      "maxLength": 255,
+      "pattern": "^[A-Za-z0-9_.@$+-]{1,255}$",
+      "description": "The login name GateRook signs in as. Grant it only roles that read: Snowflake has no read-only transaction, so its roles are the boundary."
+    },
+    "authentication": {
+      "type": "object",
+      "title": "Authentication",
+      "required": [
+        "method"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "keyPair",
+            "token"
+          ],
+          "default": "keyPair",
+          "title": "Sign in with",
+          "x-enumTitles": [
+            "Key pair",
+            "Programmatic access token"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^(privateKey|token)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "keyPair"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "privateKey": {
+                "type": "string",
+                "title": "Private key (PEM)",
+                "writeOnly": true,
+                "x-gateway-secret": "pem",
+                "x-widget": "textarea",
+                "maxLength": 20000,
+                "description": "An unencrypted RSA key of at least 2048 bits, PKCS#8 or PKCS#1. Its public key is the user's RSA_PUBLIC_KEY; Test connection shows its fingerprint."
+              }
+            },
+            "required": [
+              "privateKey"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "token"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "token": {
+                "type": "string",
+                "title": "Programmatic access token",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "maxLength": 8192,
+                "description": "A token of the user, best restricted to a role that only reads. Snowflake accepts it only from addresses a network policy of the user allows."
+              }
+            },
+            "required": [
+              "token"
+            ]
+          }
+        }
+      ]
+    },
+    "warehouse": {
+      "type": "string",
+      "title": "Warehouse",
+      "maxLength": 257,
+      "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+      "x-advanced": false,
+      "description": "Runs the statements: queries over tables need one. Empty: the user's default warehouse."
+    },
+    "role": {
+      "type": "string",
+      "title": "Role",
+      "maxLength": 257,
+      "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+      "description": "Use a role that can only read outside dev. Empty: the user's default role."
+    },
+    "database": {
+      "type": "string",
+      "title": "Database",
+      "maxLength": 257,
+      "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+      "x-advanced": true,
+      "x-suggest": true,
+      "description": "Where names without a database resolve; required with a schema. Empty: the user's default namespace."
+    },
+    "schema": {
+      "type": "string",
+      "title": "Schema",
+      "maxLength": 257,
+      "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+      "x-advanced": true,
+      "description": "Where names without a schema resolve; needs Database. Write names with lower case or spaces in double quotes."
+    },
+    "tables": {
+      "type": "array",
+      "title": "Tables",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 767,
+        "pattern": "^[A-Za-z0-9_$*]{1,255}\\.[A-Za-z0-9_$*]{1,255}\\.[A-Za-z0-9_$*]{1,255}$"
+      },
+      "description": "The tables agents may use, as DATABASE.SCHEMA.TABLE; * matches any characters, such as ANALYTICS.PUBLIC.*, and case doesn't matter. Empty: every table the role may read."
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "Policies set row limits and timeouts per environment.",
+      "properties": {
+        "statementTimeoutSeconds": {
+          "type": "integer",
+          "title": "Statement timeout",
+          "minimum": 1,
+          "maximum": 3600,
+          "x-unit": "s",
+          "description": "Snowflake cancels slower statements. Empty: the environment policy's statement timeout; with both, the shorter applies."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "schema"
+        ]
+      },
+      "then": {
+        "required": [
+          "database"
+        ]
+      }
+    }
+  ]
+}

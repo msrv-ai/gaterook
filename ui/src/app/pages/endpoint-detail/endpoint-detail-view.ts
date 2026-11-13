@@ -1,6 +1,16 @@
 import { ClientCard, ClientsView } from '../../core/api/clients.api';
 import { ConnectionRow } from '../../core/api/connections.api';
-import { ConnectionPreview, EndpointRisk, EndpointSettings, EndpointSummary, ToolGroup, TokenRow, WiredConnection } from '../../core/api/endpoints.api';
+import {
+  ConnectionPreview,
+  EndpointRisk,
+  EndpointSettings,
+  EndpointSummary,
+  EndpointToolListState,
+  ToolGroup,
+  ToolListMode,
+  TokenRow,
+  WiredConnection,
+} from '../../core/api/endpoints.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
 import { formatCount } from '../../core/time/time-format';
 import { SplitClient, SplitOption } from '../../kit/elements/risk-callout/split-dialog';
@@ -61,6 +71,40 @@ export function statusLook(e: EndpointSummary): Look {
 export function servedRevisions(settings: EndpointSettings | null): string[] {
   const revs = settings?.protocol?.['revisions'];
   return Array.isArray(revs) ? revs.filter((r): r is string => typeof r === 'string').sort() : [];
+}
+
+/** `settings.toolList` with its defaults, pins sorted: `auto` and none unless the person chose (ARCHITECTURE.md §5.7). */
+/** How many of the tools agents call most a searched list shows unless the person chose (`ToolCatalog.MOST_USED`). */
+export const MOST_USED_DEFAULT = 10;
+
+/** The choices of Settings › Tool list › Most-used tools. */
+export const MOST_USED_CHOICES: readonly number[] = [0, 5, 10, 20, 30, 40];
+
+export function toolListOf(settings: EndpointSettings | null): { readonly mode: ToolListMode; readonly pinned: string[]; readonly mostUsed: number } {
+  const t = settings?.toolList;
+  const mode: ToolListMode = t?.mode === 'all' || t?.mode === 'search' ? t.mode : 'auto';
+  return { mode, pinned: [...(t?.pinned ?? [])].sort(), mostUsed: typeof t?.mostUsed === 'number' ? t.mostUsed : MOST_USED_DEFAULT };
+}
+
+/** "186 tools · 351 KB of definitions, about 90,000 tokens": what an AI app that loads every definition reads. */
+export function toolListSize(state: EndpointToolListState): string {
+  const kb = Math.max(1, Math.round(state.bytes / 1024));
+  // About 4 bytes a token: English and JSON.
+  const tokens = state.bytes / 4;
+  const rounded = tokens < 10_000 ? Math.max(100, Math.round(tokens / 100) * 100) : Math.round(tokens / 1000) * 1000;
+  return `${plural(state.tools, 'tool')} · ${formatCount(kb)} KB of definitions, about ${formatCount(rounded)} tokens`;
+}
+
+/** What `tools/list` gives AI apps now. */
+export function toolListShown(state: EndpointToolListState): string {
+  if (!state.search) return 'Every tool.';
+  const found = state.tools - state.listedTools;
+  const mostUsed = state.mostUsedTools?.length ?? 0;
+  const pinned = state.listedTools - mostUsed;
+  const parts = ["GateRook's own tools"];
+  if (mostUsed) parts.push(mostUsed === 1 ? 'the most used one' : `the ${formatCount(mostUsed)} most used`);
+  if (pinned) parts.push(plural(pinned, 'pinned tool'));
+  return `${andList(parts)}; find_tools finds the other ${formatCount(found)}.`;
 }
 
 /** "Tokens · OAuth off" (the kit's sign-in badge; it follows the OAuth switch of Settings). */
@@ -296,6 +340,8 @@ export function secretText(source: string | null | undefined): string | null {
       return 'secret in GCP Secret Manager';
     case 'aws-sm':
       return 'secret in AWS Secrets Manager';
+    case 'azure-kv':
+      return 'secret in Azure Key Vault';
     case 'short-lived':
       return 'short-lived credentials';
     default:
@@ -378,12 +424,13 @@ export function deleteFacts(e: EndpointSummary, cards: readonly ClientCard[], to
   const clients = cards.filter((c) => c.links.some((l) => l.endpoint === e.slug)).map((c) => c.name);
   const named = tokens ? revocableNames(tokens) : [];
   const waiting = e.approvalsWaiting;
-  const who = clients.length ? `${andList(clients)} lose${clients.length === 1 ? 's' : ''} access at once` : 'AI apps lose access at once';
+  // Deleting disconnects them as Disconnect does: their entries leave their configs, their access ends.
+  const who = clients.length ? `${andList(clients)} ${clients.length === 1 ? 'is' : 'are'} disconnected at once` : 'AI apps lose access at once';
   const toks = named.length || !tokens ? ', its tokens are revoked' : '';
   const reqs = waiting ? ` and the ${plural(waiting, 'request')} waiting for approval ${waiting === 1 ? 'is' : 'are'} denied` : '';
   return {
     description: `${who}${toks}${reqs}. Connections, their secrets and the audit log stay.`,
-    clients: clients.length ? clients.join(', ') : 'None',
+    clients: clients.length ? `${clients.join(', ')} (disconnected)` : 'None',
     tokens: !tokens ? 'Unknown' : named.length ? `${named.join(', ')} (revoked)` : 'None active',
     waiting: waiting ? `${plural(waiting, 'approval request')} (denied)` : null,
   };

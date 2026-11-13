@@ -1,7 +1,7 @@
 package gaterook.plugins.jira;
 
-import ai.msrv.gaterook.connector.api.ConnectionConfig;
-import ai.msrv.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.ConnectorException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;

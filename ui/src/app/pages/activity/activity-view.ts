@@ -3,7 +3,7 @@ import { TokenRow } from '../../core/api/endpoints.api';
 import { AuditExportDestination } from '../../core/api/settings.api';
 import { GatewayEvents } from '../../core/events/gateway-events';
 import { Env } from '../../core/api/types';
-import { absoluteTime, clockTime, duration, formatCount, shortDate } from '../../core/time/time-format';
+import { absoluteTime, clockTime, duration, formatBytes, formatCount, shortDate } from '../../core/time/time-format';
 import { precise } from '../../kit/elements/event-detail/event-view';
 import { LogRange, RANGES, parseQuery, rangeBounds, rangeLabel } from '../../kit/elements/log-explorer/log-view';
 import { clientName } from '../../kit/elements/shared/client-mark';
@@ -124,6 +124,18 @@ export function durationCell(e: Pick<ActivityEvent, 'decision' | 'durationMs' | 
   return precise(e.durationMs);
 }
 
+/**
+ * The Traffic cell: what the AI app sent with the call ("312 B in") over what went back to it ("48 KB out"). A size
+ * the audit didn't keep is left out (a denied call got no result; calls from before the core counted what was sent),
+ * never said as 0.
+ */
+export function trafficCell(e: Pick<ActivityEvent, 'requestBytes' | 'resultBytes'>): { readonly in: string | null; readonly out: string | null } {
+  return {
+    in: e.requestBytes == null ? null : `${formatBytes(e.requestBytes)} in`,
+    out: e.resultBytes == null ? null : `${formatBytes(e.resultBytes)} out`,
+  };
+}
+
 export type SortKey = 'time' | 'duration';
 export interface Sort {
   readonly key: SortKey;
@@ -165,6 +177,9 @@ export function applyCall(rows: readonly ActivityEvent[], c: GatewayEvents['audi
     phase: c.phase as ActivityEvent['phase'],
     decision: c.decision,
     durationMs: c.durationMs,
+    // The received row says what was sent, the completed one what went back: a row keeps what an earlier one said.
+    requestBytes: c.requestBytes ?? rows[i].requestBytes,
+    resultBytes: c.resultBytes ?? rows[i].resultBytes,
     rule: c.rule ?? rows[i].rule,
     approvalId: c.approvalId ?? rows[i].approvalId,
     traceId: c.traceId ?? rows[i].traceId,

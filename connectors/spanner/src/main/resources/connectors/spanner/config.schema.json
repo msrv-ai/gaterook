@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Google Cloud Spanner",
+  "type": "object",
+  "x-card": {
+    "description": "Tables and GoogleSQL or PostgreSQL queries in read-only transactions. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "project",
+    "instance",
+    "database",
+    "credentials"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
+      "examples": [
+        "acme-prod"
+      ],
+      "description": "The Google Cloud project of the Spanner instance."
+    },
+    "instance": {
+      "x-suggest": true,
+      "type": "string",
+      "title": "Instance",
+      "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+      "examples": [
+        "orders-prod"
+      ],
+      "description": "The instance id, as gcloud spanner instances list shows it, not its display name."
+    },
+    "database": {
+      "x-suggest": true,
+      "type": "string",
+      "title": "Database",
+      "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
+      "examples": [
+        "orders"
+      ],
+      "description": "The database agents use. GoogleSQL and PostgreSQL-dialect databases both work."
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Authentication",
+          "enum": [
+            "adc",
+            "serviceAccountKey"
+          ],
+          "default": "adc",
+          "x-enumTitles": [
+            "Existing Google sign-in (ADC)",
+            "Service account key (JSON)"
+          ],
+          "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer, from gcloud auth application-default login. A service account key signs in as that service account."
+        },
+        "impersonate": {
+          "type": "string",
+          "title": "Service account to impersonate",
+          "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+          "examples": [
+            "gw-spanner@acme-prod.iam.gserviceaccount.com"
+          ],
+          "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/spanner.databaseReader on the database. Empty: calls use the sign-in or key itself."
+        },
+        "delegates": {
+          "type": "array",
+          "title": "Delegation chain",
+          "maxItems": 5,
+          "items": {
+            "title": "Service account",
+            "type": "string"
+          },
+          "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+        },
+        "lifetimeSeconds": {
+          "type": "integer",
+          "title": "Token lifetime",
+          "minimum": 300,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s",
+          "description": "How long a borrowed token of the service account to impersonate lasts."
+        },
+        "quotaProject": {
+          "type": "string",
+          "title": "Billed project",
+          "description": "The project whose API quota the calls use (x-goog-user-project); needs serviceusage.services.use. Empty: the credentials' own."
+        }
+      },
+      "patternProperties": {
+        "^(serviceAccountKey)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "serviceAccountKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "serviceAccountKey": {
+                "type": "string",
+                "title": "Service account key",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "x-widget": "textarea",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "serviceAccountKey"
+            ]
+          }
+        }
+      ]
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "Fine-grained access control. Policies set row limits and timeouts per environment.",
+      "properties": {
+        "databaseRole": {
+          "type": "string",
+          "title": "Database role",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$",
+          "examples": [
+            "agent_reader"
+          ],
+          "description": "A fine-grained access control role whose privileges every session gets, instead of the credentials' IAM access to the whole database. The credentials need roles/spanner.fineGrainedAccessUser and access to the role."
+        }
+      }
+    }
+  }
+}

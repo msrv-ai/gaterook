@@ -7,7 +7,7 @@ import { problemJsonInterceptor } from '../core/api/problem-json.interceptor';
 import { DesktopBridge } from '../core/desktop/desktop-bridge';
 import { EndpointShareFiles } from '../core/desktop/endpoint-share';
 import { EVENT_STREAM_FETCH, EventStream } from '../core/events/event-stream';
-import { CoreStore } from '../core/stores/core.store';
+import { BANNER_REFRESH_MS, CoreStore } from '../core/stores/core.store';
 import { ActivationGuard } from '../kit/activation-guard';
 import { provideKitIcons } from '../kit/icons';
 import { deepLinkUrl, uiOpenUrl } from './deep-links';
@@ -259,6 +259,58 @@ describe('the shell notices a core that went away after start (browser, no Elect
     await settle();
     expect(http.match('/api/health').length).toBe(0);
     expect(TestBed.inject(CoreStore).running()).toBe(true);
+    fixture.destroy();
+  });
+
+  const banners = (fixture: { nativeElement: HTMLElement }) =>
+    Array.from(fixture.nativeElement.querySelectorAll('.gw-alert--banner')).map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim());
+  const shown = async (fixture: { detectChanges(): void; whenStable(): Promise<unknown> }) => {
+    await settle();
+    fixture.detectChanges();
+    await fixture.whenStable();
+  };
+
+  it('an integrity alert reads /api/health again: its banner shows without waiting for another check', async () => {
+    const { http, fixture } = await running();
+    expect(banners(fixture)).toEqual([]);
+    TestBed.inject(EventStream).emit('integrity.alert', { kind: 'connection', id: 'c1', label: 'prod-db', detail: 'its row was edited' });
+    await settle();
+    const checks = http.match('/api/health');
+    expect(checks.length).toBe(1);
+    checks[0].flush({ ...ok, warnings: [{ kind: 'integrity', text: 'prod-db was changed outside GateRook. It stays off until you review it.', subject: 'connection:c1' }] });
+    await shown(fixture);
+    expect(banners(fixture)).toEqual(['prod-db was changed outside GateRook. It stays off until you review it.']);
+    fixture.destroy();
+  });
+
+  it('banners without an event (audit catching up, a failed backup) follow /api/health while the window is visible', async () => {
+    TestBed.overrideProvider(BANNER_REFRESH_MS, { useValue: 25 });
+    const { http, fixture } = await running();
+    await new Promise((r) => setTimeout(r, 60));
+    const checks = http.match('/api/health');
+    expect(checks.length).toBeGreaterThan(0);
+    checks.forEach((r) => r.flush({ ...ok, status: 'degraded', warnings: [{ kind: 'backup', text: 'The last database backup failed: the disk is full', subject: null }] }));
+    await shown(fixture);
+    expect(banners(fixture)).toEqual(['The last database backup failed: the disk is full']);
+
+    // Hidden: no check. Visible again: one at once, and the banner goes when health no longer reports it.
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    try {
+      await new Promise((r) => setTimeout(r, 30));
+      http.match('/api/health').forEach((r) => r.flush({ ...ok, warnings: [] }));
+      await new Promise((r) => setTimeout(r, 80));
+      expect(http.match('/api/health').length).toBe(0);
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await settle();
+      const again = http.match('/api/health');
+      expect(again.length).toBeGreaterThan(0);
+      again.forEach((r) => r.flush({ ...ok, warnings: [] }));
+      await shown(fixture);
+      expect(banners(fixture)).toEqual([]);
+    } finally {
+      delete (document as { visibilityState?: unknown }).visibilityState;
+    }
     fixture.destroy();
   });
 

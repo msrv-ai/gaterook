@@ -49,6 +49,9 @@ import {
   unreachableAlerts,
   wiringClients,
   withTargets,
+  toolListOf,
+  toolListShown,
+  toolListSize,
 } from './endpoint-detail-view';
 import { clientsView, connectionRows, groups, policies, preview, risk, settings, summary, token, tokens, wired } from './endpoint-detail.fixtures';
 
@@ -228,12 +231,12 @@ describe('endpoint detail view', () => {
   });
 
   describe('delete, disable, duplicate', () => {
-    it('lists who loses access and what is revoked and denied (kit)', () => {
+    it('lists the AI apps it disconnects and what is revoked and denied (kit)', () => {
       const f = deleteFacts(summary(), endpointClients(clientsView(), 'dev'), tokens());
       expect(f.description).toBe(
-        'Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
+        'Claude Desktop and Codex are disconnected at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
       );
-      expect(f.clients).toBe('Claude Desktop, Codex');
+      expect(f.clients).toBe('Claude Desktop, Codex (disconnected)');
       expect(f.tokens).toBe('codex-laptop, inspector-debug (revoked)');
       expect(f.waiting).toBe('3 approval requests (denied)');
       expect(deleteFacts(summary({ approvalsWaiting: 0 }), [], []).waiting).toBeNull();
@@ -331,6 +334,23 @@ describe('endpoint detail view', () => {
       expect(busiestMeter(null, tokens(), 120, 0, 'dev')?.label).toBe('Busiest token now · no calls in the last minute');
       expect(busiestMeter({ name: 'codex-laptop', calls: 119 }, tokens(), 120, 0, 'dev')?.level).toBe('critical');
       expect(busiestMeter(null, null, null, 0, 'dev')).toBeNull();
+    });
+
+    it('reads the tool list setting and says what AI apps get (ARCHITECTURE.md §5.7)', () => {
+      expect(toolListOf(settings())).toEqual({ mode: 'auto', pinned: [], mostUsed: 10 });
+      expect(toolListOf(settings({ toolList: { mode: 'search', pinned: ['orders-mongo', 'dev-db'] } }))).toEqual({ mode: 'search', pinned: ['dev-db', 'orders-mongo'], mostUsed: 10 });
+      expect(toolListOf(settings({ toolList: { mode: 'search', mostUsed: 0 } })).mostUsed).toBe(0);
+      expect(toolListOf(null).mode).toBe('auto');
+      const state = { search: true, tools: 186, listedTools: 63, bytes: 359_000, searchAboveTools: 40, searchAboveBytes: 102_400 };
+      expect(toolListSize(state)).toBe('186 tools · 351 KB of definitions, about 90,000 tokens');
+      expect(toolListSize({ ...state, tools: 1, bytes: 900 })).toBe('1 tool · 1 KB of definitions, about 200 tokens');
+      expect(toolListShown(state)).toBe("GateRook's own tools and 63 pinned tools; find_tools finds the other 123.");
+      expect(toolListShown({ ...state, listedTools: 0 })).toBe("GateRook's own tools; find_tools finds the other 186.");
+      expect(toolListShown({ ...state, listedTools: 14, mostUsedTools: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'] })).toBe(
+        "GateRook's own tools, the 10 most used and 4 pinned tools; find_tools finds the other 172.",
+      );
+      expect(toolListShown({ ...state, listedTools: 1, mostUsedTools: ['sql_query'] })).toBe("GateRook's own tools and the most used one; find_tools finds the other 185.");
+      expect(toolListShown({ ...state, search: false })).toBe('Every tool.');
     });
   });
 

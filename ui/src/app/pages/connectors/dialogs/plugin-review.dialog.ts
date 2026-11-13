@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
-import { PluginCheck } from '../../../core/api/plugins.api';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injectable, computed, inject, signal, viewChild } from '@angular/core';
+import { PluginCheck, PluginsApi, RuntimePreparation } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwEnableWhen } from '../../../kit/enable-when';
 import { GwIcon } from '../../../kit/icons';
@@ -12,12 +12,35 @@ import { PluginFacts, pluginFacts } from './plugin-facts';
 let nextId = 0;
 
 /**
+ * What the review installs with. Connectors installs through its page data (which refreshes its lists); a page without
+ * that data, such as Add connection when a catalog plugin is chosen, provides {@link DirectPluginInstaller}.
+ */
+export abstract class PluginInstaller {
+  abstract installPlugin(stagingId: string, acknowledgeUnsigned: boolean, preparation?: RuntimePreparation): Promise<void>;
+}
+
+/** Java support first (the plugin process needs it), then the install; the page reloads what it shows itself. */
+@Injectable()
+export class DirectPluginInstaller extends PluginInstaller {
+  private readonly api = inject(PluginsApi);
+
+  async installPlugin(stagingId: string, acknowledgeUnsigned: boolean, preparation?: RuntimePreparation): Promise<void> {
+    await this.api.ensureRuntime(preparation);
+    await this.api.install(stagingId, acknowledgeUnsigned);
+  }
+}
+
+/**
  * `<dialog gwPluginReviewDialog>` (kit `dlg-review-clickhouse` and `dlg-review-rabbitmq`): what the core found in a
  * staged plugin before it loads — signature, package, SHA-256, manifest, connection form, tools, the hosts it needs.
  *
  * - Signed by the catalog: a plain dialog, "Install ClickHouse plugin" is its primary.
  * - Unsigned: `gw-dialog--danger` (untrusted code), the acknowledgement must be checked before "Install unsigned
  *   plugin RabbitMQ" works (`aria-disabled` until then), and the core gets `acknowledgeUnsigned`.
+ * - A connector module's package from a file (`facts.module`) is reviewed here too: one that GateRook's signed list
+ *   has is GateRook's own connector ("Install ClickHouse connector"); any other is the person's own module, reviewed
+ *   as unsigned code is, with what the core does about it: its tools start as Approval, a person approves the call's
+ *   arguments, and GateRook's list never updates it.
  *
  * Focus starts on Cancel. Decision 2 (ARCHITECTURE §8.6.8): the plugin runs in its own plugin process with only its
  * connection's secrets during a call, not "with the gateway's privileges … next to the secrets".
@@ -35,7 +58,15 @@ let nextId = 0;
   template: `
     @if (facts(); as f) {
       <header class="gw-dialog__header">
-        @if (f.signed) {
+        @if (f.module && f.signed) {
+          <span class="gw-icon-tile gw-icon-tile--success"><svg lucideIcon="badge-check" class="gw-icon"></svg></span>
+          <h2 class="gw-dialog__title" [id]="uid + '-t'">Install {{ f.name }} connector</h2>
+          <p class="gw-dialog__description" [id]="uid + '-d'">One of GateRook's own connectors: its signed list has this very package. It loads without a restart, in its own process.</p>
+        } @else if (f.module) {
+          <span class="gw-icon-tile"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
+          <h2 class="gw-dialog__title" [id]="uid + '-t'">Install unsigned connector module {{ f.name }}?</h2>
+          <p class="gw-dialog__description" [id]="uid + '-d'">GateRook didn't sign this package, and nobody has verified its code. It runs as your user in a separate process and gets only its connection's secrets during a call.</p>
+        } @else if (f.signed) {
           <span class="gw-icon-tile gw-icon-tile--success"><svg lucideIcon="badge-check" class="gw-icon"></svg></span>
           <h2 class="gw-dialog__title" [id]="uid + '-t'">Install {{ f.name }} plugin</h2>
           <p class="gw-dialog__description" [id]="uid + '-d'">It loads without a restart, in its own plugin process. Its {{ toolsText() }} start Off.</p>
@@ -49,21 +80,40 @@ let nextId = 0;
       <div class="gw-dialog__body">
         <div class="gw-stack">
           <dl class="gw-kv gw-kv--dense">
-            <div class="gw-kv__row"><dt class="gw-kv__key">Signature</dt><dd class="gw-kv__value">@if (f.signed) {<span class="gw-badge gw-badge--success"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed</span> by the catalog key, matches the published package} @else {<span class="gw-badge gw-badge--warning"><svg lucideIcon="shield-alert" class="gw-icon gw-badge__icon"></svg>Unsigned</span> No signature from the catalog key}</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Signature</dt><dd class="gw-kv__value">@if (f.module && f.signed) {<span class="gw-badge gw-badge--success"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed</span> GateRook's signed list of connector modules has this package} @else if (f.module) {<span class="gw-badge gw-badge--warning"><svg lucideIcon="shield-alert" class="gw-icon gw-badge__icon"></svg>Unsigned</span> Not in GateRook's signed list of connector modules} @else if (f.signed) {<span class="gw-badge gw-badge--success"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed</span> by the catalog key, matches the published package} @else {<span class="gw-badge gw-badge--warning"><svg lucideIcon="shield-alert" class="gw-icon gw-badge__icon"></svg>Unsigned</span> No signature from the catalog key}</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">{{ f.file }}</span>@if (f.size) { · {{ f.size }}}</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">SHA-256</dt><dd class="gw-kv__value gw-mono">{{ f.sha256 }}</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Manifest</dt><dd class="gw-kv__value">id <span class="gw-mono">{{ f.id }}</span>, version <span class="gw-mono">{{ f.version }}</span></dd></div>
             @if (f.connectionForm) {
               <div class="gw-kv__row"><dt class="gw-kv__key">Connection form</dt><dd class="gw-kv__value">{{ f.connectionForm }}</dd></div>
             }
+            @if (f.module) {
+              @if (f.replaces; as r) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Replaces</dt><dd class="gw-kv__value">{{ f.name }} <span class="gw-mono">{{ r.version }}</span>, {{ r.own ? 'your own build' : "GateRook's build" }}. Requests that wait for approval on its connections are rejected.</dd></div>
+              }
+              @for (type of f.types; track type.id) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">{{ $first ? 'Adds' : '' }}</dt><dd class="gw-kv__value">{{ type.name }}@if (type.toolNames.length) {: @for (n of type.toolNames; track n; let last = $last) {<code class="gw-code">{{ n }}</code>@if (!last) {{{ ' ' }}}}}</dd></div>
+              }
+            }
             <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">
-              @if (f.allReadOnly) {
+              @if (f.module && f.signed) {
+                {{ f.toolNames.length }}, in the modes the connector declares: on an endpoint reads start as Read only and the others as Approval.
+              } @else if (f.module) {
+                {{ f.toolNames.length }} <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The module declares what its tools do; the gateway can't check it"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ f.id }}, not verified</span>. On an endpoint each starts as Approval; Read only needs your confirmation per tool. What you approve is the call's arguments: the module's own description of it is shown as not verified.
+              } @else if (f.allReadOnly && f.signed) {
+                {{ f.toolNames.length }}, all read only. On an endpoint each starts as Read only: the catalog key signed this build.
+              } @else if (f.allReadOnly) {
                 {{ f.toolNames.length }}, all read only <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The plugin declares these annotations; the gateway can't check what the tools do"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ f.id }}, not verified</span>. On an endpoint each starts as Approval; Read only needs your confirmation per tool.
+              } @else if (f.signed) {
+                @for (t of f.toolNames; track t; let last = $last) {<code class="gw-code">{{ t }}</code>@if (!last) {{{ ' ' }}}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There reads start as Read only and the others as Approval: the catalog key signed this build.
               } @else {
-                @for (t of f.toolNames; track t) {<code class="gw-code">{{ t }}</code>{{ ' ' }}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.
+                @for (t of f.toolNames; track t; let last = $last) {<code class="gw-code">{{ t }}</code>@if (!last) {{{ ' ' }}}}{{ f.toolNames.length ? ', ' : '' }}Off until you add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.
               }
             </dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Needs access to</dt><dd class="gw-kv__value">{{ f.access }}</dd></div>
+            @if (f.module && !f.signed) {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Updates</dt><dd class="gw-kv__value">None from GateRook's list: it never replaces or restores your own module. Install a newer file to update it.</dd></div>
+            }
             @if (f.unsandboxed) {
               <!-- ARCHITECTURE §7.5: where the OS has no sandbox for the plugin process, the review says so (report.sandbox null). -->
               <div class="gw-kv__row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value">Your user, in a separate plugin process. Not sandboxed on this system: it can read everything your account can, including GateRook's data.</dd></div>
@@ -90,16 +140,16 @@ let nextId = 0;
       <footer class="gw-dialog__footer">
         <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
         @if (f.signed) {
-          <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" (click)="install()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Install {{ f.name }} plugin</button>
+          <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" (click)="install()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Install {{ f.name }} {{ f.module ? 'connector' : 'plugin' }}</button>
         } @else {
-          <button class="gw-btn gw-btn--danger" type="button" aria-disabled="true" [attr.aria-describedby]="uid + '-ack-label'" [gwEnableWhen]="'#' + uid + '-ack'" [attr.aria-busy]="busy() ? 'true' : null" (click)="install()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Install unsigned plugin {{ f.name }}</button>
+          <button class="gw-btn gw-btn--danger" type="button" aria-disabled="true" [attr.aria-describedby]="uid + '-ack-label'" [gwEnableWhen]="'#' + uid + '-ack'" [attr.aria-busy]="busy() ? 'true' : null" (click)="install()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Install unsigned {{ f.module ? 'module' : 'plugin' }} {{ f.name }}</button>
         }
       </footer>
     }
   `,
 })
 export class GwPluginReviewDialog {
-  private readonly data = inject(ConnectorsData);
+  private readonly data: PluginInstaller = inject(PluginInstaller, { optional: true }) ?? inject(ConnectorsData);
   private readonly dialog = inject(GwDialog);
   private readonly toasts = inject(ToastService);
   private readonly host: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;
@@ -152,14 +202,26 @@ export class GwPluginReviewDialog {
       if (cancelled()) return;
       this.dialog.close('installed');
       const tools = f.toolNames.length;
+      if (f.module) {
+        // A connector module's types are among the connectors at once: a connection is the next step.
+        this.toasts.show({
+          tone: f.signed ? 'success' : 'warning',
+          title: f.signed ? `${f.name} connector installed` : `Unsigned connector module ${f.name} installed`,
+          body: f.signed
+            ? 'Add a connection to use it. Its tools start in the modes the connector declares.'
+            : `Add a connection to use it. On an endpoint ${tools === 1 ? 'its tool starts' : `each of its ${tools} tools starts`} as Approval.`,
+        });
+        return;
+      }
       this.toasts.show({
         tone: f.signed ? 'success' : 'warning',
         title: f.signed ? `${f.name} plugin installed` : `Unsigned plugin ${f.name} installed`,
-        body: `${tools === 1 ? 'Its tool is' : `Its ${tools} tools are`} Off until you add them to an endpoint. There each starts as Approval.`,
+        body: `${tools === 1 ? 'Its tool is' : `Its ${tools} tools are`} Off until you add them to an endpoint. ${f.signed
+          ? 'There reads start as Read only and the others as Approval.' : 'There each starts as Approval.'}`,
       });
     } catch (e) {
       if (cancelled()) return;
-      this.error.set(failureText(e, 'This build of the gateway core can’t install plugins yet.'));
+      this.error.set(failureText(e, f.module ? 'This build of the gateway core can’t install a connector module from a file.' : 'This build of the gateway core can’t install plugins yet.'));
     } finally {
       if (operation === this.operation) { this.busy.set(false); this.progress.set(null); }
     }

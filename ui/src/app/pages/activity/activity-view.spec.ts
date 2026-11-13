@@ -40,6 +40,7 @@ import {
   tagFields,
   tracesInRange,
   tracesPagerText,
+  trafficCell,
   unsendable,
   viewParam,
   widerRange,
@@ -163,6 +164,22 @@ describe('Activity view', () => {
     expect(next.length).toBe(rows.length);
     expect(applyCall(rows, { ...sse, callId: 'ev_unknown' })).toBeNull();
     expect(applyCall(rows, { ...sse, id: 1 })).toBeNull(); // an older row never overwrites a newer one
+  });
+
+  it('keeps what a call sent when its completed row says what went back', () => {
+    const rows = [{ ...call(40, 1000, 'pending', 'sql_execute'), requestBytes: 312, resultBytes: null }];
+    const done = { id: 41, callId: rows[0].callId, at: ago(0), phase: 'completed', decision: 'approved' as const, tool: 'sql_execute', connection: 'dev-db', env: 'dev' as const, client: 'codex', endpoint: 'dev', token: 'codex-laptop', durationMs: 47_000, requestBytes: null, resultBytes: 2_150, rule: null, approvalId: 'ap_sql', traceId: null };
+    expect(applyCall(rows, done)![0]).toMatchObject({ requestBytes: 312, resultBytes: 2_150 });
+    // A core that doesn't count traffic sends neither: the row keeps what it had.
+    const { requestBytes: _sent, resultBytes: _back, ...older } = done;
+    expect(applyCall(rows, older)![0]).toMatchObject({ requestBytes: 312, resultBytes: null });
+  });
+
+  it("says a call's traffic as sent in and returned out, leaving out a size the audit didn't keep", () => {
+    expect(trafficCell({ requestBytes: 312, resultBytes: 49_152 })).toEqual({ in: '312 B in', out: '48 KB out' });
+    expect(trafficCell({ requestBytes: 2_048, resultBytes: null })).toEqual({ in: '2 KB in', out: null });
+    expect(trafficCell({ requestBytes: null, resultBytes: 0 })).toEqual({ in: null, out: '0 B out' });
+    expect(trafficCell({})).toEqual({ in: null, out: null });
   });
 
   it('captions and pages the table', () => {

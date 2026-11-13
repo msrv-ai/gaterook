@@ -7,7 +7,7 @@ import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
-import { localEndpoints } from '../../kit/elements/client-card/tunnel-view';
+import { localEndpoints, publishNotes } from '../../kit/elements/client-card/tunnel-view';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
 import { GwSaveBar } from '../../kit/elements/settings-layout/settings-layout';
 import { GwIcon } from '../../kit/icons';
@@ -104,6 +104,11 @@ export class GwTunnelSettings {
     const p = this.preview();
     return p ? localEndpoints(p.local) : null;
   });
+  /**
+   * The core's cautions that the dialog's rows don't already say (tools in Bypass, changes claude.ai can ask for,
+   * dynamic client registration), as the Clients page shows them.
+   */
+  protected readonly notes = computed(() => publishNotes(this.preview()));
   protected readonly previewError = signal<string | null>(null);
   protected readonly publishError = signal<string | null>(null);
   protected readonly canPublish = computed(() => !!this.preview() && !this.preview()!.refusal && this.busy() === null);

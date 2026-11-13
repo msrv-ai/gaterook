@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Databricks SQL",
+  "type": "object",
+  "x-card": {
+    "description": "Unity Catalog tables and Databricks SQL queries on a SQL warehouse. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "host",
+    "warehouseId",
+    "auth"
+  ],
+  "properties": {
+    "host": {
+      "type": "string",
+      "title": "Workspace URL",
+      "maxLength": 300,
+      "pattern": "^https://[^/?#@\\s]+/?$",
+      "examples": [
+        "https://dbc-a1b2c3d4-e5f6.cloud.databricks.com"
+      ],
+      "description": "The workspace's https address, as the browser shows it."
+    },
+    "warehouseId": {
+      "type": "string",
+      "title": "SQL warehouse ID",
+      "pattern": "^[A-Za-z0-9-]{1,64}$",
+      "examples": [
+        "1a2b3c4d5e6f7a8b"
+      ],
+      "x-suggest": true,
+      "description": "From the warehouse's Connection details: the ID that ends its HTTP path, /sql/1.0/warehouses/<ID>."
+    },
+    "catalog": {
+      "type": "string",
+      "title": "Default catalog",
+      "pattern": "^[A-Za-z0-9_-]{1,255}$",
+      "examples": [
+        "main"
+      ],
+      "x-suggest": true,
+      "description": "For tables named without a catalog; with Catalogs set, one of them. Empty: the workspace's default."
+    },
+    "schema": {
+      "type": "string",
+      "title": "Default schema",
+      "pattern": "^[A-Za-z0-9_-]{1,255}$",
+      "examples": [
+        "sales"
+      ],
+      "x-suggest": true,
+      "description": "For tables named without a schema; with Schemas set, one of them. Empty: default."
+    },
+    "catalogs": {
+      "type": "array",
+      "title": "Catalogs",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_*-]{1,255}$"
+      },
+      "description": "The catalogs agents may use; * matches any characters. Empty: every catalog the identity may use."
+    },
+    "schemas": {
+      "type": "array",
+      "title": "Schemas",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^([A-Za-z0-9_*-]{1,255}\\.)?[A-Za-z0-9_*-]{1,255}$"
+      },
+      "description": "The schemas agents may use: schema or catalog.schema, * matching any characters. Empty: every schema of the catalogs."
+    },
+    "auth": {
+      "type": "object",
+      "title": "Sign-in",
+      "required": [
+        "method"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "oauth",
+            "token"
+          ],
+          "default": "oauth",
+          "title": "Sign in with",
+          "x-enumTitles": [
+            "A service principal (OAuth machine-to-machine, recommended)",
+            "A personal access token"
+          ],
+          "description": "Give a service principal USE CATALOG, USE SCHEMA and SELECT on what agents read, and CAN USE on the warehouse."
+        }
+      },
+      "patternProperties": {
+        "^(token|clientId|clientSecret)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "token"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "token": {
+                "type": "string",
+                "title": "Personal access token",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "maxLength": 4096
+              }
+            },
+            "required": [
+              "token"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "oauth"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "clientId": {
+                "type": "string",
+                "title": "Client ID",
+                "pattern": "^[A-Za-z0-9._-]{1,128}$",
+                "x-not-secret": true,
+                "examples": [
+                  "6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b"
+                ],
+                "description": "The service principal's application ID."
+              },
+              "clientSecret": {
+                "type": "string",
+                "title": "Client secret",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "maxLength": 4096,
+                "description": "An OAuth secret of the service principal. GateRook exchanges it for a token of this workspace only."
+              }
+            },
+            "required": [
+              "clientId",
+              "clientSecret"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "catalogs": {
+            "type": "array",
+            "minItems": 1
+          }
+        },
+        "required": [
+          "catalogs"
+        ]
+      },
+      "then": {
+        "required": [
+          "catalog"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemas": {
+            "type": "array",
+            "minItems": 1
+          }
+        },
+        "required": [
+          "schemas"
+        ]
+      },
+      "then": {
+        "required": [
+          "schema"
+        ]
+      }
+    }
+  ]
+}

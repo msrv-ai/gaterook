@@ -1,0 +1,505 @@
+package com.gaterook.core.mcp.internal;
+
+import com.gaterook.connector.api.ActionPreview;
+import com.gaterook.connector.api.Classification;
+import com.gaterook.connector.api.ConnectionConfig;
+import com.gaterook.connector.api.Connector;
+import com.gaterook.connector.api.ConnectorException;
+import com.gaterook.connector.api.PreparedAction;
+import com.gaterook.connector.api.ToolCall;
+import com.gaterook.connector.api.ToolDefinition;
+import com.gaterook.connector.api.ToolDefinition.Mode;
+import com.gaterook.connector.api.ToolResult;
+import com.gaterook.core.approvals.ApprovalAnswers;
+import com.gaterook.core.approvals.ApprovalService;
+import com.gaterook.core.approvals.ApprovalStatusTool;
+import com.gaterook.core.audit.AuditUnavailableException;
+import com.gaterook.core.audit.AuditWriter;
+import com.gaterook.core.connectors.CallListener;
+import com.gaterook.core.connectors.ConnectorRegistry;
+import com.gaterook.core.endpoints.CoreTools;
+import com.gaterook.core.endpoints.EndpointSnapshot;
+import com.gaterook.core.endpoints.EndpointSnapshotService;
+import com.gaterook.core.endpoints.ToolCatalog;
+import com.gaterook.core.invocation.ConnectorInvoker;
+import com.gaterook.core.invocation.ToolGuard;
+import com.gaterook.core.mcp.McpGateway;
+import com.gaterook.core.platform.Ids;
+import com.gaterook.core.platform.SchemaValidator;
+import com.gaterook.core.policy.Decision;
+import com.gaterook.core.policy.PolicyEngine;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.TreeSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * {@code tools/call} (ARCHITECTURE.md §5 steps 5–11): find the tool, validate the arguments, resolve the connection,
+ * rate limits, classify, decide, audit {@code received} (fail-closed), then deny, run, or ask a person. A READ result
+ * reaches the agent only after its {@code completed} row; if that row can't be written the agent gets {@code -32603}.
+ * A retry of an approval round with a valid {@code requestState} skips straight to the request it names. A tool that
+ * publishes an {@code outputSchema} gets every answer about a request in a shape that keeps to it
+ * ({@link ApprovalAnswers#typed}): the executed result once it ran, {@code isError} until then.
+ */
+@Component
+public class ToolCallHandler {
+
+  private static final Logger log = LoggerFactory.getLogger(ToolCallHandler.class);
+
+  /** {@code -32603} when a call's {@code received} row can't be written (§5 step 8). */
+  static final String AUDIT_UNAVAILABLE = "The audit is unavailable, so nothing ran. Try again later.";
+
+  private final ToolCatalog catalogs;
+  private final SchemaValidator validator;
+  private final ConnectorRegistry registry;
+  private final PolicyEngine engine;
+  private final ToolGuard guard;
+  private final AuditWriter audit;
+  private final ConnectorInvoker invoker;
+  private final ApprovalService approvals;
+  private final ApprovalAnswers answers;
+  private final ApprovalStatusTool statusTool;
+  private final ApprovalDelivery delivery;
+  private final RequestStateCodec states;
+  private final CoreToolsHandler coreTools;
+  private final Calls calls;
+  private final ApprovalCards approvalCards;
+  private final EndpointSnapshotService snapshots;
+  private final InFlight inFlight;
+  private final ConnectionImportTools connectionImports;
+  private final ToolFinder finder;
+
+  public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
+      PolicyEngine engine, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
+      ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
+      RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards,
+      EndpointSnapshotService snapshots, InFlight inFlight, ConnectionImportTools connectionImports,
+      ToolFinder finder) {
+    this.catalogs = catalogs;
+    this.validator = validator;
+    this.registry = registry;
+    this.engine = engine;
+    this.guard = guard;
+    this.audit = audit;
+    this.invoker = invoker;
+    this.approvals = approvals;
+    this.answers = answers;
+    this.statusTool = statusTool;
+    this.delivery = delivery;
+    this.states = states;
+    this.coreTools = coreTools;
+    this.calls = calls;
+    this.approvalCards = approvalCards;
+    this.snapshots = snapshots;
+    this.inFlight = inFlight;
+    this.connectionImports = connectionImports;
+    this.finder = finder;
+  }
+
+  public ObjectNode call(McpRequest r) {
+    Envelope env = r.env();
+    JsonNode nameNode = env.params().get("name");
+    if (nameNode == null || !nameNode.isString() || nameNode.asString().isEmpty()) {
+      throw McpException.invalidParams("params.name is required");
+    }
+    String name = nameNode.asString();
+    JsonNode argsNode = env.params().get("arguments");
+    if (argsNode != null && !argsNode.isObject() && !argsNode.isNull()) {
+      throw McpException.invalidParams("params.arguments must be an object");
+    }
+    ObjectNode args = argsNode != null && argsNode.isObject() ? (ObjectNode) argsNode
+        : JsonNodeFactory.instance.objectNode();
+    r.span().tag("gen_ai.tool.name", name);
+
+    String disabled = r.snapshot().disabledReason(args.path("connection").asString(null));
+    if (disabled != null) return ResultWriter.toolError(env, disabled, null);
+
+    if (CoreTools.APPROVAL_STATUS.equals(name)) {
+      return approvalStatus(r, args);
+    }
+    ToolCatalog.PublishedTool published = r.catalog().tool(name)
+        .orElseThrow(() -> McpException.invalidParams("Unknown tool: " + name));
+    // First the schema the client got: a connection added since its list passes, and is looked up below.
+    List<SchemaValidator.Violation> violations = validator.validateBounded(published.clientInputSchema(), args,
+        SchemaValidator.BUDGET);
+    if (!violations.isEmpty()) {
+      return ResultWriter.toolError(env, invalid(violations), null);
+    }
+    if (CoreTools.APPROVAL_CARD.equals(name) || CoreTools.APPROVAL_CARD_ACTION.equals(name)) {
+      PolicyEngine.Rates rates = engine.rates(r.snapshot().env());
+      ToolGuard.Admission admission = guard.admit(r.caller().principalId(), name, rates.perToken(), rates.perTool());
+      if (!admission.allowed()) {
+        return rateLimited(r, name, admission, "tool".equals(admission.scope()) ? rates.perTool() : rates.perToken());
+      }
+      return ResultWriter.callToolResult(env,
+          approvalCards.call(r, args, CoreTools.APPROVAL_CARD_ACTION.equals(name)), null, r.span().traceId(), null);
+    }
+    if (CoreTools.CONNECTION_IMPORT_SCHEMA.equals(name) || CoreTools.CONNECTION_IMPORT_PROGRESS.equals(name)
+        || CoreTools.SUBMIT_CONNECTION_IMPORT.equals(name)
+        || "open_connection_import".equals(name)) {
+      return connectionImports.call(r, name, args);
+    }
+    if (CoreTools.FIND_TOOLS.equals(name)) {
+      return finder.call(r, args);
+    }
+    if (CoreTools.RUNS_TOOLS.contains(name)) {
+      // McpDispatcher turns their calls into calls of the tools they name: none of them gets here.
+      throw McpException.invalidParams(name + " runs another tool; send its call to the endpoint.");
+    }
+    if (published.core()) {
+      return coreTools.call(r, published, args);
+    }
+    String connection = args.path("connection").isString() ? args.get("connection").asString() : null;
+    Optional<EndpointSnapshot.Pair> found = catalogs.resolve(r.catalog(), name, connection);
+    if (found.isEmpty()) {
+      TreeSet<String> available = new TreeSet<>();
+      published.pairs().forEach(p -> available.add(p.connectionName()));
+      return ResultWriter.toolError(env, "Connection " + connection + " is not available on " + r.snapshot().slug()
+          + ". Available: " + String.join(", ", available) + ".", null);
+    }
+    // Then every value the endpoint allows now, such as the runbooks and scopes its connections add.
+    violations = validator.validateBounded(published.inputSchema(), args, SchemaValidator.BUDGET);
+    if (!violations.isEmpty()) {
+      return ResultWriter.toolError(env, invalid(violations), null);
+    }
+    EndpointSnapshot.Pair pair = found.get();
+    ConnectionConfig cfg = pair.config();
+    disabled = r.snapshot().disabledReason(cfg.name());
+    if (disabled != null) return ResultWriter.toolError(env, disabled, null);
+    String argumentsDigest = RequestStateCodec.argumentsDigest(name, args);
+
+    // A retry of an approval round: the state proves who, where, what and with which arguments.
+    JsonNode requestState = env.params().get("requestState");
+    if (env.era() == Era.MODERN && requestState != null && requestState.isString()) {
+      Optional<ApprovalDelivery.Answer> resumed = states.open(requestState.asString(), r.caller().principalId(),
+          r.snapshot().id(), "tools/call", name, argumentsDigest)
+          .flatMap(state -> delivery.resume(r, state, env.params().get("inputResponses"), argumentsDigest));
+      if (resumed.isPresent()) {
+        return answer(r, resumed.get(), null, published.outputSchema());
+      }
+    }
+
+    PolicyEngine.Rates rates = engine.rates(pair.view(), cfg);
+    ToolGuard.Admission admission = guard.admit(r.caller().principalId(), name, rates.perToken(), rates.perTool());
+    if (!admission.allowed()) {
+      return rateLimited(r, name, admission, "tool".equals(admission.scope()) ? rates.perTool() : rates.perToken());
+    }
+    Optional<Connector> connector = registry.connectorFor(cfg);
+    if (connector.isEmpty()) {
+      return ResultWriter.toolError(env, cfg.name() + " isn't available right now.", null);
+    }
+    String callId = Ids.next("tc_");
+    ObjectNode arguments = args.deepCopy();
+    arguments.remove("connection");
+    ToolCall call = new ToolCall(callId, name, cfg.name(), arguments, pair.template());
+    Classification classification;
+    try {
+      classification = connector.get().classify(call, cfg, engine.view(pair.view(), cfg));
+    } catch (RuntimeException | StackOverflowError e) {
+      // Refused below (core.classify-error) with its received row. A stack overflow, for example from arguments
+      // nested too deeply for a connector's parser, is this thread's own; other virtual-machine errors propagate.
+      log.warn("classify of {} on {} failed: {}", name, cfg.name(), e.toString());
+      classification = null;
+    }
+    Decision decision = engine.decide(pair.view(), cfg, classification);
+    Classification.Kind kind = classification == null ? null : classification.kind();
+    ObjectNode facets = facets(pair, args);
+    facets.set("policy", calls.policyFacet(cfg.env(), pair.mode(), classification, decision, rates, admission));
+    AuditWriter.Call auditCall = calls.call(r, callId, name, pair.toolKey(), cfg.name(), cfg.env(), pair.tool(), args,
+        facets);
+    switch (decision.outcome()) {
+      case UNKNOWN_TOOL -> throw McpException.invalidParams("Unknown tool: " + name);
+      case DENY -> {
+        received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.DENIED, kind, decision.ruleId()));
+        r.span().error("denied");
+        String text = "Denied by policy " + decision.ruleId() + ": " + decision.reason()
+            + (decision.hint() == null ? "" : " " + decision.hint());
+        return ResultWriter.callToolResult(env, ToolResult.error(text), callId, r.span().traceId(), null);
+      }
+      case ALLOW -> {
+        if (pair.mode() == Mode.BYPASS && (kind == Classification.Kind.MUTATION
+            || pair.tool().nature() != ToolDefinition.Nature.READ)) {
+          return approval(r, pair, call, decision, classification, kind, auditCall, args, argumentsDigest,
+              published.outputSchema());
+        }
+        received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, decision.ruleId()));
+        return run(r, auditCall, request(r, pair, call, decision, classification), null);
+      }
+      default -> {
+        return approval(r, pair, call, decision, classification, kind, auditCall, args, argumentsDigest,
+            published.outputSchema());
+      }
+    }
+  }
+
+  /** Runs an allowed call and writes its {@code completed} row before the result leaves. */
+  ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request, ObjectNode extraMeta) {
+    return run(r, auditCall, request, extraMeta, null);
+  }
+
+  private ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request,
+      ObjectNode extraMeta, PreparedAction bypass) {
+    if (bypass != null && r.task() != null && !r.task().startsToRunToItsEnd()) {
+      // Nothing stops a Bypass change halfway, so a task cancelled before it started never starts it.
+      String why = "Cancelled by the client before it ran. Nothing changed.";
+      completed(auditCall, new ConnectorInvoker.Outcome(ToolResult.error(why), ConnectorException.Kind.DENIED, why,
+          0, 0, why.length(), null, why, false), 0, AuditWriter.Verdict.ERROR, null);
+      return ResultWriter.callToolResult(r.env(), ToolResult.error(why), request.callId(), r.span().traceId(),
+          extraMeta);
+    }
+    long started = System.nanoTime();
+    InFlight.Key key = InFlight.Key.of(r);
+    ConnectorInvoker.Outcome outcome;
+    try {
+      outcome = bypass == null ? invoker.execute(request, listener(r, key))
+          : invoker.executeBypass(request, bypass);
+    } finally {
+      inFlight.done(key);
+    }
+    long durationMs = (System.nanoTime() - started) / 1_000_000;
+    completed(auditCall, outcome, durationMs, outcome.ok() ? AuditWriter.Verdict.ALLOWED : AuditWriter.Verdict.ERROR,
+        null);
+    if (!outcome.ok()) {
+      r.span().error(outcome.errorKind().name());
+    }
+    ToolResult result = answers.withTemporaryBypassNotice(outcome.result(), r.snapshot().id(),
+        auditCall.toolKey(), request.cfg().id());
+    return ResultWriter.callToolResult(r.env(), result, request.callId(), r.span().traceId(), extraMeta);
+  }
+
+  /**
+   * What the client hears of a call that runs while it waits: progress for its {@code progressToken}, the resource's
+   * log messages at its level (both masked by the call's context), and its {@code notifications/cancelled}.
+   */
+  private CallListener listener(McpRequest r, InFlight.Key key) {
+    JsonNode token = r.progressToken();
+    String level = r.logLevel();
+    McpGateway.Stream stream = r.stream();
+    return new CallListener() {
+      @Override
+      public boolean wantsProgress() {
+        return token != null;
+      }
+
+      @Override
+      public String logLevel() {
+        return level;
+      }
+
+      @Override
+      public void progress(double progress, Double total, String message) {
+        ObjectNode n = notification("notifications/progress");
+        ObjectNode p = (ObjectNode) n.get("params");
+        p.set("progressToken", token.deepCopy());
+        p.put("progress", progress);
+        if (total != null) {
+          p.put("total", total);
+        }
+        if (message != null) {
+          p.put("message", message);
+        }
+        stream.send(n);
+      }
+
+      @Override
+      public void log(String at, String logger, JsonNode data) {
+        ObjectNode n = notification("notifications/message");
+        ObjectNode p = (ObjectNode) n.get("params");
+        p.put("level", at);
+        if (logger != null) {
+          p.put("logger", logger);
+        }
+        p.set("data", data == null ? JsonNodeFactory.instance.nullNode() : data);
+        stream.send(n);
+      }
+
+      @Override
+      public void started(Runnable cancel) {
+        inFlight.started(key, cancel);
+        stream.onClose(cancel);
+      }
+    };
+  }
+
+  private static ObjectNode notification(String method) {
+    ObjectNode n = JsonNodeFactory.instance.objectNode();
+    n.put("jsonrpc", "2.0");
+    n.put("method", method);
+    n.putObject("params");
+    return n;
+  }
+
+  /**
+   * Prepare an exact action, then create an approval request or execute a policy-allowed Bypass call.
+   *
+   * @param outputSchema what the published tool promises its results look like, or {@code null}
+   */
+  private ObjectNode approval(McpRequest r, EndpointSnapshot.Pair pair, ToolCall call, Decision decision,
+      Classification classification, Classification.Kind kind, AuditWriter.Call auditCall, ObjectNode args, String argumentsDigest,
+      JsonNode outputSchema) {
+    Envelope env = r.env();
+    ConnectionConfig cfg = pair.config();
+    ConnectorInvoker.Request request = request(r, pair, call, decision, classification);
+    ConnectorInvoker.Prepared prepared = invoker.prepare(request);
+    if (!prepared.ok()) {
+      received(auditCall, new AuditWriter.Received(AuditWriter.Verdict.ERROR, kind, decision.ruleId(), null, null,
+          prepared.errorKind().name(), prepared.errorMessage()));
+      return ResultWriter.callToolResult(env, ToolResult.error(prepared.errorMessage()), call.callId(),
+          r.span().traceId(), null);
+    }
+    PreparedAction action = prepared.action();
+    if (action.outcome() == PreparedAction.Outcome.REJECT) {
+      String why = action.message() == null ? "The change can't be made as asked." : action.message();
+      received(auditCall, new AuditWriter.Received(AuditWriter.Verdict.DENIED, kind, decision.ruleId(), null, null,
+          "REJECTED", why));
+      return ResultWriter.callToolResult(env, ToolResult.error(why), call.callId(), r.span().traceId(), null);
+    }
+    if (action.outcome() == PreparedAction.Outcome.NO_CHANGE) {
+      String why = action.message() == null ? "Unchanged: nothing to do." : action.message();
+      received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, null));
+      ToolResult unchanged = ToolResult.text(why);
+      completed(auditCall, new ConnectorInvoker.Outcome(unchanged, null, null, 0, 0, why.length(), null, why, false), 0,
+          AuditWriter.Verdict.ALLOWED, null);
+      // "Unchanged" is no output of the tool: a tool with an outputSchema can only say it as an error.
+      unchanged = answers.withTemporaryBypassNotice(unchanged, r.snapshot().id(), pair.toolKey(), cfg.id());
+      return ResultWriter.callToolResult(env, outputSchema == null ? unchanged : ApprovalAnswers.asError(unchanged),
+          call.callId(), r.span().traceId(), null);
+    }
+    if (pair.mode() == Mode.BYPASS && decision.outcome() == Decision.Outcome.ALLOW) {
+      received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, decision.ruleId()));
+      return run(r, auditCall, request, null, action);
+    }
+    ActionPreview preview = action.preview();
+    String note = args.path("note").isString() ? args.get("note").asString() : null;
+    boolean mrtr = ApprovalDelivery.mrtr(r);
+    ApprovalService.Ticket ticket;
+    try {
+      ticket = approvals.requestOrReuse(new ApprovalService.NewRequest(r.caller(), r.snapshot().id(),
+          r.snapshot().slug(), call.callId(), call, pair.toolKey(), cfg, preview, action.preparedState(), note,
+          decision.ruleId(), kind, r.span().traceparent(), auditCall,
+          mrtr ? AuditWriter.Delivery.MRTR : AuditWriter.Delivery.HANDLE));
+    } catch (ApprovalService.TooManyWaitingException e) {
+      return ResultWriter.callToolResult(env, ToolResult.error(e.getMessage()), call.callId(), r.span().traceId(),
+          null);
+    } catch (AuditUnavailableException e) {
+      // The request and its received row commit together: neither exists, nothing ran.
+      log.warn("The audit refused the received row of {}: {}", call.callId(), e.toString());
+      throw new McpException(JsonRpc.INTERNAL_ERROR, AUDIT_UNAVAILABLE);
+    }
+    return answer(r, delivery.first(r, ticket.approval(), argumentsDigest), call.callId(), outputSchema);
+  }
+
+  private ObjectNode answer(McpRequest r, ApprovalDelivery.Answer answer, String callId, JsonNode outputSchema) {
+    if (answer.inputRequired() != null) {
+      return answer.inputRequired();
+    }
+    ToolResult result = outputSchema == null ? answer.result() : answers.typed(answer.view(), answer.result());
+    if (r.env().supportsUi() && answer.view().pending()) {
+      List<ToolResult.Content> content = new ArrayList<>(result.content());
+      content.add(ToolResult.Content.text("Show approval_card with handle " + answer.view().id()
+          + " once for interactive review. Final approval happens in GateRook. Keep polling approval_status; "
+          + "do not repeat the operation."));
+      result = new ToolResult(content, result.structuredContent(), result.isError(), result.table(), result.truncated(),
+          result.truncatedReason(), result.maskPaths(), result.maskedCount(), result.resultBytes(), result.meta());
+    }
+    return ResultWriter.callToolResult(r.env(), result, callId, r.span().traceId(),
+        result.meta() instanceof ObjectNode meta ? meta : null);
+  }
+
+  private ConnectorInvoker.Request request(McpRequest r, EndpointSnapshot.Pair pair, ToolCall call,
+      Decision decision, Classification classification) {
+    return new ConnectorInvoker.Request(call.callId(), pair.config(), call, decision.limits(),
+        decision.mask(), r.span().traceId(), r.span().traceparent(),
+        () -> snapshots.requireAvailable(r.snapshot().id(), pair.connectionName())
+            && (pair.bypassUntil() == null || temporaryBypassStillAllowed(r, pair, decision, classification)));
+  }
+
+  private boolean temporaryBypassStillAllowed(McpRequest r, EndpointSnapshot.Pair original, Decision decision,
+      Classification classification) {
+    return snapshots.get(r.snapshot().id()).filter(s -> s.enabled() && !s.blocked())
+        .flatMap(s -> s.pairs().stream().filter(p -> p.toolKey().equals(original.toolKey())
+            && p.config().id().equals(original.config().id())).findFirst())
+        .filter(p -> p.mode() == Mode.BYPASS && p.rowVersion() == original.rowVersion()
+            && java.util.Objects.equals(p.bypassUntil(), original.bypassUntil())
+            && p.config().equals(original.config()) && p.tool().equals(original.tool())
+            && java.util.Objects.equals(p.template(), original.template()))
+        .map(p -> engine.decide(p.view(), p.config(), classification).equals(decision)).orElse(false);
+  }
+
+  private ObjectNode approvalStatus(McpRequest r, ObjectNode args) {
+    List<SchemaValidator.Violation> violations = validator.validateBounded(CoreTools.approvalStatus().inputSchema(),
+        args, SchemaValidator.BUDGET);
+    if (!violations.isEmpty()) {
+      return ResultWriter.toolError(r.env(), invalid(violations), null);
+    }
+    PolicyEngine.Rates rates = engine.rates(r.snapshot().env());
+    // It counts against the principal's limit, not against a tool's: polling is what the agent was told to do.
+    ToolGuard.Admission admission = guard.admit(r.caller().principalId(), "\0" + CoreTools.APPROVAL_STATUS,
+        rates.perToken(), Integer.MAX_VALUE);
+    if (!admission.allowed()) {
+      return rateLimited(r, CoreTools.APPROVAL_STATUS, admission, rates.perToken());
+    }
+    ToolResult result = statusTool.call(r.caller(), r.snapshot().id(), args);
+    return ResultWriter.callToolResult(r.env(), result, null, r.span().traceId(), null);
+  }
+
+  private ObjectNode rateLimited(McpRequest r, String tool, ToolGuard.Admission admission, int perMinute) {
+    long seconds = Math.max(1, (admission.retryAfterMs() + 999) / 1000);
+    String text = "tool".equals(admission.scope())
+        ? perMinute + " calls per min for " + tool + " on this token. Retry after " + seconds + " s."
+        : perMinute + " calls per min on this token. Retry after " + seconds + " s.";
+    ObjectNode meta = JsonNodeFactory.instance.objectNode();
+    meta.put("com.gaterook/retryAfterMs", admission.retryAfterMs());
+    return ResultWriter.toolError(r.env(), text, meta);
+  }
+
+  private void received(AuditWriter.Call call, AuditWriter.Received received) {
+    try {
+      audit.received(call, received);
+    } catch (AuditUnavailableException e) {
+      throw new McpException(JsonRpc.INTERNAL_ERROR, AUDIT_UNAVAILABLE);
+    }
+  }
+
+  private void completed(AuditWriter.Call call, ConnectorInvoker.Outcome o, long durationMs,
+      AuditWriter.Verdict verdict, String ruleId) {
+    try {
+      audit.completed(call, new AuditWriter.Completion(verdict, ruleId, null, null, null, durationMs,
+          Math.max(0, durationMs - o.resourceMs()), o.resourceMs(), null, o.resultBytes(), o.resultSha256(),
+          o.preview(), o.maskedCount(), o.truncated(), o.errorKind() == null ? null : o.errorKind().name(),
+          o.errorMessage(), o.outcomeUnknown() ? Boolean.TRUE : null, null, null));
+    } catch (AuditUnavailableException e) {
+      throw new McpException(JsonRpc.INTERNAL_ERROR, "The audit couldn't record the result, so it is not shown. "
+          + "Try again later.");
+    }
+  }
+
+  /** Template and runbook facts for Activity ({@code runbook:compose-ps}, the template's name and version). */
+  private static ObjectNode facets(EndpointSnapshot.Pair pair, ObjectNode args) {
+    ObjectNode f = JsonNodeFactory.instance.objectNode();
+    if (args.path("runbook").isString()) {
+      f.put("runbook", args.get("runbook").asString());
+    }
+    if (pair.template() != null) {
+      f.put("template", pair.template().templateId());
+      f.put("templateVersion", pair.template().version());
+    }
+    return f;
+  }
+
+  private static String invalid(List<SchemaValidator.Violation> violations) {
+    StringBuilder out = new StringBuilder("Invalid arguments: ");
+    for (int i = 0; i < Math.min(5, violations.size()); i++) {
+      SchemaValidator.Violation v = violations.get(i);
+      out.append(i > 0 ? "; " : "").append(v.pointer() == null || v.pointer().isEmpty() ? "" : v.pointer() + " ")
+          .append(v.message());
+    }
+    return out.toString();
+  }
+}

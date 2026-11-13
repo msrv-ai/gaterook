@@ -1,4 +1,4 @@
-import { OAuthConsent, OAuthGrant, TunnelState } from '../../../core/api/tunnel.api';
+import { OAuthConsent, OAuthGrant, PublishPreview, TunnelState } from '../../../core/api/tunnel.api';
 import { Iso } from '../../../core/api/types';
 import { clockTime, shortDate } from '../../../core/time/time-format';
 
@@ -59,6 +59,15 @@ export function localEndpoints(local: readonly string[]): string[] {
   return local.map((l) => /^\/mcp\/(.+)$/.exec(l)?.[1] ?? null).filter((s): s is string => !!s);
 }
 
+/**
+ * The core's cautions before publishing (`TunnelService.warnings`: tools in Bypass, changes claude.ai can ask for,
+ * dynamic client registration), without the two that every publish dialog already says in its rows: who can call
+ * (Callers) and a quick tunnel's new address (Public URL).
+ */
+export function publishNotes(preview: PublishPreview | null): string[] {
+  return (preview?.warnings ?? []).filter((w) => !/^Callers:/.test(w) && !/new address each time/i.test(w));
+}
+
 /** Sign-ins that still work (Signed in). */
 export function activeGrants(grants: readonly OAuthGrant[]): OAuthGrant[] {
   return grants.filter((g) => g.state === 'active' || g.state === 'address-changed');
@@ -67,6 +76,25 @@ export function activeGrants(grants: readonly OAuthGrant[]): OAuthGrant[] {
 /** Registered clients use their name; metadata-document clients keep their authenticated host identity. */
 export function oauthClientLabel(grant: OAuthGrant): string {
   return (grant.clientKind === 'dcr' ? grant.clientName?.trim() : null) || grant.client;
+}
+
+/**
+ * Who asks to sign in, as the consent names it. On this computer an app is the name it registered with, as "Signed in"
+ * names it afterwards: the host of its first callback says nothing about it (VS Code registers insiders.vscode.dev
+ * first, Cursor localhost). Through the tunnel a client stays its host, which its allowed redirect vouches for.
+ */
+export function consentClient(c: OAuthConsent): string {
+  return (c.ingress === 'LOCAL' && c.clientKind === 'dcr' ? c.clientName?.trim() : null) || c.clientHost;
+}
+
+/** The consent's first line: who asked, and when to allow it. */
+export function consentAsks(c: OAuthConsent): string {
+  if (c.ingress !== 'LOCAL') {
+    return `Someone signed in to ${c.clientHost} asked to connect. Allow it only if it was you and the code matches the one on the ${c.clientHost} page.`;
+  }
+  const name = consentClient(c);
+  const who = name === c.clientHost ? 'An app on this computer' : `An app on this computer registered as ${name}`;
+  return `${who} asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.`;
 }
 
 /** "Read access to stage-readonly", "Access to dev: 14 read only, 3 with approval". */

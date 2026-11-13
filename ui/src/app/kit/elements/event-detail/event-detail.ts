@@ -16,8 +16,9 @@ import {
   actionMatch,
   approvalPath,
   argumentsJson,
+  callClientText,
   callRows,
-  clientLabel,
+  callerLabel,
   decisionBadge,
   durationText,
   errorAlert,
@@ -28,6 +29,7 @@ import {
   sizeText,
   timing,
   tokenParts,
+  trafficText,
 } from './event-view';
 
 let nextId = 0;
@@ -76,8 +78,12 @@ export class GwEventDetail {
   protected readonly e = computed(() => this.detail().event);
   protected readonly rows = computed(() => callRows(this.detail()));
   protected readonly badge = computed(() => decisionBadge(this.e().decision));
-  protected readonly who = computed(() => clientLabel(this.e().client));
+  /** Who made the call: the client its credential implies, else the credential's label. */
+  protected readonly who = computed(() => callerLabel(this.detail()));
+  /** The Client row: the implied client with its mark, or what the client reports about itself, said as such. */
+  protected readonly clientRow = computed(() => callClientText(this.detail()));
   protected readonly duration = computed(() => durationText(this.detail()));
+  protected readonly traffic = computed(() => trafficText(this.detail()));
   /** Copy link: the app's own scheme (decision 11), opened through shell/deep-links.ts. */
   protected readonly link = computed(() => `gaterook://activity/events/${this.e().id}`);
   protected readonly token = computed(() => tokenParts(this.rows().received ?? this.rows().last, this.e().tokenLabel));

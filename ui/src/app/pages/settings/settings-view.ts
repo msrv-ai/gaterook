@@ -202,13 +202,13 @@ export function updateView(state: UpdateState | null, version: string | null, de
     case 'up-to-date':
       return { ...base, tone: 'success', label: 'Up to date · version', version: state.version ?? version };
     case 'available':
-      return { ...base, tone: 'info', label: 'Update available · version', version: state.version ?? null };
+      return { ...base, tone: 'info', label: state.beta ? 'Beta update available · version' : 'Update available · version', version: state.version ?? null };
     case 'downloading': {
       const percent = downloadPercent(state.percent);
       return { ...base, tone: 'checking', label: percent === null ? 'Downloading update' : `Downloading update · ${percent}%`, version: null, busy: true };
     }
     case 'downloaded':
-      return { ...base, tone: 'info', label: 'Ready to install · version', version: state.version ?? null };
+      return { ...base, tone: 'info', label: state.beta ? 'Beta update ready to install · version' : 'Ready to install · version', version: state.version ?? null };
     case 'installing':
       return { ...base, tone: 'checking', label: 'Restarting to install update', version: null, busy: true };
     case 'error':
@@ -222,9 +222,9 @@ export function updateToast(state: UpdateState, version: string | null): ToastOp
     case 'up-to-date':
       return { tone: 'success', title: 'You’re on the latest version', body: `GateRook ${state.version ?? version ?? ''}`.trim() };
     case 'available':
-      return { tone: 'info', title: `Version ${state.version ?? ''} is available`.replace('  ', ' '), body: 'Choose Update and restart in the sidebar to download and install it.' };
+      return { tone: 'info', title: `${state.beta ? 'Beta version' : 'Version'} ${state.version ?? ''} is available`.replace('  ', ' '), body: 'Choose Update and restart in the sidebar to download and install it.' };
     case 'downloaded':
-      return { tone: 'info', title: `Version ${state.version ?? ''} is ready`.replace('  ', ' '), body: 'Choose Restart to update in the sidebar to install it.' };
+      return { tone: 'info', title: `${state.beta ? 'Beta version' : 'Version'} ${state.version ?? ''} is ready`.replace('  ', ' '), body: 'Choose Restart to update in the sidebar to install it.' };
     case 'error':
       return { tone: 'danger', title: state.version ? 'Couldn’t install update' : 'Couldn’t check for updates', body: state.message };
     default:

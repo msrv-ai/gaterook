@@ -94,7 +94,7 @@ function setup(): EndpointDetailData {
     },
     delete: (slug, confirm) => {
       calls.push(`delete ${slug} ${confirm}`);
-      return Promise.resolve({ clients: [], tokensRevoked: [], rejectedApprovals: 0 });
+      return Promise.resolve({ clients: [], tokensRevoked: [], rejectedApprovals: 0, notes: [] });
     },
     updateSettings: (slug, update) => {
       settingsBodies.push(update);
@@ -328,7 +328,7 @@ describe('EndpointDetailData', () => {
     await expect(data.confirmReadOnly({ toolKey: 'github_list', connection: 'gh', definitionHash: 'h' })).rejects.toThrow('The tool changed.');
     expect(calls).toEqual(['confirm github_list', 'tools dev', 'get dev']);
 
-    const r = await data.bulk('dev-db', 'READ_ONLY');
+    const r = await data.bulk('dev-db', 'READ_ONLY', [{ toolKey: 'sql_execute', definitionHash: null }]);
     expect(r.skipped).toEqual([{ toolKey: 'sql_execute', reason: 'Mutates data' }]);
   });
 
@@ -345,7 +345,7 @@ describe('EndpointDetailData', () => {
     calls.length = 0;
     await data.confirmReadOnly({ toolKey: 'github_list', connection: 'gh', definitionHash: 'hash-github_list' });
     expect(calls).toEqual(['confirm github_list', 'mode github_list READ_ONLY', 'get dev']);
-    expect(modeBodies).toEqual([{ toolKey: 'github_list', connection: 'gh', mode: 'READ_ONLY', version: 4 }]);
+    expect(modeBodies).toEqual([{ toolKey: 'github_list', connection: 'gh', mode: 'READ_ONLY', definitionHash: 'hash-github_list', version: 4 }]);
     expect(data.groups()).toBe(answer);
 
     // The confirmation counts, the mode change doesn't: the picker re-reads what the core keeps.
