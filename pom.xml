@@ -76,7 +76,7 @@
 
   <properties>
     <!-- Application version: change this value for the next release. -->
-    <revision>0.9.2</revision>
+    <revision>2.0.0</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <!--
