@@ -1,13 +1,13 @@
 {
   "id": "cassandra",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "Apache Cassandra",
   "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Keyspaces, tables and CQL reads on Apache Cassandra and CQL-compatible services. Changes wait for approval.",
   "moduleClass": "com.gaterook.connectors.cassandra.module.CassandraModule",
   "requires": {
-    "gateway": ">=0.9.2 & <1.0.0",
+    "gateway": ">=2.0.0 & <3.0.0",
     "connectorApi": ">=2.0.0 & <3.0.0"
   },
   "access": {
