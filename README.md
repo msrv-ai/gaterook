@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/019835d6-2b7b-4c91-be5c-28eba543087a
 
 For example: “Search the staging API logs for recent errors, compare them with database records, and propose a fix.” Allowed reads run within your configured limits; a change requiring approval waits for your decision.
 
-Built-in connectors do not need the optional Java plugin runtime or Cloudflare Tunnel download. Those components are verified and cached on first use; that first use requires internet access. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
+Most connectors are part of the installer and need no download. A few of GateRook's own connectors arrive the first time you choose them (Apache Cassandra, Neo4j, ClickHouse, DuckDB, H2 and Microsoft Access are [connector modules](docs/connector-delivery.md#connector-modules)); they and Java plugins run on the optional Java runtime. That runtime, the modules and the Cloudflare Tunnel binary are verified and cached on first use; that first use requires internet access. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
 
 ## Connect your AI apps in one place
 
@@ -69,10 +69,10 @@ Built-in connectors give AI structured tools for the services you already operat
 
 | Category | Connectors | Typical tasks |
 | --- | --- | --- |
-| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), and, through catalog plugins, [DuckDB](docs/duckdb.md), [H2](docs/h2.md) and [Microsoft Access](docs/access.md) | Explore schemas, query data, and review supported writes. |
+| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), [DuckDB](docs/duckdb.md), [H2](docs/h2.md) and [Microsoft Access](docs/access.md) | Explore schemas, query data, and review supported writes. |
 | **Documents, key-value, and wide-column data** | MongoDB, [Redis](docs/redis.md), [Amazon DynamoDB](docs/dynamodb.md), [Cloud Firestore](docs/firestore.md), [Firebase Realtime Database](docs/firebase-rtdb.md), [Azure Cosmos DB](docs/cosmosdb.md), [Apache Cassandra](docs/cassandra.md) | Find documents and items, inspect keys and values, run queries, and review updates. |
 | **Graph databases** | [Neo4j](docs/neo4j.md) | Explore labels, relationships, and properties, run Cypher reads that Neo4j confirms as read only, and review writes. |
-| **Data warehouses** | [Google BigQuery](docs/bigquery.md), [Snowflake](docs/snowflake.md), [Amazon Redshift](docs/redshift.md), [Databricks SQL](docs/databricks.md), [Trino and Presto](docs/trino.md), [Amazon Athena](docs/athena.md) | Explore datasets and tables, run reads checked by the engine's own plan or dry run, and review changes. |
+| **Data warehouses** | [Google BigQuery](docs/bigquery.md), [Snowflake](docs/snowflake.md), [Amazon Redshift](docs/redshift.md), [Databricks SQL](docs/databricks.md), [Trino and Presto](docs/trino.md), [Amazon Athena](docs/athena.md), ClickHouse | Explore datasets and tables, run reads checked by the engine's own plan or dry run, and review changes. |
 | **Metrics and time series** | [Prometheus](docs/prometheus.md), [InfluxDB](docs/influxdb.md) | Query metrics and series, inspect targets, rules, and alerts, and review InfluxDB writes. |
 | **Vector databases** | [Pinecone, Qdrant, Milvus and Zilliz Cloud, Weaviate, Chroma](docs/vector-databases.md) | Fetch records by id or metadata filter, search nearest neighbours by vector, record, or text, and review upserts and deletes. |
 | **Search** | OpenSearch, Elasticsearch, [Algolia, Meilisearch, Typesense, Azure AI Search](docs/search-engines.md) | Discover indices, run filtered and faceted searches, fetch documents, and review document writes and administrative requests. |

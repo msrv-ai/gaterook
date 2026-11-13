@@ -10,6 +10,15 @@ Every connector module under `connectors/` reaches the application in one of thr
 
 The source of a connector is the same in every case: its Maven module, its schemas, and its tests. Delivery is a packaging decision.
 
+A fourth group never had another delivery: the connectors that exist only as modules. The file lists them under `moduleOnly`, with the reason each isn't compiled in. Their code lives with their package under `modules/<id>`, not under `connectors/`, and no build compiles them in.
+
+| Module only | Why |
+| --- | --- |
+| `clickhouse` | It needs nothing of the core but the host's guarded HTTP client, and few first connections are to ClickHouse. |
+| `duckdb` | Its JDBC driver is a native library, which the native core can't load. |
+| `h2` | The H2 client opens its own sockets, which only the module host's TCP gate confines. |
+| `msaccess` | UCanAccess and HSQLDB are a large stack for a file format few people use. |
+
 ## The rule
 
 A connector is compiled in unless one of these holds:
@@ -27,7 +36,7 @@ Oracle Database and SQL Server are dialects of the SQL connector and their own u
 
 - `app/pom.xml` depends on the bundled connectors. The native core is built from that classpath.
 - The Maven profile `bridge` of `app/pom.xml` adds the bridge connectors. It is on unless `-Dgateway.withoutBridge` is given, which builds the core as the release after has it.
-- The Maven profile `all-bundled` of `app/pom.xml` adds the module-delivered connectors for a JVM run that wants every connector in one process. `npm run build` and the development launchers use it; a native build must not.
+- The Maven profile `all-bundled` of `app/pom.xml` adds the module-delivered connectors for a JVM run that wants every connector in one process. `npm run build` and the development launchers use it; a native build must not. It doesn't add the module-only connectors: the development loop serves those from a signed list of modules on this computer ([UI development](../ui/README.md#develop-against-the-demo-world)).
 - `node scripts/delivery.mjs --check` compares the file with `app/pom.xml`, the root reactor and the connector directories. It runs with `npm test`.
 - The tests of the assembly read the file too: `ConnectorDelivery` in `app/src/test` gives them the types the running core must have.
 
@@ -66,6 +75,8 @@ Each module has a folder under `modules/`:
 | `src/main/java/…/…Module.java` | The entry point: it gives the host the module's connectors. |
 | `src/main/resources/META-INF/LICENSE-…-module.txt` | Which of the bundled libraries is under which license. The libraries' own license and notice files stay in the package. |
 
+A module-only connector has the connector itself in the same folder: its classes beside the entry point, its connector type's form and tools in `src/main/resources/connectors/<id>/connector.json`, and its tests.
+
 ```bash
 mvn -B -ntp -pl modules/cassandra -am package -DskipTests
 ```
@@ -78,6 +89,10 @@ The package is `modules/<id>/target/<id>-<version>.jar`, here `modules/cassandra
 | `neo4j` | [Neo4j](neo4j.md) with its Bolt driver | About 9 MB |
 | `sql-oracle` | [Oracle Database](oracle.md): the SQL connector with the Oracle JDBC driver | About 17 MB |
 | `sql-sqlserver` | [SQL Server](sql-server.md): the SQL connector with the Microsoft JDBC driver | About 9 MB |
+| `clickhouse` | ClickHouse over its HTTP interface | About 60 KB |
+| `duckdb` | [DuckDB](duckdb.md) with its JDBC driver and native libraries for macOS on Apple Silicon and Windows x64 | About 34 MB |
+| `h2` | [H2](h2.md) with the H2 client | About 3 MB |
+| `msaccess` | [Microsoft Access](access.md) with UCanAccess, Jackcess and HSQLDB | About 4 MB |
 
 ### Versions
 

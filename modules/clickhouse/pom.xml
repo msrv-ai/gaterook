@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClickHouse as a connector module (docs/connector-delivery.md, docs/clickhouse.md): six read-only tools over
+  ClickHouse's HTTP interface. ClickHouse exists only as a module: its code lives here, runs in a module host and is
+  never compiled into the core. The connector API and Jackson are provided by the host (parent-first); HTTP goes
+  through the host's guarded ExecContext.egress(). No other library.
+
+  The package is clickhouse-<version>.jar. Its manifest is written by ModuleManifests from module.json and from what the
+  connector says of itself (src/main/resources/connectors/clickhouse/connector.json). The module's version is module.json's
+  and changes only when the package does (scripts/modules.mjs); the reactor's fixed outputTimestamp makes the build
+  reproducible, so the SHA-256 the signed list pins can be compared with a rebuild.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>${revision}</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>modules-clickhouse</artifactId>
+  <name>GateRook · Modules · ClickHouse</name>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <!-- The version of module.json; scripts/modules.mjs keeps the two equal. -->
+    <module.version>1.0.0</module.version>
+  </properties>
+
+  <dependencies>
+    <!-- The host serves both parent-first: a plugin never ships its own copy (the installer refuses one). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Build time and tests only, never part of the package: ModuleManifests writes the manifest from the module's
+      connector, and the tests read it as the core and the host do.
+    -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-protocol</artifactId>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>clickhouse-${module.version}</finalName>
+    <resources>
+      <!-- The connector's version and the versions in the package's license notes are the build's own. -->
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+    <plugins>
+      <!-- The manifest, written from the connector the module class gives: it can't disagree with the code. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>module-manifest</id>
+            <phase>process-classes</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <java classname="ai.msrv.gaterook.plugin.protocol.ModuleManifests" fork="true" failonerror="true"
+                      classpathref="maven.compile.classpath">
+                  <arg value="${project.basedir}/module.json"/>
+                  <arg value="${project.build.outputDirectory}/mcp-gateway-plugin.json"/>
+                </java>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -434,4 +434,9 @@ final class Harness implements AutoCloseable {
   static Path pluginJar(String module, String file) {
     return Path.of(System.getProperty("gateway.pluginsDir"), module, "target", file);
   }
+
+  /** A connector module's package, as its folder builds it ({@code modules/<id>/target/<file>}). */
+  static Path moduleJar(String module, String file) {
+    return Path.of(System.getProperty("gateway.modulesDir"), module, "target", file);
+  }
 }

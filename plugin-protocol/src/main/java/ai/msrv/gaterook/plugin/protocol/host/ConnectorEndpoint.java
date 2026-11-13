@@ -207,7 +207,8 @@ public final class ConnectorEndpoint {
             : connector.test(t.connection(), secrets, ctx));
       }
       if (result == null) {
-        result = TestResult.failure("no-result", "The plugin returned no result.", null);
+        result = TestResult.failure("no-result", "The " + (l.module() ? "connector" : "plugin")
+            + " returned no result.", null);
       }
       return WireCodec.test(explained(result, scoped));
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -314,7 +315,8 @@ public final class ConnectorEndpoint {
     try {
       Classification result = connector.classify(c.call(), c.connection(), c.policy());
       return WireCodec.classification(result == null
-          ? Classification.deny("plugin-classify-empty", "The plugin didn't classify the call.", null) : result);
+          ? Classification.deny("plugin-classify-empty", "The " + (l.module() ? "connector" : "plugin")
+              + " didn't classify the call.", null) : result);
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
       throw internal(e);
     }

@@ -15,7 +15,9 @@
 //    Connect never touches this computer's real apps (the demo world does the same on its own).
 //    The plugins of this checkout come from a local signed catalog on loopback (ui/scripts/dev-catalog.mjs: the
 //    plugin JARs and plugin-host.jar are built once if missing), so Add connection and Connectors › Catalog offer
-//    and install them as a release does; --no-plugins starts without it (no catalog, no plugin host).
+//    and install them as a release does. The connectors that exist only as modules (ClickHouse, DuckDB, H2, Microsoft
+//    Access) come from a local signed list of modules beside it, and install when one is chosen, as in a release.
+//    --no-plugins starts without both (no catalog, no list of modules, no plugin host).
 //    --core-flag passes one more flag to the core's JVM, as often as it is given. To see connector modules arrive as
 //    in a release, build app.jar without -Pall-bundled and start with
 //    --no-plugins --core-flag -Dgateway.lists=official --core-flag -Dgateway.pluginHostJar=<plugin-host.jar>:

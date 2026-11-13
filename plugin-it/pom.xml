@@ -62,10 +62,13 @@
         <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
       </exclusions>
     </dependency>
-    <!-- The catalog's plugins (K6): build order only, the jars are found by path like Jira's. -->
+    <!--
+      The catalog's plugins (K6) and the ClickHouse connector module, which the same host loads: build order only,
+      the jars are found by path like Jira's.
+    -->
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>plugins-clickhouse</artifactId>
+      <artifactId>modules-clickhouse</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -157,6 +160,7 @@
             <gateway.jiraDir>${project.basedir}/../plugins/jira-service-desk/target</gateway.jiraDir>
             <gateway.fixturesDir>${project.basedir}/../plugins/test-fixtures/target</gateway.fixturesDir>
             <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
+            <gateway.modulesDir>${project.basedir}/../modules</gateway.modulesDir>
           </systemPropertyVariables>
         </configuration>
       </plugin>

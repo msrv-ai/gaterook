@@ -1,0 +1,203 @@
+{
+  "id": "duckdb",
+  "version": "@module.version@",
+  "name": "DuckDB",
+  "description": "A DuckDB database file on this computer: read-only queries with row, memory and time limits; changes wait for approval.",
+  "icon": "database",
+  "group": "Databases",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["file"],
+    "x-card": {"description": "A DuckDB database file on this computer. Read-only queries; changes wait for approval."},
+    "properties": {
+      "file": {
+        "type": "string",
+        "title": "Database file",
+        "x-file-picker": "duckdb-database",
+        "x-person-only": true,
+        "minLength": 1,
+        "maxLength": 4096,
+        "pattern": "^[^?;\\u0000-\\u001f]+$",
+        "description": "An absolute path or ~/…, such as ~/projects/analytics/warehouse.duckdb. Only you choose the file: an AI import can't."
+      },
+      "dataFolders": {
+        "type": "array",
+        "title": "Data folders",
+        "x-person-only": true,
+        "maxItems": 16,
+        "uniqueItems": true,
+        "items": {"type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[^?;*\\u0000-\\u001f]+$"},
+        "description": "Folders whose Parquet, CSV and JSON files queries may read with read_parquet, read_csv and read_json, such as ~/projects/analytics/data; not the folder that holds the database file. Empty: queries read only the database file. Only you choose them: an AI import can't.",
+        "x-advanced": false
+      },
+      "options": {
+        "type": "object",
+        "additionalProperties": false,
+        "title": "Limits",
+        "x-collapsed": true,
+        "description": "Rows, time, memory and threads of each call. Policies can tighten rows and time per environment.",
+        "properties": {
+          "maxRows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "title": "Max rows",
+            "description": "Rows a query returns at most; the environment's row limit still applies"
+          },
+          "statementTimeoutMs": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "title": "Statement timeout",
+            "description": "GateRook stops slower statements. Empty: the environment policy."
+          },
+          "memoryLimitMb": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 16384,
+            "default": 512,
+            "x-unit": "MB",
+            "title": "Memory limit",
+            "description": "Memory DuckDB may use for one call. A query that needs more fails: nothing spills to disk."
+          },
+          "threads": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 2,
+            "title": "Threads",
+            "description": "Threads DuckDB may use for one call"
+          }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "duckdb_query",
+      "title": "Run a read-only query",
+      "description": "Runs one read-only statement on the DuckDB database file: SELECT, WITH … SELECT, FROM …, VALUES, TABLE, PIVOT, UNPIVOT, DESCRIBE, SHOW, SUMMARIZE or EXPLAIN. DuckDB opens the file read-only, with external access off and its settings locked, and the call has row, memory and time limits. read_parquet, read_csv, read_json, read_text, read_blob and glob read only absolute paths inside the connection's data folders (current_setting('allowed_directories') lists them). ATTACH, COPY, EXPORT, INSTALL, LOAD, SET, PRAGMA, CALL, transactions and SQL run from text (query()) are refused.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["connection", "sql"],
+        "properties": {
+          "connection": {"type": "string"},
+          "sql": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "One read-only DuckDB statement"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100, "description": "Max rows; the connection and the endpoint cap it"}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "duckdb_list_tables",
+      "title": "List tables",
+      "description": "The tables and views of the database file by schema: kind, estimated rows, number of columns and comment.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["connection"],
+        "properties": {
+          "connection": {"type": "string"},
+          "schema": {"type": "string", "minLength": 1, "maxLength": 256, "description": "Only this schema, for example main"},
+          "like": {"type": "string", "maxLength": 200, "description": "Only names matching this ILIKE pattern, for example sales_%"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "duckdb_describe_table",
+      "title": "Describe table",
+      "description": "The columns of one table or view with their types, nullability, defaults and comments, its primary key, constraints and indexes, and its CREATE statement.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["connection", "table"],
+        "properties": {
+          "connection": {"type": "string"},
+          "table": {"type": "string", "minLength": 1, "maxLength": 256},
+          "schema": {"type": "string", "minLength": 1, "maxLength": 256, "description": "The schema; needed when several schemas have a table of that name"}
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["schema", "name", "kind", "columns"],
+        "properties": {
+          "schema": {"type": "string"},
+          "name": {"type": "string"},
+          "kind": {"type": "string"},
+          "estimatedRows": {"type": ["integer", "null"]},
+          "comment": {"type": ["string", "null"]},
+          "primaryKey": {"type": "array", "items": {"type": "string"}},
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type", "nullable"],
+              "properties": {
+                "name": {"type": "string"},
+                "type": {"type": "string"},
+                "nullable": {"type": "boolean"},
+                "default": {"type": ["string", "null"]},
+                "comment": {"type": ["string", "null"]}
+              }
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {"type": {"type": "string"}, "text": {"type": ["string", "null"]}}
+            }
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "unique": {"type": "boolean"},
+                "sql": {"type": ["string", "null"]}
+              }
+            }
+          },
+          "sql": {"type": ["string", "null"]}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "JSON",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "duckdb_execute",
+      "title": "Change the database",
+      "description": "Runs one INSERT, UPDATE, DELETE or DDL statement (CREATE, ALTER, DROP, TRUNCATE, COMMENT ON) on the database file, only after a person approved exactly this statement. DuckDB runs it as one transaction on its own read-write instance, with external access off and its settings locked. COPY, ATTACH, EXPORT, secrets, temporary objects and statements that change data inside a query are refused. A change is never retried.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["connection", "sql"],
+        "properties": {
+          "connection": {"type": "string"},
+          "sql": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "One INSERT, UPDATE, DELETE or DDL statement. A person approves the exact text."},
+          "note": {"type": "string", "maxLength": 500, "description": "Why you need this change. Shown to the approver as unverified."}
+        }
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+      "nature": "MUTATION",
+      "resultShape": "JSON",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "NONE"}
+    }
+  ]
+}

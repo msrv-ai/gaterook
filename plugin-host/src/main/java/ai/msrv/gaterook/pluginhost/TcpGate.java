@@ -317,7 +317,7 @@ final class TcpGate {
       }
       if (tunnelCount.get() >= MAX_TUNNELS) {
         refuse(grant, new ScopedEgress.Denial(ScopedEgress.Reason.LIMIT, (name != null ? name : ip.getHostAddress())
-            + ":" + port, "The plugin has " + MAX_TUNNELS + " connections open, the most it may.", null, null), out);
+            + ":" + port, "The " + HostVoice.noun() + " has " + MAX_TUNNELS + " connections open, the most it may.", null, null), out);
         client.close();
         return;
       }

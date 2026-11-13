@@ -30,8 +30,11 @@ One command (`scripts/dev.mjs`):
    `catalog/index.json` names and `plugin-host.jar` are built when missing or older than their sources, the index is
    signed with a key made for this run and served over HTTPS with a certificate made for this run, and the core gets
    the plugin host, the catalog's address and key, and that certificate as its test CA (`gateway.test.catalog.ca`).
-   Add connection and Connectors › Catalog then offer and install the plugins as a release does; `--no-plugins` starts
-   without a catalog or plugin host. `--core-flag` passes one more flag to the core's JVM. To see
+   Add connection and Connectors › Catalog then offer and install the plugins as a release does. The connectors that
+   exist only as modules (ClickHouse, DuckDB, H2, Microsoft Access) are served the same way, as a signed list of
+   connector modules on a port of its own: the development core doesn't compile them in and installs one when it is
+   chosen in Add connection, as a release does from GateRook's list. `--no-plugins` starts without a catalog, a list
+   of modules or a plugin host. `--core-flag` passes one more flag to the core's JVM. To see
    [connector modules](../docs/connector-delivery.md#connector-modules) arrive as in a release, build `app.jar` without
    `-Pall-bundled` and start with `--no-plugins --core-flag -Dgateway.lists=official --core-flag
    -Dgateway.pluginHostJar=<path to plugin-host.jar>`: the core reads GateRook's published list of modules and

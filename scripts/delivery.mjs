@@ -3,7 +3,8 @@
 // `module` (not part of the installer) or `bridge` (a module that this release still compiles in). This helper reads
 // it and checks that the Maven build agrees: a bundled connector is a dependency of the `app` assembly, a module one
 // is only in its `all-bundled` profile, a bridge one only in its `bridge` profile, and every connector directory has
-// an entry.
+// an entry. `moduleOnly` lists the connectors that exist only as modules: their code lives with their package under
+// modules/<id>, and no assembly ever depends on them.
 //
 //   node scripts/delivery.mjs            print the map
 //   node scripts/delivery.mjs --check    exit 1 with every disagreement
@@ -38,12 +39,27 @@ export function readDelivery(root = ROOT) {
     }
     if (entry?.delivery !== 'bundled' && !entry?.why) problems.push(`${name}: a module says why it is not compiled in`);
   }
+  for (const [name, entry] of moduleOnlyEntries(map)) {
+    if (map.connectors?.[name]) problems.push(`${name} is listed both as a connector and as module only`);
+    if (!Array.isArray(entry?.types) || entry.types.length === 0) problems.push(`${name}: types must list its connector types`);
+    for (const type of entry?.types ?? []) {
+      if (!TYPE_ID.test(type)) problems.push(`${name}: ${type} is not a connector type id`);
+      if (seen.has(type)) problems.push(`${type} is listed by both ${seen.get(type)} and ${name}`);
+      seen.set(type, name);
+    }
+    if (!entry?.why) problems.push(`${name}: a module says why it is not compiled in`);
+  }
   for (const name of Object.keys(map.budget?.exempt ?? {})) {
     if (!map.connectors?.[name]) problems.push(`budget.exempt names ${name}, which is not a connector`);
     else if (map.connectors[name].delivery !== 'bundled') problems.push(`budget.exempt names ${name}, which is not bundled`);
   }
   if (problems.length) throw new Error(`connectors/delivery.json: ${problems.join('; ')}`);
   return map;
+}
+
+/** The connectors that exist only as modules, as `[id, entry]` pairs. */
+export function moduleOnlyEntries(map) {
+  return Object.entries(map.moduleOnly ?? {}).filter(([name]) => !name.startsWith('$'));
 }
 
 const withoutComments = (xml) => xml.replace(/<!--[\s\S]*?-->/g, ' ');
@@ -119,6 +135,13 @@ export function checkDelivery(root = ROOT) {
       if (!inProfile) problems.push(`${name} is a module but the all-bundled profile of app/pom.xml lacks connectors-${name}`);
     }
   }
+  for (const [name] of moduleOnlyEntries(map)) {
+    if (directories.includes(name)) problems.push(`${name} is module only, so its code belongs under modules/${name}, not connectors/${name}`);
+    if (!existsSync(join(root, 'modules', name, 'pom.xml'))) problems.push(`${name} is module only but modules/${name}/pom.xml is missing`);
+    for (const assembly of [always, allBundled, bridge]) {
+      if (assembly.includes(name)) problems.push(`${name} is module only, so app/pom.xml must not depend on connectors-${name}`);
+    }
+  }
   for (const name of [...always, ...allBundled, ...bridge]) {
     if (!map.connectors[name] && !SHARED.includes(name)) {
       problems.push(`app/pom.xml depends on connectors-${name}, which connectors/delivery.json does not list`);
@@ -130,8 +153,9 @@ export function checkDelivery(root = ROOT) {
 /** The connector types by delivery, for callers that only need the ids. */
 export function typesByDelivery(root = ROOT) {
   const map = readDelivery(root);
-  const out = { bundled: [], module: [], bridge: [] };
+  const out = { bundled: [], module: [], bridge: [], moduleOnly: [] };
   for (const entry of Object.values(map.connectors)) out[entry.delivery].push(...entry.types);
+  for (const [, entry] of moduleOnlyEntries(map)) out.moduleOnly.push(...entry.types);
   return out;
 }
 
@@ -146,7 +170,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   } else {
     const map = readDelivery();
     for (const [name, entry] of Object.entries(map.connectors)) {
-      console.log(`${entry.delivery.padEnd(8)} ${name.padEnd(12)} ${entry.types.join(', ')}`);
+      console.log(`${entry.delivery.padEnd(11)} ${name.padEnd(14)} ${entry.types.join(', ')}`);
+    }
+    for (const [name, entry] of moduleOnlyEntries(map)) {
+      console.log(`${'module only'.padEnd(11)} ${name.padEnd(14)} ${entry.types.join(', ')}`);
     }
   }
 }

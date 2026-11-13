@@ -1,0 +1,29 @@
+{
+  "id": "clickhouse",
+  "version": "1.0.0",
+  "name": "ClickHouse",
+  "provider": "GateRook",
+  "license": "Apache-2.0",
+  "description": "Analytics queries with row and time limits. Read only.",
+  "moduleClass": "ai.msrv.gaterook.connectors.clickhouse.ClickHouseModule",
+  "requires": {
+    "gateway": ">=0.9.2 & <1.0.0",
+    "connectorApi": ">=1.2.0 & <2.0.0",
+    "javaModules": [
+      "java.net.http"
+    ]
+  },
+  "access": {
+    "hosts": [
+      "{connection.host}:8443",
+      "{connection.host}:8123"
+    ],
+    "commands": [],
+    "files": []
+  },
+  "resources": {
+    "maxHeapMb": 128,
+    "maxMetaspaceMb": 128,
+    "maxInFlight": 8
+  }
+}
