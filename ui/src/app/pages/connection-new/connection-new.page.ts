@@ -781,6 +781,11 @@ export class ConnectionNewPage {
       if (waiting && waiting.id === m.id) this.moduleDownload.set({ ...waiting, step: m.step, message: m.message ?? null });
     });
     destroy.onDestroy(offModule);
+    // GateRook's list of connector modules arrived or changed while the page is open: its cards follow.
+    const offList = this.events.on('module.list', () => {
+      if (this.catalog()) void this.reloadCatalog();
+    });
+    destroy.onDestroy(offList);
     const offHealth = this.events.on('connection.health', (h) => {
       if (this.mode() !== 'edit' || h.name !== this.name()) return;
       this.healthRevision++;

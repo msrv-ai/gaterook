@@ -51,6 +51,9 @@ import tools.jackson.databind.node.ObjectNode;
  * reviews or confirms anything. Its types are built-in types with another delivery: plain tool names, the modes the
  * connector declares, the connector's own classification and exact action. When its package is gone from the disk,
  * as after a backup restored on another computer, the next call downloads it again and is answered.
+ *
+ * <p>The core reads the list by itself, in the background right after its start, and tells the pages whenever it
+ * accepted another list ({@code module.list}): what GateRook publishes is offered without anyone asking.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ModulesCoreProcessIT {
@@ -62,6 +65,10 @@ class ModulesCoreProcessIT {
       .addSubjectAlternativeName("127.0.0.1").signedBy(CA).build();
   private static final Map<String, byte[]> FILES = new ConcurrentHashMap<>();
   private static final AtomicInteger DOWNLOADS = new AtomicInteger();
+  /** How often the list itself was asked for. */
+  private static final AtomicInteger LIST_READS = new AtomicInteger();
+  /** The names of the events the core published since it was ready. */
+  private static final List<String> EVENTS = new java.util.concurrent.CopyOnWriteArrayList<>();
   private static final String SECRET = "cnry-echo-e2e-secret-91c7";
 
   private static MockWebServer channel;
@@ -90,6 +97,9 @@ class ModulesCoreProcessIT {
         if (body != null && request.getTarget().endsWith(".jar")) {
           DOWNLOADS.incrementAndGet();
         }
+        if (request.getTarget().equals("/modules/index.json")) {
+          LIST_READS.incrementAndGet();
+        }
         return body == null ? new MockResponse.Builder().code(404).build()
             : new MockResponse.Builder().code(200).body(new okio.Buffer().write(body)).build();
       }
@@ -116,6 +126,43 @@ class ModulesCoreProcessIT {
     }
     core = CoreProcess.start(home, CoreProcess.freePort(), flags).bootstrap();
     core.untilReady(Duration.ofSeconds(90));
+    listenToEvents();
+  }
+
+  /** Opens the core's event stream as the UI does and keeps the names of what it publishes. */
+  private static void listenToEvents() throws Exception {
+    HttpResponse<java.io.InputStream> stream = HTTP.send(HttpRequest.newBuilder(uri("/api/events"))
+        .header("X-Gateway-Auth", core.secret().sign("GET", "/api/events", System.currentTimeMillis(), nonce()))
+        .GET().build(), HttpResponse.BodyHandlers.ofInputStream());
+    assertThat(stream.statusCode()).isEqualTo(200);
+    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(stream.body(),
+        StandardCharsets.UTF_8));
+    Thread.ofPlatform().daemon(true).name("modules-e2e-events").start(() -> {
+      try {
+        String line;
+        while ((line = reader.readLine()) != null) {
+          if (line.startsWith("event:")) {
+            EVENTS.add(line.substring("event:".length()).strip());
+          }
+        }
+      } catch (java.io.IOException ignored) {
+        // The core stopped.
+      }
+    });
+  }
+
+  private static long listEvents() {
+    return EVENTS.stream().filter("module.list"::equals).count();
+  }
+
+  private static void await(java.util.function.BooleanSupplier reached, String what) throws InterruptedException {
+    long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+    while (!reached.getAsBoolean()) {
+      if (System.nanoTime() > deadline) {
+        throw new AssertionError(what + " (events: " + EVENTS + ", list reads: " + LIST_READS.get() + ")");
+      }
+      Thread.sleep(100);
+    }
   }
 
   @AfterAll
@@ -126,6 +173,21 @@ class ModulesCoreProcessIT {
     if (channel != null) {
       channel.close();
     }
+  }
+
+  @Test
+  @Order(0)
+  void theListIsReadInTheBackgroundRightAfterTheStartAndThePagesAreTold() throws Exception {
+    // Nothing asked for the list: no page is open and no request was made.
+    await(() -> LIST_READS.get() > 0, "The core didn't read its list of modules by itself");
+    await(() -> listEvents() > 0, "The core didn't say that it has a list of modules");
+    assertThat(DOWNLOADS.get()).as("reading the list downloads no package").isZero();
+    // The pages read the list after that event; the same list is no news, however often it is asked for.
+    json(admin("GET", "/api/modules", null), 200);
+    json(admin("GET", "/api/connector-types", null), 200);
+    json(admin("POST", "/api/modules/refresh", null), 200);
+    Thread.sleep(500);
+    assertThat(listEvents()).as("one list, told once: " + EVENTS).isEqualTo(1);
   }
 
   @Test
@@ -274,8 +336,11 @@ class ModulesCoreProcessIT {
     assertThat(handle).as(waiting.toString()).startsWith("ap_");
 
     release("1.1.0");
+    long told = listEvents();
     publish(index(2, List.of("1.0.0", "1.1.0"), List.of()));
     json(admin("POST", "/api/modules/refresh", null), 200);
+    await(() -> listEvents() > told, "The core didn't say that its list of modules changed");
+    assertThat(listEvents()).as("another list, told once: " + EVENTS).isEqualTo(told + 1);
     JsonNode echo = awaitModule("1.1.0", "ready");
     assertThat(echo.path("previousVersion").asString()).isEqualTo("1.0.0");
     assertThat(echo.path("listedVersion").isNull()).isTrue();

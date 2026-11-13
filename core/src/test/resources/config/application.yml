@@ -3,3 +3,8 @@
 logging:
   file:
     name: ""
+
+# Tests: no published list. A core reads GateRook's list of connector modules from GitHub by itself; a test's core
+# has no channel unless the test gives it one (gateway.modules.channel-url and gateway.modules.channel-keys).
+gateway:
+  lists: none

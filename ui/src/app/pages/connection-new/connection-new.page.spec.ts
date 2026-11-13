@@ -1524,6 +1524,21 @@ describe('Add connection: wizard', () => {
     expect(document.getElementById('cf-connection-host')).not.toBeNull();
   });
 
+  it('shows the types of GateRook’s modules as soon as the core has their list, while the page is open', async () => {
+    // The core reads GateRook's list in the background after its start: a page opened before that has no such card.
+    const p = await open();
+    expect(p.q('#step-1 input[value="cassandra"]')).toBeNull();
+    const catalog = vi.mocked(TestBed.inject(ConnectorTypesApi).catalog);
+    const before = catalog.mock.calls.length;
+
+    cassandraModule();
+    TestBed.inject(EventStream).emit('module.list', { modules: 8 });
+    await p.settle();
+    expect(catalog.mock.calls.length).toBe(before + 1);
+    const card = p.q<HTMLInputElement>('#step-1 input[value="cassandra"]')!;
+    expect(text(card.closest('.gw-choice-card'))).toContain('Built-in · 3 tools · 9.4 MB download');
+  });
+
   it('a connector module that doesn’t arrive says why in the core’s words, and Try again asks for it again', async () => {
     cassandraModule();
     core.pendingForm = Promise.reject(new ApiError('not-found', 404, { title: 'Connector not found', detail: 'There is no connector type cassandra.' }));

@@ -103,6 +103,8 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
   /** How often the installed modules are checked against the list, and how soon after the start. */
   static final Duration UPDATE_CHECK = Duration.ofHours(6);
   static final Duration FIRST_UPDATE_CHECK = Duration.ofMinutes(2);
+  /** How soon after the start the list itself is read, in the background: before a person opens Add connection. */
+  static final Duration FIRST_LIST_CHECK = Duration.ofSeconds(2);
   /** A version whose update failed isn't tried again sooner than this. */
   static final Duration UPDATE_RETRY = Duration.ofHours(6);
   /**
@@ -230,6 +232,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     this.setupChanges = setupChanges;
     this.events = events;
     this.writeTx = new TransactionTemplate(transactions);
+    channel.onChange(this::listChanged);
     this.clock = clock;
     // No plugin, MCP server or template takes the name of a tool of a module the channel lists.
     source.channelTools(channel::toolNames);
@@ -415,12 +418,17 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     startUpdateChecks();
   }
 
-  /** The installed modules are checked against the list soon after the start and then every {@link #UPDATE_CHECK}. */
+  /**
+   * The list is read in the background right after the start, so that what GateRook published is offered before
+   * anyone asks; the installed modules are checked against it soon after and then every {@link #UPDATE_CHECK}, which
+   * reads the list again when it is old.
+   */
   private synchronized void startUpdateChecks() {
     if (updates != null || !autoUpdate || !channel.configured()) {
       return;
     }
     updates = Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("module-updates").factory());
+    updates.schedule(this::checkList, FIRST_LIST_CHECK.toMillis(), TimeUnit.MILLISECONDS);
     updates.scheduleWithFixedDelay(() -> {
       try {
         askForAwaited();
@@ -429,6 +437,31 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
         log.info("The connector modules couldn't be checked for updates: {}", e.getMessage());
       }
     }, FIRST_UPDATE_CHECK.toSeconds(), UPDATE_CHECK.toSeconds(), TimeUnit.SECONDS);
+  }
+
+  /**
+   * Reads the list when the last check is old or never happened. Nothing waits for it: a list that can't be reached
+   * is the channel's own state, which the pages show, and the next check tries again.
+   */
+  private void checkList() {
+    try {
+      if (!lock.locked()) {
+        channel.state();
+      }
+    } catch (RuntimeException e) {
+      log.info("The list of connector modules couldn't be checked: {}", e.getMessage());
+    }
+  }
+
+  /** {@code module.list}: another list than before was accepted, so the pages that show its modules read them again. */
+  private void listChanged() {
+    try {
+      ObjectNode data = JsonNodeFactory.instance.objectNode();
+      data.put("modules", channel.modules().size());
+      events.publish("module.list", data);
+    } catch (RuntimeException e) {
+      log.debug("module.list wasn't published: {}", e.toString());
+    }
   }
 
   @Override
@@ -444,6 +477,12 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
   public void onMasterKeyChanged(MasterKeyChanged event) {
     loadInstalled();
     askForAwaited();
+    // A start that was locked couldn't read the list: it is read now, in the background as at a start.
+    synchronized (this) {
+      if (updates != null) {
+        updates.execute(this::checkList);
+      }
+    }
   }
 
   /**

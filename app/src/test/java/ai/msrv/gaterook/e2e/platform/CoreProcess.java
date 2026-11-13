@@ -133,6 +133,10 @@ public final class CoreProcess implements AutoCloseable {
     }
     command.add("-Dgateway.home=" + home);
     command.add("-Djava.io.tmpdir=" + home.resolve("tmp"));
+    if (jvmFlags.stream().noneMatch(flag -> flag.startsWith("-Dgateway.lists="))) {
+      // A core reads GateRook's published lists by itself; a test's core doesn't, unless the test asks for them.
+      command.add("-Dgateway.lists=none");
+    }
     command.addAll(jvmFlags);
     if (binary == null) {
       String jar = Path.of(System.getProperty("gateway.core.jar", "target/app.jar")).toAbsolutePath().toString();

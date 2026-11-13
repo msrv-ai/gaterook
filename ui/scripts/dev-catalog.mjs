@@ -152,7 +152,7 @@ export async function startDevCatalog({ root, home, java }) {
   const packages = repositoryModules(repo).filter((m) => m.jar);
   if (!repo) {
     console.log('[dev] no checkout of gaterook/gaterook-plugins beside this one (or in GATEROOK_MODULES_REPO): '
-      + 'ClickHouse, DuckDB, H2 and Microsoft Access are not offered');
+      + 'the connector modules come from the list GateRook publishes');
   } else {
     const unbuilt = repositoryModules(repo).filter((m) => !m.jar).map((m) => m.dir);
     const older = packages.filter((m) => staleModule(repo, m)).map((m) => m.dir);
@@ -235,7 +235,8 @@ export async function startDevCatalog({ root, home, java }) {
     properties.push(`-Dgateway.modules.channel-url=https://127.0.0.1:${modules.port}/`,
       `-Dgateway.modules.channel-keys=${trust}`);
   } else {
-    console.log('[dev] running without the local list of modules');
+    // No channel is named: the core reads GateRook's published list by itself, as every build does.
+    console.log('[dev] no local list of connector modules: the core reads the one GateRook publishes');
   }
   return {
     properties,

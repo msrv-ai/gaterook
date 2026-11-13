@@ -19,6 +19,8 @@ export interface CoreArgsOptions {
   readonly resources: string | null;
   /** Development only: the Java bridge jar the core's `gw-bridge` shim points at. */
   readonly bridgeJar?: string | null;
+  /** Development only: the host of connector modules and plugins, which an installed app has in its bundle. */
+  readonly pluginHostJar?: string | null;
 }
 
 export function coreArgv(cmd: CoreCommand, o: CoreArgsOptions): { file: string; args: string[] } {
@@ -30,6 +32,7 @@ export function coreArgv(cmd: CoreCommand, o: CoreArgsOptions): { file: string; 
     `-Dgateway.home=${o.home}`,
     `-Dgateway.clients.windows-store=${(o.platform ?? process.platform) === 'win32' && (o.windowsStore ?? process.windowsStore === true)}`,
     ...(o.resources ? [`-Dgateway.resources=${o.resources}`] : []),
+    ...(o.pluginHostJar ? [`-Dgateway.pluginHostJar=${o.pluginHostJar}`] : []),
   ];
   switch (cmd.kind) {
     case 'native':

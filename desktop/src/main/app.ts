@@ -196,7 +196,8 @@ export class Desktop {
       home: layout.home,
       ports: () => ({ port: this.config.port, publicPort: this.config.publicPort }),
       command: () => {
-        const { file, args } = coreArgv(layout.core, { home: layout.home, resources: layout.resources, bridgeJar: layout.bridgeJar });
+        const { file, args } = coreArgv(layout.core, { home: layout.home, resources: layout.resources, bridgeJar: layout.bridgeJar,
+          pluginHostJar: layout.pluginHostJar });
         return { file, args, env: coreEnv(process.env, layout.dev, { home: layout.home }) };
       },
       fileKey: () => this.prepareFileKey(),
@@ -849,7 +850,8 @@ export class Desktop {
       if (publicPort === null) throw new Error('No second local port is available for backup validation.');
       helper = new CoreSupervisor({ version: app.getVersion(), home: validatorHome, ports: () => ({ port, publicPort }),
         command: () => {
-          const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources, bridgeJar: this.layout.bridgeJar });
+          const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources,
+            bridgeJar: this.layout.bridgeJar, pluginHostJar: this.layout.pluginHostJar });
           return { ...command, env: coreEnv(process.env, false, { home: validatorHome }) };
         },
         fileKey: () => this.prepareFileKey(), log: () => undefined, restartDelaysMs: [],
