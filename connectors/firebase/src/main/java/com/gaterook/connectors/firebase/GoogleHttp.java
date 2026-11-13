@@ -1,5 +1,6 @@
 package com.gaterook.connectors.firebase;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ConnectionConfig;
 import com.gaterook.connector.api.ConnectorException;
 import com.gaterook.connector.api.ExecContext;
@@ -50,7 +51,7 @@ final class GoogleHttp implements AutoCloseable {
   static final long MAX_ERROR = 64L * 1024;
   static final JsonMapper JSON = JsonMapper.builder().build();
   /** A change's text in the approval and its bytes on the wire: the same writer, the same bytes. */
-  static final ObjectWriter PRETTY = JSON.writerWithDefaultPrettyPrinter();
+  static final ObjectWriter PRETTY = PrettyJson.writer(JSON);
 
   private final CloudCredentials cloud;
   private volatile HttpClient client;

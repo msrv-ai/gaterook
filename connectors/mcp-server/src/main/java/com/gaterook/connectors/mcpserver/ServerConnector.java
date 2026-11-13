@@ -1,5 +1,6 @@
 package com.gaterook.connectors.mcpserver;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ActionPreview;
 import com.gaterook.connector.api.Classification;
 import com.gaterook.connector.api.ConnectionConfig;
@@ -127,7 +128,7 @@ final class ServerConnector implements Connector {
     ObjectNode params = request.putObject("params");
     params.put("name", original);
     params.set("arguments", call.arguments() == null ? Texts.JSON.createObjectNode() : call.arguments().deepCopy());
-    String text = Texts.JSON.writerWithDefaultPrettyPrinter().writeValueAsString(request);
+    String text = PrettyJson.writer(Texts.JSON).writeValueAsString(request);
     ObjectNode payload = Texts.JSON.createObjectNode();
     payload.put("tool", call.tool());
     payload.put("original", original);
