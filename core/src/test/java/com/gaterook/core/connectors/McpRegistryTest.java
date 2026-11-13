@@ -167,10 +167,10 @@ class McpRegistryTest {
     answer(200, """
         {"servers": [
           {"server": {"name": "app.linear/linear"},
-           "_meta": {"dev.msrv.gaterook/catalog": {"verification": "vendor", "featured": true,
+           "_meta": {"com.gaterook/catalog": {"verification": "vendor", "featured": true,
                                                    "category": "Project management"}}},
           {"server": {"name": "com.example/x",
-                      "_meta": {"dev.msrv.gaterook/catalog": {"verification": "official!", "featured": "yes"}}}}
+                      "_meta": {"com.gaterook/catalog": {"verification": "official!", "featured": "yes"}}}}
         ]}
         """);
     List<McpRegistry.Server> servers = registry().search("linear", null).servers();
