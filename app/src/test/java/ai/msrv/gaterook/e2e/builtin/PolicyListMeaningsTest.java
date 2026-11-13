@@ -24,8 +24,10 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Every list a built-in policy section narrows by intersection says what an empty list allows ({@code x-empty}), as
  * its connector reads it; the core's merge follows that meaning, so an endpoint limit or a tool override never reaches
- * past the environment's list: HTTP egress stays closed, a Kubernetes namespace or resource and a cloud service stay
- * inside the connector's default set, and the SSH sign-in methods stay none.
+ * past the environment's list: HTTP egress stays closed, a Kubernetes resource and a cloud service stay inside the
+ * connector's default set, and the SSH sign-in methods stay none. A list that restricts nothing when empty (the
+ * Kubernetes namespaces: every namespace of the cluster) only gets shorter: a narrower list never gets names back, and
+ * an empty override leaves the environment's names as they are.
  */
 class PolicyListMeaningsTest {
 
@@ -81,12 +83,14 @@ class PolicyListMeaningsTest {
         }
       });
     }
+    // What each connector does with an empty list. A meaning changes here only together with that reading; the tests
+    // below then say what an endpoint limit or a tool override of such a list may keep.
     assertThat(meanings).containsExactlyEntriesOf(new TreeMap<>(Map.of(
         "cloud.allowedServices", "connector-default",
         "cloud.regions", "all",
         "cloud.resources", "all",
         "http.allowedBaseUrls", "none",
-        "k8s.namespaces", "connector-default",
+        "k8s.namespaces", "all",
         "k8s.resources", "connector-default",
         "k8s.verbs", "all",
         "sql.allowlist", "all",
@@ -103,14 +107,18 @@ class PolicyListMeaningsTest {
     JsonNode endpoint = JSON.readTree("""
         {"allowedBaseUrls":["https://api.example.com/"],"allowedCredentialMethods":["password"],
          "namespaces":["kube-system"],"resources":["secrets","pods"],"allowedServices":["secretsmanager","ec2"]}""");
-    JsonNode tool = JSON.readTree("{\"resources\":[\"secrets\",\"pods\",\"nodes\"]}");
+    JsonNode tool = JSON.readTree("""
+        {"resources":["secrets","pods","nodes"],"namespaces":["kube-system","payments"]}""");
 
     assertThat(section(engine, "http", endpoint, tool).path("allowedBaseUrls")).as("HTTP egress stays closed")
         .isEmpty();
     assertThat(section(engine, "ssh", endpoint, tool).path("allowedCredentialMethods"))
         .as("no sign-in method stays none").isEmpty();
+    assertThat(strings(section(engine, "kubernetes", endpoint, null).path("namespaces")))
+        .as("the Kubernetes namespaces list restricts nothing when empty: the endpoint's name narrows the cluster")
+        .containsExactly("kube-system");
     assertThat(strings(section(engine, "kubernetes", endpoint, tool).path("namespaces")))
-        .containsExactly("kube-system", PolicyView.WITHIN_DEFAULT);
+        .as("the tool override's other namespace doesn't come back").containsExactly("kube-system");
     assertThat(strings(section(engine, "kubernetes", endpoint, tool).path("resources")))
         .containsExactly("secrets", "pods", PolicyView.WITHIN_DEFAULT);
     assertThat(strings(section(engine, "aws", endpoint, tool).path("allowedServices")))
@@ -136,6 +144,9 @@ class PolicyListMeaningsTest {
     assertThat(strings(section(engine, "kubernetes", endpoint, null).path("namespaces"))).containsExactly("kube-system");
     assertThat(strings(section(engine, "kubernetes", endpoint, JSON.readTree("{\"namespaces\":[\"web\"]}"))
         .path("namespaces"))).as("disjoint: nothing").containsExactly(PolicyView.NOTHING);
+    assertThat(strings(section(engine, "kubernetes", JSON.readTree("{\"namespaces\":[]}"), null).path("namespaces")))
+        .as("an empty override stands for every namespace: the environment's list stays as it is")
+        .containsExactly("web", "kube-system");
   }
 
   private static JsonNode section(PolicyEngine engine, String connectorType, JsonNode endpoint, JsonNode tool) {

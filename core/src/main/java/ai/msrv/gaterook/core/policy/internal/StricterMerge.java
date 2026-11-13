@@ -40,8 +40,8 @@ public final class StricterMerge {
     NONE,
     /**
      * {@code "connector-default"}: an empty list allows what the connector allows by default, which is less than
-     * everything (only the connection's own namespace; every service but sensitive ones). A list narrowed from an
-     * empty one carries {@link PolicyView#WITHIN_DEFAULT}: the connector keeps the listed names its empty reading
+     * everything (every Kubernetes resource but Secrets; every cloud service but sensitive ones). A list narrowed from
+     * an empty one carries {@link PolicyView#WITHIN_DEFAULT}: the connector keeps the listed names its empty reading
      * allows too.
      */
     CONNECTOR_DEFAULT;
