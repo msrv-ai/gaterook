@@ -73,10 +73,11 @@ export type DesktopCoreState =
       readonly port?: number;
     };
 
+/** `beta` marks an offered `version` that only the beta channel has: a pre-release, not yet a stable release. */
 export type UpdateState =
-  | { readonly state: 'checking' | 'available' | 'downloaded' | 'installing' | 'up-to-date'; readonly version?: string; readonly lastCheckedAt?: string }
-  | { readonly state: 'downloading'; readonly version?: string; readonly percent?: number; readonly lastCheckedAt?: string }
-  | { readonly state: 'error'; readonly message: string; readonly version?: string; readonly lastCheckedAt?: string };
+  | { readonly state: 'checking' | 'available' | 'downloaded' | 'installing' | 'up-to-date'; readonly version?: string; readonly beta?: boolean; readonly lastCheckedAt?: string }
+  | { readonly state: 'downloading'; readonly version?: string; readonly beta?: boolean; readonly percent?: number; readonly lastCheckedAt?: string }
+  | { readonly state: 'error'; readonly message: string; readonly version?: string; readonly beta?: boolean; readonly lastCheckedAt?: string };
 
 /** The listeners `usePort` may move: the local API's, the tunnel's public one, or both. */
 export interface DesktopPorts {

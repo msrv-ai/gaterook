@@ -385,6 +385,7 @@ describe('Settings page: General', () => {
     expect($('#st-login', el)).toBeNull();
     expect($('#st-minimized', el)).toBeNull();
     expect($('#st-updates', el)).toBeNull();
+    expect($('#st-beta', el)).toBeNull();
     expect($('#st-update-check', el)).toBeNull();
     expect(text($('#st-store-startup', el)!)).toContain('Windows Settings > Apps > Startup');
     expect(text($('#st-store-updates', el)!)).toContain('Open Microsoft Store');
@@ -460,6 +461,65 @@ describe('Settings page: General', () => {
     await toggle(hidden);
     expect(hidden.checked).toBe(true);
     expect(toasts()).toContain('Start minimized wasn’t saved · startHidden must be a boolean.');
+  });
+
+  it('Get beta versions: off until chosen, saved to the core, then a quiet check shows what the channels offer', async () => {
+    desktop.available = true;
+    let push!: (state: UpdateState) => void;
+    desktop.onUpdateState = (cb) => { push = cb; return () => undefined; };
+    const check = vi.fn(async () => {
+      push({ state: 'checking' });
+      await Promise.resolve();
+      push({ state: 'available', version: '0.5.0', beta: true });
+    });
+    desktop.checkForUpdates = check;
+    const el = await render();
+    const beta = $<HTMLInputElement>('#st-beta', el)!;
+    expect(beta.checked).toBe(false);
+    expect(beta.getAttribute('role')).toBe('switch');
+    expect(text($(`label[for="st-beta"]`, el))).toBe('Get beta versions');
+    expect(reason(beta)).toContain('keeps its version until a newer stable release');
+    await toggle(beta);
+    expect(bodies['general']).toEqual({ betaUpdates: true, version: 3 });
+    expect(calls.filter((call) => call.startsWith('apply '))).toEqual([]);
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(toasts()).toEqual(['Saved · Get beta versions: on.']);
+    expect(text($('#settings-general', el))).toContain('Beta update available · version 0.5.0');
+
+    // Check now names a pre-release as one.
+    await click(control($('#settings-general', el)!, 'Check now'));
+    expect(toasts()).toContain('Beta version 0.5.0 is available · Choose Update and restart in the sidebar to download and install it.');
+    push({ state: 'downloaded', version: '0.5.0', beta: true });
+    await settle();
+    expect(text($('#settings-general', el))).toContain('Beta update ready to install · version 0.5.0');
+  });
+
+  it('Get beta versions: a refusal puts the switch back and checks nothing; a browser window only saves', async () => {
+    desktop.available = true;
+    const check = vi.fn(async () => undefined);
+    desktop.checkForUpdates = check;
+    world.update = () => Promise.reject(problem(422, 'betaUpdates must be a boolean.'));
+    const el = await render();
+    const beta = $<HTMLInputElement>('#st-beta', el)!;
+    await toggle(beta);
+    expect(beta.checked).toBe(false);
+    expect(toasts()).toContain('Get beta versions wasn’t saved · betaUpdates must be a boolean.');
+    expect(check).not.toHaveBeenCalled();
+
+    world.update = (name, body) => Promise.resolve({ ...kitSections()[name], values: { ...kitSections()[name].values, ...(body as object) } } as SettingsSection);
+    desktop.available = false;
+    await toggle(beta);
+    expect(toasts()).toContain('Saved · Get beta versions: on.');
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it('Get beta versions: a failed check after the switch stays quiet, the choice is saved', async () => {
+    desktop.available = true;
+    desktop.checkForUpdates = vi.fn(() => Promise.reject(new Error('The updater is busy')));
+    const el = await render();
+    await toggle($<HTMLInputElement>('#st-beta', el)!);
+    await settle();
+    expect(toasts()).toEqual(['Saved · Get beta versions: on.']);
   });
 
   it('Change port: the field has focus, a bad port says why before anything is sent, a good one restarts the core', async () => {

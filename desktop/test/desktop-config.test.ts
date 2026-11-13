@@ -64,6 +64,17 @@ describe('desktop.json', () => {
     assert.equal(readDesktopConfig(home).config.autoUpdate, undefined, 'only a boolean counts');
   });
 
+  it('keeps main\'s copy of "Get beta versions" next to the other switches', () => {
+    const home = join(t.dir, 'home-beta');
+    assert.equal(readDesktopConfig(home).config.betaUpdates, undefined, 'unknown until the core answers');
+    writeDesktopConfig(home, { ...DEFAULTS, autoUpdate: false, betaUpdates: true });
+    assert.deepEqual(readDesktopConfig(home).config, { ...DEFAULTS, autoUpdate: false, betaUpdates: true });
+    writeDesktopConfig(home, { ...DEFAULTS, betaUpdates: false });
+    assert.equal(readDesktopConfig(home).config.betaUpdates, false);
+    writeFileSync(join(home, 'desktop.json'), JSON.stringify({ ...DEFAULTS, betaUpdates: 1 }));
+    assert.equal(readDesktopConfig(home).config.betaUpdates, undefined, 'only a boolean counts');
+  });
+
   it('refuses to write a public port the core would refuse', () => {
     assert.throws(() => writeDesktopConfig(join(t.dir, 'home-e'), { port: 7465, publicPort: 80 }), /1024/);
   });

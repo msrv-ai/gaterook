@@ -233,7 +233,7 @@ async function handle(req, res) {
   if (p === '/api/nav/counters') return json(res, 200, { pendingApprovals: control.pendingApprovals ?? 0, tunnel: 'off' });
   if (p === '/api/settings/general') {
     return json(res, 200, { name: 'general', values: { openAtLogin: true, startHidden: true, autoUpdate: true,
-      singleKeyShortcuts: true }, version: 1, updatedAt: null });
+      betaUpdates: false, singleKeyShortcuts: true }, version: 1, updatedAt: null });
   }
   if (/^\/api\/approvals\/ap_[a-z0-9]{12}\/decision$/.test(p) && req.method === 'POST') {
     if (body?.decision === 'approve' && body?.via === 'desktop-notification') {

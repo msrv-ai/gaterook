@@ -111,6 +111,14 @@ describe('settings-view: General › Core', () => {
     expect(updateView({ state: 'error', version: '0.4.1', message: 'Offline' }, '0.4.0', true).label).toBe('Couldn’t install update');
     expect(updateToast({ state: 'available', version: '0.4.1' }, null)).toEqual({ tone: 'info', title: 'Version 0.4.1 is available', body: 'Choose Update and restart in the sidebar to download and install it.' });
     expect(updateToast({ state: 'up-to-date', version: '0.4.0' } as never, null)).toEqual({ tone: 'success', title: 'You’re on the latest version', body: 'GateRook 0.4.0' });
+    // A pre-release from the beta channel is named as one wherever it is offered.
+    expect(updateView({ state: 'available', version: '0.5.0', beta: true }, '0.4.0', true)).toMatchObject({ tone: 'info', label: 'Beta update available · version', version: '0.5.0' });
+    expect(updateView({ state: 'downloaded', version: '0.5.0', beta: true }, '0.4.0', true)).toMatchObject({ label: 'Beta update ready to install · version', version: '0.5.0' });
+    expect(updateView({ state: 'downloaded', version: '0.4.1' }, '0.4.0', true).label).toBe('Ready to install · version');
+    expect(updateView({ state: 'available', version: '0.4.1', beta: false }, '0.4.0', true).label).toBe('Update available · version');
+    expect(updateToast({ state: 'available', version: '0.5.0', beta: true }, null)?.title).toBe('Beta version 0.5.0 is available');
+    expect(updateToast({ state: 'downloaded', version: '0.5.0', beta: true }, null)?.title).toBe('Beta version 0.5.0 is ready');
+    expect(updateToast({ state: 'downloaded', version: '0.4.1' }, null)?.title).toBe('Version 0.4.1 is ready');
   });
 });
 

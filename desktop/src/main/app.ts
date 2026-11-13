@@ -44,7 +44,7 @@ import { privateDirectory } from './full-backup-files.ts';
 import { findDangerousSwitches } from './switches.ts';
 import { AppTray, markImage, setBadge } from './tray.ts';
 import { Updates } from './updater.ts';
-import { autoUpdateWanted } from './updates.ts';
+import { autoUpdateWanted, betaUpdatesWanted } from './updates.ts';
 import { APP_URL, createAppWindow, hardenAllContents, safeUrl, type AppWindow } from './window.ts';
 
 /** Replaced by esbuild: true in a development bundle, false in a release (scripts/build.mjs). */
@@ -310,8 +310,13 @@ export class Desktop {
       push: (state) => this.send(IPC.updateStatePush, state),
       autoUpdate: async () => {
         const general = await this.generalSettings();
-        if (general) this.rememberAutoUpdate(general.autoUpdate);
+        if (general) this.rememberUpdateSettings(general);
         return autoUpdateWanted(general?.autoUpdate, this.config.autoUpdate);
+      },
+      betaUpdates: async () => {
+        const general = await this.generalSettings();
+        if (general) this.rememberUpdateSettings(general);
+        return betaUpdatesWanted(general?.betaUpdates, this.config.betaUpdates);
       },
       prepareInstall: async () => {
         if (this.resetting || this.quitting || this.fullBackupBusy) throw new Error('GateRook is busy or closing.');
@@ -371,15 +376,15 @@ export class Desktop {
     const general = await this.generalSettings();
     if (general) {
       this.storeLoginSettings({ openAtLogin: general.openAtLogin, startHidden: general.startHidden });
-      this.rememberAutoUpdate(general.autoUpdate);
+      this.rememberUpdateSettings(general);
     }
   }
 
-  /** Main's copy of "Check for updates automatically", for the hours the core doesn't answer. */
-  private rememberAutoUpdate(value: boolean): void {
+  /** Main's copy of "Check for updates automatically" and "Get beta versions", for the hours the core doesn't answer. */
+  private rememberUpdateSettings(s: { autoUpdate: boolean; betaUpdates: boolean }): void {
     if (this.resetting || this.quitting) return;
-    if (this.config.autoUpdate === value) return;
-    this.config = { ...this.config, autoUpdate: value };
+    if (this.config.autoUpdate === s.autoUpdate && this.config.betaUpdates === s.betaUpdates) return;
+    this.config = { ...this.config, autoUpdate: s.autoUpdate, betaUpdates: s.betaUpdates };
     try {
       writeDesktopConfig(this.layout.home, this.config);
     } catch (e) {
@@ -512,14 +517,16 @@ export class Desktop {
     setBadge(this.window?.win ?? null, pending);
   }
 
-  private async generalSettings(): Promise<{ openAtLogin: boolean; startHidden: boolean; autoUpdate: boolean } | null> {
+  private async generalSettings(): Promise<{ openAtLogin: boolean; startHidden: boolean; autoUpdate: boolean;
+    betaUpdates: boolean } | null> {
     const core = this.supervisor.endpoint();
     if (!core || core.locked) return null;
     try {
       const answer = await callCore<{ values?: Record<string, unknown> }>(core, 'GET', '/api/settings/general');
       const v = answer.status === 200 ? answer.body.values : undefined;
       if (!v) return null;
-      return { openAtLogin: v['openAtLogin'] !== false, startHidden: v['startHidden'] !== false, autoUpdate: v['autoUpdate'] !== false };
+      return { openAtLogin: v['openAtLogin'] !== false, startHidden: v['startHidden'] !== false,
+        autoUpdate: v['autoUpdate'] !== false, betaUpdates: v['betaUpdates'] === true };
     } catch {
       return null;
     }

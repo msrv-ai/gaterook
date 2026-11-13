@@ -778,6 +778,9 @@ class AdminApiIT {
     assertThat(List.copyOf(all.propertyNames())).containsExactly("general", "appearance", "authorization",
         "approval-rules", "local-api", "audit", "backup");
     assertThat(all.path("general").path("values").path("autoUpdate").asBoolean()).isTrue();
+    // Beta versions are a person's choice: off until they turn it on.
+    assertThat(all.path("general").path("values").path("betaUpdates").isBoolean()).isTrue();
+    assertThat(all.path("general").path("values").path("betaUpdates").asBoolean()).isFalse();
     assertThat(all.path("general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
     assertThat(all.path("authorization").path("values").path("tokenTtlDays").asInt()).isEqualTo(184);
     assertThat(all.path("audit").path("values").path("retentionYears").asInt()).isEqualTo(1);
@@ -812,6 +815,15 @@ class AdminApiIT {
         "{\"toastDurationSeconds\":null,\"version\":%d}".formatted(generalVersion));
     assertThat(resetDuration.path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
     assertThat(api.ok("/api/settings/general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
+    JsonNode beta = api.expect(200, HttpMethod.PUT, "/api/settings/general",
+        "{\"betaUpdates\":true,\"version\":%d}".formatted(resetDuration.path("version").asLong()));
+    assertThat(beta.path("values").path("betaUpdates").asBoolean()).isTrue();
+    assertThat(beta.path("values").path("autoUpdate").asBoolean()).isFalse();
+    assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/general",
+        "{\"betaUpdates\":\"yes\",\"version\":%d}".formatted(beta.path("version").asLong())).path("field").asString())
+        .isEqualTo("/betaUpdates");
+    assertThat(api.ok("/api/settings/general").path("values").path("betaUpdates").asBoolean()).isTrue();
+    assertThat(api.ok("/api/activity/changes?q=betaUpdates").path("changes").size()).isEqualTo(1);
     // The audit retention is a signed row from the first start on (V87), not a default read in its place.
     assertThat(all.path("audit").path("version").asLong()).isPositive();
     assertThat(all.path("audit").path("verified").asBoolean()).isTrue();

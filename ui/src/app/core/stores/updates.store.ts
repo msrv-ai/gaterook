@@ -34,7 +34,8 @@ export class UpdatesStore {
   });
   readonly description = computed(() => {
     const state = this.state();
-    const version = state && 'version' in state && state.version ? ` ${state.version}` : '';
+    // A pre-release says so wherever its version is named: the person is about to install it.
+    const version = state && 'version' in state && state.version ? ` ${state.version}${state.beta ? ' beta' : ''}` : '';
     if (state?.state === 'error') return state.message;
     if (state?.state === 'downloading') return `Downloading GateRook${version}. The app will restart when the update is ready.`;
     if (state?.state === 'installing') return `Restarting GateRook to install${version}.`;
@@ -53,6 +54,7 @@ export class UpdatesStore {
     this.value.set({
       state: previous?.state === 'downloaded' ? 'installing' : 'downloading',
       ...(previous?.version ? { version: previous.version } : {}),
+      ...(previous?.beta ? { beta: true } : {}),
       ...(previous?.lastCheckedAt ? { lastCheckedAt: previous.lastCheckedAt } : {}),
     });
     try {
@@ -64,6 +66,7 @@ export class UpdatesStore {
           state: 'error',
           message: desktopErrorText(error, 'The update could not be installed. Try again.'),
           ...(previous?.version ? { version: previous.version } : {}),
+          ...(previous?.beta ? { beta: true } : {}),
           ...(previous?.lastCheckedAt ? { lastCheckedAt: previous.lastCheckedAt } : {}),
         });
       }

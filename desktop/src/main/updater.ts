@@ -2,6 +2,10 @@
 // General"), checking every hour on macOS and every day elsewhere. Pure rules in updates.ts. The updater module is
 // loaded only where it may run (an installed Windows or macOS build with an update source), so a development run
 // never reaches the network for it.
+//
+// Two channels (update-provider.ts): every installation reads the stable one; with General › "Get beta versions" on,
+// a check reads the beta channel too and offers the newer version. The choice is asked for before each check, and a
+// pre-release is installed only while it still stands.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { UpdateState } from '../shared/contract.ts';
@@ -16,7 +20,8 @@ export type UpdateDriver = Pick<import('electron-updater').AppUpdater,
   'logger' | 'autoDownload' | 'autoInstallOnAppQuit' | 'allowPrerelease' | 'allowDowngrade'
   | 'checkForUpdates' | 'downloadUpdate' | 'quitAndInstall' | 'setFeedURL'> & {
     on(event: 'checking-for-update', listener: () => void): unknown;
-    on(event: 'update-available' | 'update-not-available', listener: (info: { version: string }) => void): unknown;
+    on(event: 'update-available' | 'update-not-available',
+      listener: (info: { version: string; beta?: boolean }) => void): unknown;
     on(event: 'download-progress', listener: (info: { percent: number }) => void): unknown;
     on(event: 'error', listener: (error: Error) => void): unknown;
   };
@@ -29,6 +34,8 @@ export interface UpdatesOptions {
   readonly push: (state: UpdateState) => void;
   /** General › "Check for updates automatically", asked before every automatic check. */
   readonly autoUpdate: () => Promise<boolean>;
+  /** General › "Get beta versions", asked before every check and before a pre-release is installed. */
+  readonly betaUpdates: () => Promise<boolean>;
   /** Stop the core and broker before the installer can replace their files. */
   readonly prepareInstall: () => Promise<void>;
   /** Recover the desktop if launching the installer fails after its services have stopped. */
@@ -60,7 +67,11 @@ export class Updates {
   private checking: Promise<void> | null = null;
   private installing: Promise<void> | null = null;
   private availableVersion: string | null = null;
+  /** Whether the available version is a pre-release: one that only the beta channel has. */
+  private availableBeta = false;
   private downloadedVersion: string | null = null;
+  /** Whether the updater reads the beta channel too; null until the first check has set its feed. */
+  private beta: boolean | null = null;
   private operationError: Error | null = null;
   private closed = false;
   private prepared = false;
@@ -90,9 +101,12 @@ export class Updates {
     return this.state;
   }
 
-  /** "Check now" in Settings › General. */
+  /** "Check now" in Settings › General, and the check that follows a change of "Get beta versions". */
   check(): Promise<void> {
-    const checking = this.checkFrom(Date.now());
+    const joined = this.checking !== null;
+    let checking = this.checkFrom(Date.now());
+    // A check that was already running asked for the channels before this request did.
+    if (joined && !this.unavailable) checking = checking.then(() => this.checkAgainIfChannelsChanged());
     if (!this.storeMetadata) return checking;
     // A manual check still explains Store ownership, including when it shares an in-flight background request.
     return checking.then(() => {
@@ -107,6 +121,11 @@ export class Updates {
   private checkFrom(at: number): Promise<void> {
     if (this.closed || this.installing || this.downloadedVersion) return Promise.resolve();
     if (this.checking) return this.checking;
+    return this.runCheck(at);
+  }
+
+  /** Starts a check; the caller has made sure that none is running. */
+  private runCheck(at: number): Promise<void> {
     this.lastCheckAt = at;
     this.lastCheckedAt = new Date(at).toISOString();
     if (this.unavailable && !this.storeMetadata) {
@@ -115,6 +134,11 @@ export class Updates {
     }
     this.checking = (this.storeMetadata ? this.checkStore() : this.checkNow()).finally(() => { this.checking = null; });
     return this.checking;
+  }
+
+  private async checkAgainIfChannelsChanged(): Promise<void> {
+    if (this.closed || this.beta === null || await this.betaWanted() === this.beta) return;
+    await this.checkFrom(Date.now());
   }
 
   private async checkStore(): Promise<void> {
@@ -132,9 +156,29 @@ export class Updates {
     try {
       const updater = await this.load();
       if (this.closed) return;
+      await this.selectChannels(updater);
+      if (this.closed) return;
       await updater.checkForUpdates();
     } catch (e) {
       this.fail(e);
+    }
+  }
+
+  /** Points the updater at the channels the person chose; a changed choice takes effect with this check. */
+  private async selectChannels(updater: UpdateDriver): Promise<void> {
+    const beta = await this.betaWanted();
+    if (this.closed || beta === this.beta) return;
+    updater.setFeedURL(siteUpdateOptions(this.platform, this.o.arch ?? process.arch, this.identity, beta));
+    this.beta = beta;
+  }
+
+  /** The person's choice now; while it can't be asked for, the one the last check used (off before any). */
+  private async betaWanted(): Promise<boolean> {
+    try {
+      return await this.o.betaUpdates();
+    } catch (e) {
+      this.o.log(`beta updates setting unavailable: ${redactInstallId((e as Error).message, this.identity)}`);
+      return this.beta ?? false;
     }
   }
 
@@ -152,13 +196,21 @@ export class Updates {
       await this.checking;
       if (this.closed) return;
       if (this.unavailable) throw new Error(this.unavailable);
+      // An offer can be older than the person's choice. A pre-release they no longer ask for isn't installed: the
+      // stable channel is checked instead, and what it offers waits for their next request.
+      if (this.availableBeta && !this.downloadedVersion && !await this.betaWanted()) {
+        if (!this.closed) await this.runCheck(Date.now());
+        return;
+      }
+      if (this.closed) return;
       const version = this.availableVersion;
       if (!version) throw new Error('Check for an available update before installing.');
+      const offer = { version, ...(this.availableBeta ? { beta: true } : {}) };
       const updater = await this.load();
       if (this.closed) return;
       this.operationError = null;
       if (this.downloadedVersion !== version) {
-        this.set({ state: 'downloading', version, percent: 0, ...this.checkedAt() });
+        this.set({ state: 'downloading', ...offer, percent: 0, ...this.checkedAt() });
         if (this.platform === 'darwin') {
           // The library's download event precedes Squirrel's signature verification on macOS.
           const { autoUpdater: nativeUpdater } = await import('electron');
@@ -170,9 +222,9 @@ export class Updates {
         if (this.closed) return;
         if (this.operationError) throw this.operationError;
         this.downloadedVersion = version;
-        this.set({ state: 'downloaded', version, ...this.checkedAt() });
+        this.set({ state: 'downloaded', ...offer, ...this.checkedAt() });
       }
-      this.set({ state: 'installing', version, ...this.checkedAt() });
+      this.set({ state: 'installing', ...offer, ...this.checkedAt() });
       preparing = true;
       await this.o.prepareInstall();
       // prepareInstall stops further checks while completing the user's already requested installation.
@@ -234,7 +286,8 @@ export class Updates {
     this.operationError = error instanceof Error ? error : new Error(String(error));
     if (this.closed && !this.prepared) return;
     const state = updateStateFor({ type: 'error', message: redactInstallId(this.operationError.message, this.identity) }, this.lastCheckedAt);
-    this.set({ ...state, ...(this.availableVersion ? { version: this.availableVersion } : {}) });
+    this.set({ ...state, ...(this.availableVersion ? { version: this.availableVersion } : {}),
+      ...(this.availableVersion && this.availableBeta ? { beta: true } : {}) });
     if (this.prepared && !this.installFailureReported) {
       this.installFailureReported = true;
       this.o.installFailed(state.state === 'error' ? state.message : this.operationError.message);
@@ -255,7 +308,7 @@ export class Updates {
       error: (m: unknown) => this.o.log(`updater error: ${redactInstallId(m, this.identity)}`),
       debug: () => undefined,
     };
-    autoUpdater.setFeedURL(siteUpdateOptions(this.platform, this.o.arch ?? process.arch, this.identity));
+    // The feed is set before each check (selectChannels): which channels it reads is the person's choice then.
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.allowPrerelease = false;
@@ -266,10 +319,12 @@ export class Updates {
     autoUpdater.on('checking-for-update', () => on({ type: 'checking-for-update' }));
     autoUpdater.on('update-available', (info) => {
       this.availableVersion = info.version;
-      on({ type: 'update-available', version: info.version });
+      this.availableBeta = info.beta === true;
+      on({ type: 'update-available', version: info.version, beta: this.availableBeta });
     });
     autoUpdater.on('update-not-available', (info) => {
       this.availableVersion = null;
+      this.availableBeta = false;
       on({ type: 'update-not-available', version: info.version });
     });
     autoUpdater.on('download-progress', (info) => {

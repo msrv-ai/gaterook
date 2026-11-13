@@ -3,7 +3,8 @@
 // started on another port must not disagree with the file that started it.
 //
 // Main also keeps here the General switches it needs while the core doesn't answer (start hidden at login; whether
-// to look for updates while the core is stopped or locked): the core stores the settings, this is main's copy.
+// to look for updates, and for beta versions too, while the core is stopped or locked): the core stores the settings,
+// this is main's copy.
 import { chmodSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeFileAtomic } from './atomic-file.ts';
@@ -15,6 +16,8 @@ export interface DesktopConfig {
   readonly startHidden?: boolean;
   /** General › "Check for updates automatically" as the core last said it. */
   readonly autoUpdate?: boolean;
+  /** General › "Get beta versions" as the core last said it. */
+  readonly betaUpdates?: boolean;
 }
 
 export const DEFAULT_PORT = 7465;
@@ -105,6 +108,7 @@ export function readDesktopConfig(home: string): { config: DesktopConfig; proble
     ...(typeof r['openAtLogin'] === 'boolean' ? { openAtLogin: r['openAtLogin'] } : {}),
     ...(typeof r['startHidden'] === 'boolean' ? { startHidden: r['startHidden'] } : {}),
     ...(typeof r['autoUpdate'] === 'boolean' ? { autoUpdate: r['autoUpdate'] } : {}),
+    ...(typeof r['betaUpdates'] === 'boolean' ? { betaUpdates: r['betaUpdates'] } : {}),
   };
   const problem = port === null && r['port'] !== undefined ? `desktop.json has an invalid port; using ${config.port}` : null;
   return { config, problem };
@@ -124,6 +128,7 @@ export function writeDesktopConfig(home: string, config: DesktopConfig): void {
     ...(config.openAtLogin !== undefined ? { openAtLogin: config.openAtLogin } : {}),
     ...(config.startHidden !== undefined ? { startHidden: config.startHidden } : {}),
     ...(config.autoUpdate !== undefined ? { autoUpdate: config.autoUpdate } : {}),
+    ...(config.betaUpdates !== undefined ? { betaUpdates: config.betaUpdates } : {}),
   };
   writeFileAtomic(desktopConfigPath(home), JSON.stringify(body, null, 2) + '\n', 0o600);
 }

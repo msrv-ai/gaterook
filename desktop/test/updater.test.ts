@@ -22,7 +22,8 @@ class FakeUpdater extends EventEmitter implements UpdateDriver {
   allowPrerelease = true;
   allowDowngrade = true;
   feed: Parameters<UpdateDriver['setFeedURL']>[0] | null = null;
-  setFeedURL(options: Parameters<UpdateDriver['setFeedURL']>[0]): void { this.feed = options; }
+  feeds = 0;
+  setFeedURL(options: Parameters<UpdateDriver['setFeedURL']>[0]): void { this.feed = options; this.feeds++; }
   checks = 0;
   downloads = 0;
   installs = 0;
@@ -62,7 +63,7 @@ function fixture(t: TestContext, overrides: Partial<UpdatesOptions> = {}) {
   const updates = new Updates({
     packaged: true, resourcesPath: temp.dir, userDataPath: join(temp.dir, 'profile'), platform: 'win32', arch: 'x64', log: () => undefined,
     storeMetadataCheck: async () => undefined,
-    autoUpdate: async () => true, push: (state) => states.push(state),
+    autoUpdate: async () => true, betaUpdates: async () => false, push: (state) => states.push(state),
     loadUpdater: async () => { loads++; return driver; },
     prepareInstall: async () => { prepares++; updates.stop(); },
     installFailed: (message) => failures.push(message),
@@ -300,6 +301,157 @@ describe('explicit desktop updates', () => {
     await f.updates.check();
     assert.equal(attempts, 2);
     assert.equal(f.updates.current()?.state, 'available');
+  });
+});
+
+describe('beta versions', () => {
+  const readsBeta = (driver: FakeUpdater): boolean => (driver.feed as unknown as { beta?: boolean }).beta === true;
+
+  it('reads the stable channel alone until a person asks for beta versions, from the next check on', async (t) => {
+    let wanted = false;
+    let asked = 0;
+    const f = fixture(t, { betaUpdates: async () => { asked++; return wanted; } });
+    await f.updates.check();
+    assert.equal(readsBeta(f.driver), false);
+    assert.equal((f.driver.feed as unknown as { beta?: boolean }).beta, undefined, 'the stable feed is the one every app had');
+    wanted = true;
+    await f.updates.check();
+    assert.equal(readsBeta(f.driver), true);
+    assert.equal((f.driver.feed as { url: string }).url, 'https://gaterook.com/api/updates/win32/x64/');
+    assert.equal((f.driver.feed as unknown as { installId: string }).installId, readFileSync(f.identityPath, 'utf8').trim());
+    await f.updates.check();
+    assert.equal(f.driver.feeds, 2, 'an unchanged choice keeps the updater\'s source');
+    wanted = false;
+    await f.updates.check();
+    assert.equal(readsBeta(f.driver), false);
+    assert.equal(asked, 4, 'every check asks');
+    assert.equal(f.driver.allowPrerelease, false);
+    assert.equal(f.driver.allowDowngrade, false, 'leaving the beta channel never installs an older version');
+  });
+
+  it('marks a pre-release from its offer to its installation', async (t) => {
+    const f = fixture(t, { betaUpdates: async () => true });
+    f.driver.check = async () => {
+      f.driver.emit('checking-for-update');
+      f.driver.emit('update-available', { version: '0.6.0', beta: true });
+      return null;
+    };
+    await f.updates.check();
+    assert.deepEqual({ ...f.updates.current(), lastCheckedAt: undefined }, { state: 'available', version: '0.6.0', beta: true, lastCheckedAt: undefined });
+    await f.updates.install();
+    assert.equal(f.driver.installs, 1);
+    assert.deepEqual(f.states.map((s) => [s.state, s.version, s.beta]), [['checking', undefined, undefined],
+      ['available', '0.6.0', true], ['downloading', '0.6.0', true], ['downloaded', '0.6.0', true], ['installing', '0.6.0', true]]);
+  });
+
+  it('keeps the mark on a pre-release that failed to install, and drops it with the offer', async (t) => {
+    const f = fixture(t, { betaUpdates: async () => true });
+    f.driver.check = async () => { f.driver.emit('update-available', { version: '0.6.0', beta: true }); return null; };
+    f.driver.download = async () => { throw new Error('Invalid code signature'); };
+    await f.updates.check();
+    await f.updates.install();
+    assert.deepEqual([f.updates.current()?.state, f.updates.current()?.version, f.updates.current()?.beta], ['error', '0.6.0', true]);
+    f.driver.check = async () => { f.driver.emit('update-available', { version: '0.5.1' }); return null; };
+    await f.updates.check();
+    assert.deepEqual([f.updates.current()?.state, f.updates.current()?.version, f.updates.current()?.beta], ['available', '0.5.1', undefined]);
+  });
+
+  it('does not install a pre-release offered before beta versions were turned off', async (t) => {
+    let wanted = true;
+    const f = fixture(t, { betaUpdates: async () => wanted });
+    f.driver.check = async () => { f.driver.emit('update-available', { version: '0.6.0', beta: true }); return null; };
+    await f.updates.check();
+    wanted = false;
+    // The stable channel has an older release that is still newer than the installed one.
+    f.driver.check = async () => { f.driver.emit('update-available', { version: '0.5.1' }); return null; };
+    await f.updates.install();
+    assert.equal(f.driver.checks, 2, 'the stable channel is checked instead');
+    assert.equal(readsBeta(f.driver), false);
+    assert.equal(f.driver.downloads, 0);
+    assert.equal(f.prepares(), 0);
+    assert.equal(f.driver.installs, 0);
+    assert.deepEqual([f.updates.current()?.state, f.updates.current()?.version, f.updates.current()?.beta], ['available', '0.5.1', undefined]);
+    await f.updates.install();
+    assert.equal(f.driver.downloads, 1, 'the stable release installs on the next request');
+    assert.equal(f.driver.installs, 1);
+  });
+
+  it('withdraws a pre-release offer when the stable channel has nothing newer', async (t) => {
+    let wanted = true;
+    const f = fixture(t, { betaUpdates: async () => wanted });
+    f.driver.check = async () => { f.driver.emit('update-available', { version: '0.6.0', beta: true }); return null; };
+    await f.updates.check();
+    wanted = false;
+    f.driver.check = async () => { f.driver.emit('update-not-available', { version: '0.4.4' }); return null; };
+    await f.updates.install();
+    assert.equal(f.driver.downloads, 0);
+    assert.equal(f.driver.installs, 0);
+    assert.equal(f.updates.current()?.state, 'up-to-date');
+    await f.updates.install();
+    assert.equal(f.driver.downloads, 0, 'nothing is left to install');
+    assert.equal(f.updates.current()?.state, 'error');
+  });
+
+  it('installs a pre-release while beta versions stay on, and a stable release without asking', async (t) => {
+    let asked = 0;
+    const f = fixture(t, { betaUpdates: async () => { asked++; return true; } });
+    await f.updates.check();
+    assert.equal(asked, 1);
+    await f.updates.install();
+    assert.equal(asked, 1, 'a stable release needs no second answer');
+    assert.equal(f.driver.installs, 1);
+
+    const beta = fixture(t, { betaUpdates: async () => true });
+    beta.driver.check = async () => { beta.driver.emit('update-available', { version: '0.6.0', beta: true }); return null; };
+    await beta.updates.check();
+    await beta.updates.install();
+    assert.equal(beta.driver.checks, 1);
+    assert.equal(beta.driver.installs, 1);
+  });
+
+  it('checks again when a request joined a check that asked for the channels before the switch', async (t) => {
+    let wanted = false;
+    const running = deferred<null>();
+    const f = fixture(t, { betaUpdates: async () => wanted });
+    f.driver.check = () => running.promise;
+    const background = f.updates.check();
+    await setImmediate();
+    assert.equal(f.driver.checks, 1);
+    wanted = true;
+    f.driver.check = async () => { f.driver.emit('update-available', { version: '0.6.0', beta: true }); return null; };
+    const requested = f.updates.check();
+    running.resolve(null);
+    await Promise.all([background, requested]);
+    assert.equal(f.driver.checks, 2);
+    assert.equal(readsBeta(f.driver), true);
+    assert.equal(f.updates.current()?.beta, true);
+  });
+
+  it('keeps the channels of the last check while the setting cannot be read', async (t) => {
+    const logs: string[] = [];
+    let answer: () => Promise<boolean> = async () => { throw new Error('The core is not running'); };
+    const f = fixture(t, { betaUpdates: () => answer(), log: (message) => logs.push(message) });
+    await f.updates.check();
+    assert.equal(readsBeta(f.driver), false, 'off before any answer');
+    assert.equal(f.updates.current()?.state, 'available', 'the check itself still runs');
+    assert.match(logs.join('\n'), /beta updates setting unavailable: The core is not running/);
+    answer = async () => true;
+    await f.updates.check();
+    assert.equal(readsBeta(f.driver), true);
+    answer = async () => { throw new Error('The core is not running'); };
+    await f.updates.check();
+    assert.equal(readsBeta(f.driver), true);
+    assert.equal(f.driver.feeds, 2);
+  });
+
+  it('never asks for beta versions where Microsoft Store manages updates', async (t) => {
+    let asked = 0;
+    const f = fixture(t, { windowsStore: true, betaUpdates: async () => { asked++; return true; } });
+    f.updates.schedule();
+    await Promise.all([f.updates.check(), f.updates.check()]);
+    await f.updates.install();
+    assert.equal(asked, 0);
+    assert.equal(f.loads(), 0);
   });
 });
 
