@@ -24,30 +24,6 @@
         "sha256": "8888f0d742722080c57eefe6601baec6b48715445e07c02901ec0dd50b16ccca",
         "size": 9222869
       }
-    },
-    "clickhouse": {
-      "1.0.0": {
-        "sha256": "7487d438c3c8f00383051f685c099ac9279e2051fb9c1a09b25b1b0bdefe090d",
-        "size": 57032
-      }
-    },
-    "duckdb": {
-      "1.1.0": {
-        "sha256": "be0e032554fa9f0d1fe392db336956b8cc006d14a6a55a9d9ce6ade93eda370a",
-        "size": 33685915
-      }
-    },
-    "h2": {
-      "1.1.0": {
-        "sha256": "ff2f6e870da48e9e7a263f4e813aaf1600d504df75be65696afa906cee58259e",
-        "size": 2775406
-      }
-    },
-    "msaccess": {
-      "1.1.0": {
-        "sha256": "a15b394cef4848ac55d00efdef9bfcb06b463bf649456bf82495e6f689878167",
-        "size": 3566458
-      }
     }
   }
 }

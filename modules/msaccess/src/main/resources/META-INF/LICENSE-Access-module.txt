@@ -1,8 +1,0 @@
-This package includes, unmodified:
-
-- UCanAccess 5.3.0 (io.github.spannm:ucanaccess, https://github.com/spannm/ucanaccess), under the Apache License 2.0.
-  Its license is META-INF/LICENSE.txt and its notice META-INF/NOTICE.txt.
-- Jackcess 5.2.0 (io.github.spannm:jackcess, https://github.com/spannm/jackcess), a fork of Jackcess, under the
-  Apache License 2.0, whose text is META-INF/LICENSE.txt.
-- HyperSQL (HSQLDB) 2.7.4 (org.hsqldb:hsqldb, https://hsqldb.org), under the HSQLDB license, a BSD-style license, in
-  META-INF/hsqldb_lic.txt, with the Hypersonic SQL license of the code it derives from in META-INF/hypersonic_lic.txt.

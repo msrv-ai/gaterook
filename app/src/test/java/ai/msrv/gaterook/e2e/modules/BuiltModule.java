@@ -15,6 +15,8 @@ import java.util.zip.ZipInputStream;
  * A connector module's package behind an assembled core, as a release has it: listed by a signed module channel
  * ({@link ModuleChannelServer}), installed by the core when one of its connector types is needed, and run in a
  * module host. The tests of the real modules drive their connector through it against the Compose test services.
+ * A module's package is built in this checkout, or, for a module whose source lives in the modules repository, in a
+ * checkout of that repository ({@link #modulesRepo}).
  *
  * <p>With {@code -Dgateway.e2e.officialLists=true} the core reads GateRook's published list on GitHub instead of
  * this channel ({@code gateway.lists=official}) and installs the released package: a check of what is published,
@@ -39,16 +41,44 @@ final class BuiltModule implements AutoCloseable {
     this.api = new CoreClient(core);
   }
 
-  /** {@code modules/<id>/target/<id>-<version>.jar}, or {@code null} when it isn't built. */
+  /**
+   * The checkout of the modules repository (gaterook/gaterook-plugins) whose built packages the tests take for the
+   * modules whose source lives there, or {@code null}: {@code -Dgateway.modulesRepo=<folder>}.
+   */
+  static Path modulesRepo() {
+    String folder = System.getProperty("gateway.modulesRepo", "").strip();
+    return folder.isEmpty() ? null : Path.of(folder);
+  }
+
+  /** What a test says when the package it needs isn't there. */
+  static String howToBuild(String id) {
+    return "Build " + id + " in a checkout of gaterook/gaterook-plugins (mvn -pl modules/" + id + " package) and "
+        + "pass -Dgateway.modulesRepo=<that folder>";
+  }
+
+  /**
+   * A module's built package, {@code modules/<id>/target/<id>-<version>.jar}: of this checkout, else of the modules
+   * repository's checkout ({@link #modulesRepo}); {@code null} when neither has built it.
+   */
   static Path packageOf(String id) throws Exception {
-    Path target = Path.of(System.getProperty("gateway.modulesDir", "../modules"), id, "target");
-    if (!Files.isDirectory(target)) {
-      return null;
+    List<Path> roots = new ArrayList<>(List.of(Path.of(System.getProperty("gateway.modulesDir", "../modules"))));
+    if (modulesRepo() != null) {
+      roots.add(modulesRepo().resolve("modules"));
     }
-    try (var files = Files.list(target)) {
-      return files.filter(f -> f.getFileName().toString().matches(id + "-\\d+\\.\\d+\\.\\d+\\.jar")).findFirst()
-          .orElse(null);
+    for (Path root : roots) {
+      Path target = root.resolve(id).resolve("target");
+      if (!Files.isDirectory(target)) {
+        continue;
+      }
+      try (var files = Files.list(target)) {
+        Path built = files.filter(f -> f.getFileName().toString().matches(id + "-\\d+\\.\\d+\\.\\d+\\.jar"))
+            .findFirst().orElse(null);
+        if (built != null) {
+          return built;
+        }
+      }
     }
+    return null;
   }
 
   /** The manifest inside a module's package. */

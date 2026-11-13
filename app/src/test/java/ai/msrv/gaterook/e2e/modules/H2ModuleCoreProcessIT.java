@@ -15,14 +15,16 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 
 /**
- * H2 as the connector module a release downloads (docs/connector-delivery.md, docs/h2.md): the package of
- * {@code modules/h2}, installed by the assembled core when the type's form is asked for, and run in a module host
- * whose TCP gate carries the H2 client's sockets. The core fills the module's TCP destination with the connection's
+ * H2 as the connector module a release downloads (docs/connector-delivery.md): the package of the {@code h2}
+ * module, installed by the assembled core when the type's form is asked for, and run in a module host whose TCP
+ * gate carries the H2 client's sockets. The core fills the module's TCP destination with the connection's
  * host and port; the gate refuses the server on this computer until the environment's policy allows its address
  * (the test says so, with the suggestion the policy API takes), and then an agent's query reaches the server. A
  * change waits for a person, who approves the statement as the connector itself wrote it down, and runs once.
  *
- * <p>The server is H2's own, started from the module's package: it needs no test service.
+ * <p>The module's source lives in the modules repository: the test takes its package from a checkout of it
+ * ({@link BuiltModule#modulesRepo}) and is skipped without one. The server is H2's own, started from the module's
+ * package: it needs no test service.
  */
 class H2ModuleCoreProcessIT {
 
@@ -36,7 +38,7 @@ class H2ModuleCoreProcessIT {
   @BeforeAll
   static void start() throws Exception {
     h2Jar = BuiltModule.packageOf("h2");
-    assumeTrue(h2Jar != null, "Build modules/h2 first: mvn -pl modules/h2 -am package");
+    assumeTrue(h2Jar != null, BuiltModule.howToBuild("h2"));
     module = BuiltModule.start(home, h2Jar);
   }
 

@@ -27,6 +27,11 @@
 
   <properties>
     <gateway.e2e.officialLists>false</gateway.e2e.officialLists>
+    <!--
+      e2e/modules: a checkout of gaterook/gaterook-plugins with its packages built, for the tests of the connector
+      modules whose source lives there (-Dgateway.modulesRepo=<folder>). Without one those tests are skipped.
+    -->
+    <gateway.modulesRepo></gateway.modulesRepo>
     <start-class>ai.msrv.gaterook.core.GatewayApplication</start-class>
     <spring-boot.run.skip>false</spring-boot.run.skip>
     <!--
@@ -233,47 +238,7 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>modules-clickhouse</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>plugins-rabbitmq</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>modules-duckdb</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>modules-h2</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>modules-msaccess</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -355,8 +320,10 @@
             <gateway.pluginHostJar>${project.basedir}/../plugin-host/target/plugin-host.jar</gateway.pluginHostJar>
             <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
             <gateway.catalogDir>${project.basedir}/../catalog</gateway.catalogDir>
-            <!-- e2e/modules: the connector module packages, by path. -->
+            <!-- e2e/modules: the packages of this checkout's connector modules, by path. -->
             <gateway.modulesDir>${project.basedir}/../modules</gateway.modulesDir>
+            <!-- e2e/modules: the checkout whose packages the other modules' tests take, or empty. -->
+            <gateway.modulesRepo>${gateway.modulesRepo}</gateway.modulesRepo>
             <!-- e2e/modules: true reads GateRook's published list on GitHub (a manual check, needs the network). -->
             <gateway.e2e.officialLists>${gateway.e2e.officialLists}</gateway.e2e.officialLists>
           </systemPropertyVariables>

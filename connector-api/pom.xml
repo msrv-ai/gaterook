@@ -15,8 +15,11 @@
   </parent>
 
   <artifactId>connector-api</artifactId>
-  <!-- Versioned on its own, = ApiVersion.CURRENT; plugins declare requires.connectorApi against it. -->
-  <version>1.0.0</version>
+  <!--
+    Versioned on its own, = ApiVersion.CURRENT and connector-api.version of the root pom (scripts/modules.test.mjs
+    keeps the three equal); plugins and connector modules declare requires.connectorApi against it.
+  -->
+  <version>1.2.0</version>
   <name>GateRook · Connector API</name>
 
   <dependencies>

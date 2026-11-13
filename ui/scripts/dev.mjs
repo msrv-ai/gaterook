@@ -15,8 +15,10 @@
 //    Connect never touches this computer's real apps (the demo world does the same on its own).
 //    The plugins of this checkout come from a local signed catalog on loopback (ui/scripts/dev-catalog.mjs: the
 //    plugin JARs and plugin-host.jar are built once if missing), so Add connection and Connectors › Catalog offer
-//    and install them as a release does. The connectors that exist only as modules (ClickHouse, DuckDB, H2, Microsoft
-//    Access) come from a local signed list of modules beside it, and install when one is chosen, as in a release.
+//    and install them as a release does. The connector modules whose source lives in the modules repository
+//    (ClickHouse, DuckDB, H2, Microsoft Access) come from a local signed list of modules beside it, made of the
+//    packages built in a checkout of gaterook/gaterook-plugins (GATEROOK_MODULES_REPO, or gaterook-plugins beside
+//    this checkout), and install when one is chosen, as in a release; without such a checkout they aren't offered.
 //    --no-plugins starts without both (no catalog, no list of modules, no plugin host).
 //    --core-flag passes one more flag to the core's JVM, as often as it is given. To see connector modules arrive as
 //    in a release, build app.jar without -Pall-bundled and start with

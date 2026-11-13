@@ -84,8 +84,8 @@ sign-in command runs only once you trust it in **Test connection**).
 ## Connectors that arrive when you choose them
 
 Some of GateRook's own connectors aren't part of the installer: [Apache Cassandra](cassandra.md), [Neo4j](neo4j.md),
-ClickHouse, [DuckDB](duckdb.md), [H2](h2.md) and [Microsoft Access](access.md) are
-[connector modules](connector-delivery.md#connector-modules). Their cards are among the others in **Add connection**
+[ClickHouse](https://github.com/gaterook/gaterook-plugins/blob/main/docs/clickhouse.md), [DuckDB](https://github.com/gaterook/gaterook-plugins/blob/main/docs/duckdb.md), [H2](https://github.com/gaterook/gaterook-plugins/blob/main/docs/h2.md) and
+[Microsoft Access](https://github.com/gaterook/gaterook-plugins/blob/main/docs/access.md) are [connector modules](connector-delivery.md#connector-modules). Their cards are among the others in **Add connection**
 and say how large the download is. Choosing one and **Continue** opens its form; GateRook downloads the connector
 meanwhile, checks it against its signed list and asks nothing.
 

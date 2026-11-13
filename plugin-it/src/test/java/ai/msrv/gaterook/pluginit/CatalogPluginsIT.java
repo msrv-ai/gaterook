@@ -27,10 +27,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The ClickHouse connector module and the catalog's RabbitMQ plugin in a real host, like Jira: the host loads the
- * package as it is released, the code reads its password through the secret callback, reaches the fake server only on
- * the port the grant names, and the password leaves no trace in the result. A write to ClickHouse and an unapproved
- * publish to RabbitMQ are refused inside the connector, before anything is sent.
+ * The catalog's RabbitMQ plugin in a real host, like Jira: the host loads the package as it is released, the code
+ * reads its password through the secret callback, reaches the fake server only on the port the grant names, and the
+ * password leaves no trace in the result. An unapproved publish is refused inside the connector, before anything is
+ * sent.
  */
 class CatalogPluginsIT {
 
@@ -40,26 +40,6 @@ class CatalogPluginsIT {
   private MockWebServer server;
   private Harness host;
 
-  @Test
-  void clickHouseDiscoveryCrossesThePluginProtocolWithScopedSecretAccess() throws Exception {
-    server = serve(request -> new MockResponse.Builder().code(200).addHeader("Content-Type", "application/json")
-        .body("{\"meta\":[],\"data\":[[\"analytics\"],[\"archive\"]],\"rows\":2}").build());
-    host = Harness.start("clickhouse@1.0.0", Harness.moduleJar("clickhouse", "clickhouse-1.0.0.jar"), home, true);
-    ObjectNode c = GppJson.object().put("host", "127.0.0.1").put("port", server.getPort()).put("user", "gw_reader");
-    c.putObject("options").put("tls", false);
-    ConnectionConfig cfg = new ConnectionConfig("c_ch", "events-ch", "clickhouse", Env.DEV, 1, c,
-        Set.of("/password"), null);
-    JsonNode result = host.discoverDatabases("clickhouse@1.0.0", cfg, grant(server),
-        Map.of("/password", "cnry-ch-discovery-31f0"), Duration.ofSeconds(10));
-    assertThat(result.path("ok").asBoolean()).isTrue();
-    assertThat(result.path("details").path("databases")).extracting(JsonNode::asString)
-        .containsExactly("analytics", "archive");
-    assertThat(result.toString()).doesNotContain("cnry-ch-discovery");
-    RecordedRequest seen = server.takeRequest(2, TimeUnit.SECONDS);
-    assertThat(seen.getBody().utf8()).isEqualTo("SHOW DATABASES");
-    assertThat(seen.getHeaders().get("X-ClickHouse-Key")).isEqualTo("cnry-ch-discovery-31f0");
-  }
-
   @AfterEach
   void stop() throws Exception {
     if (host != null) {
@@ -68,41 +48,6 @@ class CatalogPluginsIT {
     if (server != null) {
       server.close();
     }
-  }
-
-  @Test
-  void clickHouseQueriesReadOnlyWithItsPasswordFromTheCore() throws Exception {
-    server = serve(request -> new MockResponse.Builder().code(200).addHeader("Content-Type", "application/json")
-        .body("{\"meta\":[{\"name\":\"event\",\"type\":\"String\"},{\"name\":\"n\",\"type\":\"UInt64\"}],"
-            + "\"data\":[[\"click\",\"120\"]],\"rows\":1,\"statistics\":{\"elapsed\":0.002,\"rows_read\":120}}")
-        .build());
-    host = Harness.start("clickhouse@1.0.0", Harness.moduleJar("clickhouse", "clickhouse-1.0.0.jar"), home, true);
-    assertThat(host.alive()).isTrue();
-
-    ObjectNode c = GppJson.object();
-    c.put("host", "127.0.0.1");
-    c.put("port", server.getPort());
-    c.put("database", "analytics");
-    c.put("user", "gw_reader");
-    c.putObject("options").put("tls", false);
-    ConnectionConfig cfg = new ConnectionConfig("c_ch", "events-ch", "clickhouse", Env.DEV, 1, c,
-        Set.of("/password"), null);
-
-    JsonNode result = host.execute("clickhouse@1.0.0", call("clickhouse_query", "events-ch",
-        "{\"sql\":\"SELECT event, count() AS n FROM events GROUP BY event\"}"), cfg, false, grant(server),
-        Map.of("/password", "cnry-ch-pass-31f0"), Duration.ofSeconds(10));
-    var tool = WireCodec.result(result);
-    assertThat(tool.isError()).isFalse();
-    assertThat(tool.table().rows().get(0).get(0).asString()).isEqualTo("click");
-    assertThat(result.toString()).doesNotContain("cnry-ch-pass");
-    RecordedRequest seen = server.takeRequest(2, TimeUnit.SECONDS);
-    assertThat(seen.getTarget()).contains("readonly=1").contains("allow_ddl=0");
-    assertThat(seen.getHeaders().get("X-ClickHouse-Key")).isEqualTo("cnry-ch-pass-31f0");
-
-    assertThatThrownBy(() -> host.execute("clickhouse@1.0.0", call("clickhouse_query", "events-ch",
-        "{\"sql\":\"DROP TABLE events\"}"), cfg, false, grant(server), Map.of("/password", "cnry-ch-pass-31f0"),
-        Duration.ofSeconds(10))).isInstanceOf(Harness.ProtocolError.class).hasMessageContaining("never changes data");
-    assertThat(server.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
   }
 
   @Test

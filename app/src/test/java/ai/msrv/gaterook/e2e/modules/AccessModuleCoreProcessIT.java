@@ -13,11 +13,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Microsoft Access as the connector module a release downloads (docs/connector-delivery.md, docs/access.md): the
- * package of {@code modules/msaccess}, installed by the assembled core when the type's form is asked for, and run in
- * a module host. A person names an {@code .accdb} file on this computer; an agent reads it.
+ * Microsoft Access as the connector module a release downloads (docs/connector-delivery.md): the package of the
+ * {@code msaccess} module, installed by the assembled core when the type's form is asked for, and run in a module
+ * host. A person names an {@code .accdb} file on this computer; an agent reads it.
  *
- * <p>The file is written by Jackcess, from the module's package: it needs no Access and no test service.
+ * <p>The module's source lives in the modules repository: the test takes its package from a checkout of it
+ * ({@link BuiltModule#modulesRepo}) and is skipped without one. The file is written by Jackcess, from the module's
+ * package: it needs no Access and no test service.
  */
 class AccessModuleCoreProcessIT {
 
@@ -33,7 +35,7 @@ class AccessModuleCoreProcessIT {
   @BeforeAll
   static void start() throws Exception {
     Path built = BuiltModule.packageOf("msaccess");
-    assumeTrue(built != null, "Build modules/msaccess first: mvn -pl modules/msaccess -am package");
+    assumeTrue(built != null, BuiltModule.howToBuild("msaccess"));
     file = data.toRealPath().resolve("orders.accdb");
     BuiltModule.runWith(built, data, """
         import io.github.spannm.jackcess.Column;
