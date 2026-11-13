@@ -73,7 +73,7 @@ public class CoreToolsHandler {
     ToolGuard.Admission admission = guard.admit(r.caller().principalId(), tool.name(), rates.perToken(),
         rates.perTool());
     if (!admission.allowed()) {
-      ObjectNode meta = JsonNodeFactory.instance.objectNode().put("ai.msrv.gaterook/retryAfterMs",
+      ObjectNode meta = JsonNodeFactory.instance.objectNode().put("com.gaterook/retryAfterMs",
           admission.retryAfterMs());
       return ResultWriter.toolError(r.env(), "Too many calls on this token. Retry after "
           + Math.max(1, admission.retryAfterMs() / 1000) + " s.", meta);

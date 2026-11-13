@@ -252,7 +252,7 @@ class McpIT {
       assertThat(s.path("truncated").asBoolean()).isFalse();
       SpecSchemas.assertMatchesOutputSchema(tool(dev.legacy("tools/list", null).result(), "sql_query")
           .path("outputSchema"), s);
-      String callId = result.at("/_meta/ai.msrv.gaterook~1callId").asString();
+      String callId = result.at("/_meta/com.gaterook~1callId").asString();
       assertThat(callId).startsWith("tc_");
       assertThat(core.jdbc().queryForList("select phase, decision from tool_call where call_id = ? order by id",
           callId)).extracting(m -> m.get("phase") + ":" + m.get("decision"))
@@ -277,7 +277,7 @@ class McpIT {
         .doesNotContain("boom");
     McpClient.Answer secret = dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT secret"));
     assertThat(secret.result().at("/content/0/text").asString()).isEqualTo("the password is ‹masked›");
-    assertThat(secret.result().at("/_meta/ai.msrv.gaterook~1masked/fields").asInt()).isEqualTo(1);
+    assertThat(secret.result().at("/_meta/com.gaterook~1masked/fields").asInt()).isEqualTo(1);
 
     McpClient.Answer big = dev.modernCall("sql_query", args("connection", "dev-db", "sql", "SELECT big"), false);
     SpecSchemas.assertValid("2026-07-28", "CallToolResult", big.result());
@@ -290,7 +290,7 @@ class McpIT {
         .path("outputSchema"), s);
     McpClient.Answer bigLegacy = dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT big"));
     SpecSchemas.assertValid("2025-11-25", "CallToolResult", bigLegacy.result());
-    assertThat(bigLegacy.result().at("/_meta/ai.msrv.gaterook~1truncated/reason").asString()).isEqualTo("size_limit");
+    assertThat(bigLegacy.result().at("/_meta/com.gaterook~1truncated/reason").asString()).isEqualTo("size_limit");
     SpecSchemas.assertMatchesOutputSchema(tool(dev.legacy("tools/list", null).result(), "sql_query")
         .path("outputSchema"), bigLegacy.result().path("structuredContent"));
 
@@ -330,9 +330,9 @@ class McpIT {
     assertThat(s.path("settings").path("connection.note").asString()).isEqualTo("Owner ‹masked›");
     // The core's own constant survives the pass: the agent learns the password is stored, not that it was masked.
     assertThat(s.path("credentials").path("/credentials/password").asString()).isEqualTo("stored");
-    assertThat(described.result().at("/_meta/ai.msrv.gaterook~1masked/fields").asInt()).isPositive();
+    assertThat(described.result().at("/_meta/com.gaterook~1masked/fields").asInt()).isPositive();
     assertThat(described.body().toString()).doesNotContain("ops.lead@example.com").doesNotContain("pw-notes-db");
-    String callId = described.result().at("/_meta/ai.msrv.gaterook~1callId").asString();
+    String callId = described.result().at("/_meta/com.gaterook~1callId").asString();
     assertThat(core.jdbc().queryForObject("select result_preview from tool_call where call_id = ? and phase = "
         + "'completed'", String.class, callId)).doesNotContain("ops.lead@example.com");
 
@@ -611,7 +611,7 @@ class McpIT {
     assertThat(done.result().at("/structuredContent/rowCount").asInt()).isEqualTo(3);
     assertThat(done.result().at("/content/0/text").asString()).startsWith("Approved by you and executed on dev-db "
         + "(dev). Result:\n3 rows · ");
-    assertThat(done.result().at("/_meta/ai.msrv.gaterook~1approval/handle").asString()).isEqualTo(quickId);
+    assertThat(done.result().at("/_meta/com.gaterook~1approval/handle").asString()).isEqualTo(quickId);
     assertThat(FakeConnectors.EXECUTIONS).singleElement().satisfies(e -> assertThat(e.approvalId()).isEqualTo(quickId));
 
     // MRTR: the round that sees the decision answers with the executed result; cancel and decline are errors.
@@ -740,7 +740,7 @@ class McpIT {
     assertThat(denied.result().path("isError").asBoolean()).isTrue();
     assertThat(denied.result().at("/content/0/text").asString()).startsWith("Denied by policy prod.sql.block_ddl: "
         + "DDL is not allowed on prod");
-    String callId = denied.result().at("/_meta/ai.msrv.gaterook~1callId").asString();
+    String callId = denied.result().at("/_meta/com.gaterook~1callId").asString();
     assertThat(core.jdbc().queryForList("select phase, decision, rule_id from tool_call where call_id = ?", callId))
         .extracting(m -> m.get("phase") + ":" + m.get("decision") + ":" + m.get("rule_id"))
         .containsExactly("received:denied:prod.sql.block_ddl");
@@ -759,7 +759,7 @@ class McpIT {
     assertThat(refused.result().path("isError").asBoolean()).isTrue();
     assertThat(refused.result().at("/content/0/text").asString())
         .startsWith("Denied by policy core.classify-error: The call couldn't be classified, so it was not run.");
-    String callId = refused.result().at("/_meta/ai.msrv.gaterook~1callId").asString();
+    String callId = refused.result().at("/_meta/com.gaterook~1callId").asString();
     assertThat(core.jdbc().queryForList("select phase, decision, rule_id from tool_call where call_id = ?", callId))
         .extracting(m -> m.get("phase") + ":" + m.get("decision") + ":" + m.get("rule_id"))
         .containsExactly("received:denied:core.classify-error");

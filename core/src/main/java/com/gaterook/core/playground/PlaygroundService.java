@@ -160,17 +160,17 @@ public class PlaygroundService {
     }
     JsonNode structured = result.get("structuredContent");
     Approval approval = null;
-    JsonNode approvalMeta = meta.path("ai.msrv.gaterook/approval");
+    JsonNode approvalMeta = meta.path("com.gaterook/approval");
     if (approvalMeta.isObject()) {
       approval = new Approval(approvalMeta.path("handle").asString(null), approvalMeta.path("status").asString(null));
     } else if (structured != null && structured.path("handle").isString()) {
       approval = new Approval(structured.get("handle").asString(), structured.path("status").asString(null));
     }
     long bytes = JSON.writeValueAsString(body).getBytes(StandardCharsets.UTF_8).length;
-    Meta m = new Meta(durationMs, bytes, meta.path("ai.msrv.gaterook/masked").path("fields").asInt(0),
-        meta.path("ai.msrv.gaterook/truncated").asBoolean(false) || structured != null
+    Meta m = new Meta(durationMs, bytes, meta.path("com.gaterook/masked").path("fields").asInt(0),
+        meta.path("com.gaterook/truncated").asBoolean(false) || structured != null
             && structured.path("truncated").asBoolean(false));
-    return new CallResult(meta.path("ai.msrv.gaterook/callId").asString(null), r.status(), request, body, structured,
+    return new CallResult(meta.path("com.gaterook/callId").asString(null), r.status(), request, body, structured,
         text.toString(), body.has("error") || result.path("isError").asBoolean(false), m, approval);
   }
 

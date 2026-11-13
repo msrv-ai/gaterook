@@ -574,7 +574,7 @@ class DemoSeed {
 
   /**
    * The audit identity of a seeded call. A call of an agent's task carries the client's trace id and the task's name,
-   * as a client that sends {@code traceparent} and {@code ai.msrv.gaterook/task} does: Activity › Traces lists it.
+   * as a client that sends {@code traceparent} and {@code com.gaterook/task} does: Activity › Traces lists it.
    */
   private AuditWriter.Call auditCall(String callId, String slug, EndpointSnapshot.Pair pair, Caller caller,
       ObjectNode arguments, Task task) {

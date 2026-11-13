@@ -210,7 +210,7 @@ class CoreProcessIT {
           "2025-11-25", null, null);
       assertThat(query.at("/result/isError").asBoolean()).as(query.toString()).isTrue();
       assertThat(query.at("/result/content/0/text").asString()).startsWith("Denied by policy dev.sql.query-writes");
-      assertThat(query.at("/result/_meta/ai.msrv.gaterook~1callId").asString()).startsWith("tc_");
+      assertThat(query.at("/result/_meta/com.gaterook~1callId").asString()).startsWith("tc_");
       JsonNode unknown = mcp.post("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{"
           + "\"name\":\"approval_status\",\"arguments\":{\"handle\":\"ap_000000000000\"}," + meta + "}}",
           "2026-07-28", "tools/call", "approval_status");

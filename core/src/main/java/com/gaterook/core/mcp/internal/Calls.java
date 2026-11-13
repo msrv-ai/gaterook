@@ -25,7 +25,7 @@ import tools.jackson.databind.node.ObjectNode;
 public class Calls {
 
   /** {@code _meta} key a client may name its task with (the trace's title, unverified). */
-  public static final String META_TASK = "ai.msrv.gaterook/task";
+  public static final String META_TASK = "com.gaterook/task";
 
   /** The audit keeps this much of a task's name. */
   static final int MAX_TASK = 512;

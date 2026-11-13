@@ -198,7 +198,7 @@ class McpFederationIT {
     assertThat(content.get(1).path("text").asString()).contains("withheld by GateRook");
     assertThat(content.get(2).path("type").asString()).isEqualTo("resource_link");
     assertThat(content.get(2).path("uri").asString()).isEqualTo(WELCOME);
-    assertThat(r.path("_meta").path("ai.msrv.gaterook/masked").path("fields").asInt()).isPositive();
+    assertThat(r.path("_meta").path("com.gaterook/masked").path("fields").asInt()).isPositive();
 
     McpClient.Answer modern = withApps("tools/call", JsonNodeFactory.instance.objectNode().put("name", "gh_picture")
         .set("arguments", args("connection", CONNECTION, "query", "x")));

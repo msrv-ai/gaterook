@@ -156,7 +156,7 @@ class ResultFactoriesTest {
 
   @Test
   void toolResultWithers() {
-    JsonNode meta = F.objectNode().put("ai.msrv.gaterook/callId", "tc_1");
+    JsonNode meta = F.objectNode().put("com.gaterook/callId", "tc_1");
     ToolResult r = ToolResult.text("x").truncated("row_limit").maskPaths(List.of("$.rows[*][2]")).withMeta(meta);
 
     assertThat(r.truncated()).isTrue();
