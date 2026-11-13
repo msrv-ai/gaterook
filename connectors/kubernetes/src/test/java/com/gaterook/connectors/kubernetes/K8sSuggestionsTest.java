@@ -87,7 +87,7 @@ class K8sSuggestionsTest {
   void aKubeconfigFileOffersItsContextsAndFillsInTheCurrentOne() throws Exception {
     Path file = kubeconfig("kind-dev");
 
-    Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + file + "\"}"),
+    Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + json(file) + "\"}"),
         secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.LOCAL);
 
     Suggestions.Field context = s.fields().get("/context");
@@ -106,7 +106,7 @@ class K8sSuggestionsTest {
   void aContextThatRunsACredentialCommandSaysThatTestConnectionAsksToAllowIt() throws Exception {
     Path file = kubeconfig("gke-prod");
 
-    Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + file
+    Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + json(file)
         + "\",\"context\":\"gke-prod\"}"), secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.SERVICE);
 
     assertThat(s.fields().get("/context").value()).isEqualTo("gke-prod");
@@ -145,7 +145,7 @@ class K8sSuggestionsTest {
   @Test
   void aMissingFileIsANoteNotAnError() {
     Suggestions s = connector.suggest(draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\""
-        + dir.resolve("nope") + "\"}"), secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.LOCAL);
+        + json(dir.resolve("nope")) + "\"}"), secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.LOCAL);
 
     assertThat(s.notes()).anyMatch(n -> n.contains("doesn't exist on this computer"));
     assertThat(s.fields()).doesNotContainKey("/context");
@@ -172,7 +172,7 @@ class K8sSuggestionsTest {
           {"metadata":{"name":"default"},"status":{"phase":"Active"}},
           {"metadata":{"name":"app-dev"},"status":{"phase":"Active"}},
           {"metadata":{"name":"old"},"status":{"phase":"Terminating"}}]}"""));
-    ConnectionConfig cfg = draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + file
+    ConnectionConfig cfg = draft("{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + json(file)
         + "\",\"context\":\"kind-dev\",\"caCert\":" + K8sApi.JSON.writeValueAsString(api.caPem) + "}");
 
     Suggestions s = connector.suggest(cfg, secrets(Map.of()), ctx(Env.DEV), Suggestions.Scope.SERVICE);
@@ -196,5 +196,10 @@ class K8sSuggestionsTest {
 
     assertThat(s.notes()).contains("The account can't list namespaces: type one it may use.");
     assertThat(s.fields()).doesNotContainKey("/namespace");
+  }
+
+  /** A path inside a JSON string: Windows paths carry backslashes. */
+  private static String json(Path path) {
+    return path.toString().replace("\\", "\\\\");
   }
 }
