@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "description": "Search requests and read queues. Comments and transitions wait for approval.",
   "requires": {
-    "gateway": ">=0.4.0 & <1.0.0",
+    "gateway": ">=0.4.0 & <3.0.0",
     "connectorApi": ">=2.0.0 & <3.0.0",
     "javaModules": ["java.net.http"]
   },
