@@ -60,7 +60,7 @@ class McpAuditIT {
         p.put("name", "sql_query");
         p.set("arguments", args("connection", "dev-db", "sql", "SELECT id FROM orders LIMIT " + i));
         p.putObject("_meta").put("traceparent", "00-" + TRACE + "-7a1c2e9b4d3f6a1" + i + "-01")
-            .put("ai.msrv.gaterook/task", "Fix failing order sync");
+            .put("com.gaterook/task", "Fix failing order sync");
         assertThat(dev.modern("tools/call", p, false).result().path("isError").asBoolean()).isFalse();
       }
       dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT SLEEP1200"));

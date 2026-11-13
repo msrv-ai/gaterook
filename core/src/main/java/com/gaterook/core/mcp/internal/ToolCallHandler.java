@@ -455,7 +455,7 @@ public class ToolCallHandler {
         ? perMinute + " calls per min for " + tool + " on this token. Retry after " + seconds + " s."
         : perMinute + " calls per min on this token. Retry after " + seconds + " s.";
     ObjectNode meta = JsonNodeFactory.instance.objectNode();
-    meta.put("ai.msrv.gaterook/retryAfterMs", admission.retryAfterMs());
+    meta.put("com.gaterook/retryAfterMs", admission.retryAfterMs());
     return ResultWriter.toolError(r.env(), text, meta);
   }
 

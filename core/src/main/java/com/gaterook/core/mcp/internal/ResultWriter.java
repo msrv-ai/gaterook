@@ -66,8 +66,8 @@ public final class ResultWriter {
   /**
    * A {@code CallToolResult} from a neutral result.
    *
-   * @param callId  the gateway's id of the call ({@code ai.msrv.gaterook/callId}), or {@code null}
-   * @param traceId the trace of the call ({@code ai.msrv.gaterook/traceId}), or {@code null}
+   * @param callId  the gateway's id of the call ({@code com.gaterook/callId}), or {@code null}
+   * @param traceId the trace of the call ({@code com.gaterook/traceId}), or {@code null}
    */
   public static ObjectNode callToolResult(Envelope env, ToolResult r, String callId, String traceId,
       ObjectNode extraMeta) {
@@ -85,16 +85,16 @@ public final class ResultWriter {
     out.put("isError", r.isError());
     ObjectNode meta = JsonNodeFactory.instance.objectNode();
     if (callId != null) {
-      meta.put("ai.msrv.gaterook/callId", callId);
+      meta.put("com.gaterook/callId", callId);
     }
     if (traceId != null) {
-      meta.put("ai.msrv.gaterook/traceId", traceId);
+      meta.put("com.gaterook/traceId", traceId);
     }
     if (r.maskedCount() > 0 || callId != null) {
-      meta.putObject("ai.msrv.gaterook/masked").put("fields", r.maskedCount());
+      meta.putObject("com.gaterook/masked").put("fields", r.maskedCount());
     }
     if (r.truncated()) {
-      meta.putObject("ai.msrv.gaterook/truncated").put("reason", r.truncatedReason());
+      meta.putObject("com.gaterook/truncated").put("reason", r.truncatedReason());
     }
     if (extraMeta != null) {
       meta.setAll(extraMeta);

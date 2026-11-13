@@ -118,7 +118,7 @@ class McpToolSearchIT {
     JsonNode direct = dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT 1")).result();
     assertThat(read.path("isError").asBoolean()).as(read.toString()).isFalse();
     assertThat(read.at("/structuredContent/rows")).isEqualTo(direct.at("/structuredContent/rows"));
-    String callId = read.at("/_meta/ai.msrv.gaterook~1callId").asString();
+    String callId = read.at("/_meta/com.gaterook~1callId").asString();
     assertThat(core.jdbc().queryForObject("select tool_name from tool_call where call_id = ? and phase = "
         + "'completed'", String.class, callId)).as("Activity shows the tool that ran").isEqualTo("sql_query");
 

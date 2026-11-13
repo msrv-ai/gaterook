@@ -78,7 +78,7 @@ class McpOverheadIT {
       long micros = (System.nanoTime() - t0) / 1_000;
       assertThat(a.status()).isEqualTo(200);
       assertThat(a.result().path("isError").asBoolean(true)).as(a.body().toString()).isFalse();
-      latencyByCall.put(a.result().at("/_meta/ai.msrv.gaterook~1callId").asString(), micros);
+      latencyByCall.put(a.result().at("/_meta/com.gaterook~1callId").asString(), micros);
     }
     Map<String, Long> resourceMs = new HashMap<>();
     core.jdbc().query("select call_id, resource_ms from tool_call where phase = 'completed' and token_label = ?",

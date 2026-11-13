@@ -31,7 +31,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
  *   <li><b>Clean up</b> — refused destructive calls at the end of the task ({@code TRUNCATE}, {@code DROP},
  *       {@code DELETE}), by their own classification rather than as a change.</li>
  * </ul>
- * The title is what the client called the task ({@code _meta["ai.msrv.gaterook/task"]}), else the first {@code note} an
+ * The title is what the client called the task ({@code _meta["com.gaterook/task"]}), else the first {@code note} an
  * agent wrote, else the client's name; it is masked like everything in the audit, cut to 120 characters, and always
  * shown as unverified. A pure function of the rows: the golden tests run it on the kit's traces.
  */

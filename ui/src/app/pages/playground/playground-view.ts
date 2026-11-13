@@ -358,7 +358,7 @@ export function maskedFacts(call: PlaygroundCallView, table: ResultTable | null)
 export function traceIdOf(call: PlaygroundCallView): string | null {
   const result = call.wire.response?.['result'];
   const meta = isObject(result) ? result['_meta'] : null;
-  const id = isObject(meta) ? meta['ai.msrv.gaterook/traceId'] : null;
+  const id = isObject(meta) ? meta['com.gaterook/traceId'] : null;
   return typeof id === 'string' && id ? id : null;
 }
 

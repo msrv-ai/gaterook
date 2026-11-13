@@ -135,7 +135,7 @@ public class ApprovalAnswers {
    * to a person, like {@code sql_query} with a function that isn't built in (§9 "SQL reads cannot write"). The spec
    * wants every result that isn't an error to match that schema, and clients (the TS SDK) refuse one that doesn't. A
    * call completed by the time it answers (first wait, an MRTR round) answers with the executed result's own
-   * {@code structuredContent}, which matches, and names the request in {@code _meta["ai.msrv.gaterook/approval"]};
+   * {@code structuredContent}, which matches, and names the request in {@code _meta["com.gaterook/approval"]};
    * every other state (pending, running, rejected, expired, failed, a result no longer stored) keeps its text and
    * handle but is {@code isError}, which no client validates against the schema.
    */
@@ -144,7 +144,7 @@ public class ApprovalAnswers {
     if (a != null && "completed".equals(a.status()) && executed != null && !executed.isError()
         && executed.structuredContent() != null) {
       ObjectNode meta = JsonNodeFactory.instance.objectNode();
-      meta.putObject("ai.msrv.gaterook/approval").put("handle", a.id()).put("status", "completed");
+      meta.putObject("com.gaterook/approval").put("handle", a.id()).put("status", "completed");
       return new ToolResult(completed(a).content(), executed.structuredContent(), false, null, executed.truncated(),
           executed.truncatedReason(), List.of(), executed.maskedCount(), executed.resultBytes(), meta);
     }
