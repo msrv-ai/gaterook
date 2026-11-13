@@ -2,12 +2,14 @@ package ai.msrv.gaterook.e2e.demo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.GatewayApplication;
 import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.core.approvals.ApprovalService.Decision;
 import ai.msrv.gaterook.core.approvals.ApprovalView;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.boot.GatewayLauncher;
@@ -69,14 +71,20 @@ class DemoSeedIT {
 
       EndpointService.Summary dev = endpoints.get("dev");
       assertThat(dev.connections()).isEqualTo(8);
-      assertThat(dev.tools()).as("15 read only · 12 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(15, 12,
-          5));
+      // No tool starts Off, so the two that are Off on dev are a person's choices: the kit's Setup changes of the day,
+      // which the seed replays with their reasons (their rows are checked below).
+      assertThat(dev.tools()).as("32 tools: 17 read only · 13 approval · 2 off").isEqualTo(
+          new EndpointService.ToolCounts(17, 13, 2));
+      assertThat(core.getBean(EndpointSnapshotService.class).bySlug("dev").orElseThrow().pairs())
+          .filteredOn(p -> p.mode() == Mode.OFF).extracting(p -> p.tool().name() + " on " + p.connectionName())
+          .containsExactlyInAnyOrder("ssh_exec on dev-vm", "http_get on billing-api");
       assertThat(dev.description()).startsWith("Local development. Agents read freely;");
       assertThat(endpoints.get("stage-readonly").access()).isEqualTo("read-only");
       assertThat(endpoints.get("stage-readonly").connections()).isEqualTo(3);
       assertThat(endpoints.get("incident-prod").connections()).as("prod-replica, prod-logs, prod-vm").isEqualTo(3);
-      assertThat(endpoints.get("incident-prod").tools()).as("10 tools: 7 read only · 3 off")
-          .isEqualTo(new EndpointService.ToolCounts(7, 0, 3));
+      // Incident response: reads on; sql_execute on prod-replica and ssh_exec on prod-vm are in Approval.
+      assertThat(endpoints.get("incident-prod").tools()).as("10 tools: 8 read only · 2 approval")
+          .isEqualTo(new EndpointService.ToolCounts(8, 2, 0));
       assertThat(endpoints.get("incident-prod").description()).contains("run approved runbooks on prod-vm");
 
       // github-mcp v0.6.2 from the catalog: 26 tools, on no endpoint, its token encrypted here; nothing ran npm.
