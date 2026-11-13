@@ -52,6 +52,9 @@ class ToolPairsTest {
 
   @BeforeEach
   void environmentPolicy() {
+    // No delivered type shares a tool with a compiled-in one here: the tools are published as their connector gives
+    // them.
+    when(registry.published(any(), any())).thenAnswer(call -> call.getArgument(1));
     when(policies.view(Env.DEV, manifest)).thenReturn(new PolicyView(Env.DEV, "dev.logs",
         JsonNodeFactory.instance.objectNode(), LimitsOf.from(JsonNodeFactory.instance.objectNode(), Env.DEV)));
   }

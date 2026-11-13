@@ -1,13 +1,14 @@
 # Connector delivery
 
-Every connector module under `connectors/` reaches the application in one of two ways. [`connectors/delivery.json`](../connectors/delivery.json) records which, with the connector types each module adds.
+Every connector module under `connectors/` reaches the application in one of three ways. [`connectors/delivery.json`](../connectors/delivery.json) records which, with the connector types each module adds.
 
 | Delivery | Meaning |
 | --- | --- |
 | `bundled` | Compiled into the native core. Part of every installer; needs no download and no Java runtime. |
 | `module` | Not part of the installer and not compiled into the native core. Its code runs in a separate JVM host, as plugins do (see [architecture §7.5](ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers)). |
+| `bridge` | A module that this release still compiles in. Its package is published already, and the release after makes it `module` (see [the bridge](#the-bridge-between-two-releases)). |
 
-The source of a connector is the same in both cases: its Maven module, its schemas, and its tests. Delivery is a packaging decision.
+The source of a connector is the same in every case: its Maven module, its schemas, and its tests. Delivery is a packaging decision.
 
 ## The rule
 
@@ -18,16 +19,33 @@ A connector is compiled in unless one of these holds:
 
 Connectors that speak HTTP through the shared egress code cost between 0.5 and 3 MB of image each, which is why they are compiled in. Vendor driver stacks cost far more: the Oracle JDBC driver alone is about 30 MB.
 
-Kubernetes, SSH, MongoDB, the log services and the SQL family stay compiled in by decision, although they are over the budget ([decision 18](DECISIONS.md)).
+Kubernetes, SSH, MongoDB, the log services and the SQL connector with PostgreSQL, MySQL and SQLite stay compiled in by decision, although they are over the budget ([decision 18](DECISIONS.md)).
+
+Oracle Database and SQL Server are dialects of the SQL connector and their own units of delivery: `connectors/sql-oracle` and `connectors/sql-sqlserver` register the type and bring its JDBC driver, while the connector's code stays in `connectors/sql`. Both are `bridge` connectors now.
 
 ## What follows the file
 
 - `app/pom.xml` depends on the bundled connectors. The native core is built from that classpath.
+- The Maven profile `bridge` of `app/pom.xml` adds the bridge connectors. It is on unless `-Dgateway.withoutBridge` is given, which builds the core as the release after has it.
 - The Maven profile `all-bundled` of `app/pom.xml` adds the module-delivered connectors for a JVM run that wants every connector in one process. `npm run build` and the development launchers use it; a native build must not.
 - `node scripts/delivery.mjs --check` compares the file with `app/pom.xml`, the root reactor and the connector directories. It runs with `npm test`.
 - The tests of the assembly read the file too: `ConnectorDelivery` in `app/src/test` gives them the types the running core must have.
 
-To change a connector's delivery, edit `delivery.json`, move its dependency in `app/pom.xml` between the main dependencies and the `all-bundled` profile, and run `npm test`.
+To change a connector's delivery, edit `delivery.json`, move its dependency in `app/pom.xml` between the main dependencies, the `bridge` profile and the `all-bundled` profile, and run `npm test`.
+
+## The bridge between two releases
+
+A connector that a released build compiles in doesn't become a module in one step. A person who has connections of its type would start the next release without the connector, and would wait for a download before the first call.
+
+The release between is the bridge. It still compiles the connector in, and its module is already published.
+
+- With the check for updates, the core installs the module ahead for every such type that a connection uses. It never does so at the start.
+- Nothing uses the module meanwhile. A build that compiles a type in serves it itself, and the type's card in Add connection offers no download.
+- The release after doesn't compile the connector in. It finds the module in place and serves the same connections from the module's host at once, with nothing to download.
+
+A person who skips the bridge release, or was offline through it, starts the release after without the module. The type is then awaited, as described under [Installing](#a-connector-that-was-compiled-in-before).
+
+To end a bridge, change the connector's delivery to `module` and remove its dependency from the `bridge` profile.
 
 ## Connector modules
 
@@ -58,6 +76,8 @@ The package is `modules/<id>/target/<id>-<version>.jar`, here `modules/cassandra
 | --- | --- | --- |
 | `cassandra` | [Apache Cassandra](cassandra.md) with its Java driver | About 12 MB |
 | `neo4j` | [Neo4j](neo4j.md) with its Bolt driver | About 9 MB |
+| `sql-oracle` | [Oracle Database](oracle.md): the SQL connector with the Oracle JDBC driver | About 17 MB |
+| `sql-sqlserver` | [SQL Server](sql-server.md): the SQL connector with the Microsoft JDBC driver | About 9 MB |
 
 ### Versions
 
@@ -104,7 +124,13 @@ An update that turns a compiled-in connector into a module finds connections of 
 
 Until the module is installed, a stand-in answers for the type and runs nothing. A call waits up to 20 seconds for the module and then goes to its connector. Otherwise it is refused with the reason: the connector is being downloaded, or why it couldn't be. A classification the connector didn't give is a deny. When the module arrives, the endpoints rebuild from its own manifest.
 
-A type is awaited only while a connection uses it and its row verifies. A type whose tools this build couldn't hold beside its own, because a tool it shares with a compiled-in type differs, isn't kept either: it is absent until its module is installed.
+A type is awaited only while a connection uses it and its row verifies. A type whose tools this build couldn't hold beside its own, because a tool it shares with a compiled-in type takes other arguments or has another nature, isn't kept either: it is absent until its module is installed. Its templates aren't offered while it is awaited; the modes of their tools stay.
+
+#### Tools that a module shares with the core
+
+A dialect of the SQL connector that comes as a module has the same `sql_*` tools as the dialects the core compiles in, and an endpoint publishes one `sql_query` for all of its SQL connections. A module is built on its own day, so its copy of such a tool may be worded as another build worded it.
+
+The family has one definition, the compiled-in one. A module's tool of the same name is registered and published as the core defines it, as long as everything a call depends on is the same: the arguments, the output, the annotations, the nature, the modes and the risk. Titles, descriptions and examples may differ. A module whose tool differs in more than wording isn't registered, and the start goes on without its types.
 
 #### The steps
 

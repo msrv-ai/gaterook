@@ -89,10 +89,12 @@ class Neo4jModuleCoreProcessIT {
 
     // A write sent as a read is refused by the connector's own classification.
     String create = "MERGE (n:" + LABEL + " {id: 'm1'}) SET n.owner = 'ann', n.balance = 120";
-    JsonNode refused = module.api.call(2, "neo4j_query", "{\"connection\":\"graph-dev\",\"cypher\":\"" + create + "\"}");
+    JsonNode refused = module.api.call(2, "neo4j_query", "{\"connection\":\"graph-dev\",\"cypher\":\"" + create
+        + "\"}");
     assertThat(refused.toString()).doesNotContain("\"isError\":false").contains("neo4j_execute");
 
-    JsonNode pending = module.api.call(3, "neo4j_execute", "{\"connection\":\"graph-dev\",\"cypher\":\"" + create + "\"}");
+    JsonNode pending = module.api.call(3, "neo4j_execute", "{\"connection\":\"graph-dev\",\"cypher\":\"" + create
+        + "\"}");
     String handle = pending.at("/result/structuredContent/handle").asString();
     assertThat(handle).as(pending.toString()).startsWith("ap_");
     JsonNode detail = module.api.json(module.api.admin("GET", "/api/approvals/" + handle, null), 200);

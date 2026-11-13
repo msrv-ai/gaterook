@@ -1,5 +1,5 @@
 {
-  "$comment": "How each connector module reaches the application: `bundled` is compiled into the core, `module` is not part of the installer. docs/connector-delivery.md explains the rule; app/pom.xml and scripts/size-report.mjs follow this file, and scripts/delivery.test.mjs keeps them in step.",
+  "$comment": "How each connector module reaches the application: `bundled` is compiled into the core, `module` is not part of the installer, `bridge` is a module that this release still compiles in (the release after makes it `module`). docs/connector-delivery.md explains the rule; app/pom.xml and scripts/size-report.mjs follow this file, and scripts/delivery.test.mjs keeps them in step.",
   "schema": 1,
   "budget": {
     "$comment": "The most a bundled connector may add to the native core, in megabytes of image, unless it is listed in `exempt` with the reason it stays compiled in.",
@@ -53,7 +53,17 @@
     },
     "snowflake": {"types": ["snowflake"], "delivery": "bundled"},
     "spanner": {"types": ["spanner"], "delivery": "bundled"},
-    "sql": {"types": ["postgres", "mysql", "oracle", "sqlserver", "sqlite"], "delivery": "bundled"},
+    "sql": {"types": ["postgres", "mysql", "sqlite"], "delivery": "bundled"},
+    "sql-oracle": {
+      "types": ["oracle"],
+      "delivery": "bridge",
+      "why": "The Oracle JDBC driver alone is about 30 MB of native image, ten times the budget of a bundled connector."
+    },
+    "sql-sqlserver": {
+      "types": ["sqlserver"],
+      "delivery": "bridge",
+      "why": "The SQL Server JDBC driver is about 7 MB of native image, more than twice the budget of a bundled connector."
+    },
     "ssh": {"types": ["ssh", "ssh-logs"], "delivery": "bundled"},
     "trino": {"types": ["trino"], "delivery": "bundled"}
   }

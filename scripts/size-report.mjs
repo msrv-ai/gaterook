@@ -246,6 +246,8 @@ export function checkBudget(attributed, delivery) {
     const megabytes = (row.imageBytes / MB).toFixed(1);
     if (entry.delivery === 'module') {
       problems.push(`${row.owner} is delivered as a module but is compiled into this image (${megabytes} MB)`);
+    } else if (entry.delivery === 'bridge') {
+      notes.push(`${row.owner} is a bridge connector: ${megabytes} MB leave the image with the release after`);
     } else if (row.imageBytes > budget && !exempt[row.owner]) {
       problems.push(`${row.owner} adds ${megabytes} MB to the image, over the ${delivery.budget.bundledImageMegabytes} MB `
         + 'budget of a bundled connector: deliver it as a module or list it in budget.exempt with the reason');

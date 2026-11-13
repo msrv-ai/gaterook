@@ -31,6 +31,8 @@
     <module>connectors/support</module>
     <module>connectors/cloud-auth</module>
     <module>connectors/sql</module>
+    <module>connectors/sql-oracle</module>
+    <module>connectors/sql-sqlserver</module>
     <module>connectors/mongodb</module>
     <module>connectors/redis</module>
     <module>connectors/ssh</module>
@@ -70,6 +72,8 @@
     <module>plugins/access</module>
     <module>modules/cassandra</module>
     <module>modules/neo4j</module>
+    <module>modules/sql-oracle</module>
+    <module>modules/sql-sqlserver</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>
@@ -205,6 +209,16 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-sql</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-sql-oracle</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-sql-sqlserver</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

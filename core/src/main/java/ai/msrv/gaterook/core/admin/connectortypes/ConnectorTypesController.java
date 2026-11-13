@@ -227,8 +227,10 @@ class ConnectorTypesController {
     List<Group> groups = new ArrayList<>();
     byGroup.forEach((name, cards) -> {
       if (!cards.isEmpty() && (group == null || group.isBlank() || group.equalsIgnoreCase(name))) {
+        // A type this build compiles in is served by the build, whatever module is listed or installed for it.
         groups.add(new Group(name, cards.stream().map(c -> c.module() == null && moduleOf.containsKey(c.type())
-            && "built-in".equals(c.kind()) ? c.of(moduleOf.get(c.type())) : c).toList()));
+            && "built-in".equals(c.kind()) && !registry.compiledIn(c.type()) ? c.of(moduleOf.get(c.type())) : c)
+            .toList()));
       }
     });
     return new Catalog(List.copyOf(groups), List.copyOf(installed));

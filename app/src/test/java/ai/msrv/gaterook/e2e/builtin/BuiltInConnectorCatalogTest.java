@@ -48,6 +48,12 @@ class BuiltInConnectorCatalogTest {
   /** The names of the connectors that connectors/delivery.json delivers as modules: absent without -Pall-bundled. */
   private static final Set<String> MODULE_DELIVERED_NAMES = Set.of("Apache Cassandra", "Neo4j");
 
+  /**
+   * The names of the bridge connectors of connectors/delivery.json: absent with -Dgateway.withoutBridge. They share
+   * the SQL tools with the bundled dialects, so no tool leaves with them.
+   */
+  private static final Set<String> BRIDGE_NAMES = Set.of("Oracle Database", "SQL Server");
+
   /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
       "postgres", Map.of("sql_list_schemas", Mode.READ_ONLY, "sql_describe_table", Mode.READ_ONLY,
@@ -122,6 +128,9 @@ class BuiltInConnectorCatalogTest {
     Map<String, Integer> expected = new LinkedHashMap<>(TOOLS_PER_CONNECTOR);
     if (!ConnectorDelivery.inProcess()) {
       MODULE_DELIVERED_NAMES.forEach(expected::remove);
+    }
+    if (!ConnectorDelivery.bridged()) {
+      BRIDGE_NAMES.forEach(expected::remove);
     }
     assertThat(counts).containsExactlyInAnyOrderEntriesOf(expected);
   }

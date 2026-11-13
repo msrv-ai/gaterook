@@ -274,7 +274,10 @@ public class EndpointConnections implements SmartInitializingSingleton {
       return;
     }
     ConnectorType type = registry.type(c.config().type()).orElse(null);
-    if (type == null) {
+    if (type == null || registry.awaitedTypes().contains(c.config().type())) {
+      // No such type here, or one that is awaited: what describes its tools now is an earlier build's row, and its
+      // templates don't compile without its connector. The pairs stay as they are until its module is here, which
+      // reconciles them (ConnectorTypeChanged).
       return;
     }
     // An MCP server's tools are its own: no other connection shares its view.

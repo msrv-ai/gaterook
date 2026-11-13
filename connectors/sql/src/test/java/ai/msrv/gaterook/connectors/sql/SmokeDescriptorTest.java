@@ -8,7 +8,9 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -28,6 +30,25 @@ class SmokeDescriptorTest {
       smoke = Fixtures.JSON.readTree(in);
     }
     assertThat(smoke.path("area").asString()).isEqualTo("sql");
+    assertThat(check(smoke)).isEqualTo(5);
+  }
+
+  /**
+   * The touches of Oracle Database and SQL Server live with the modules that register those types and bring their
+   * drivers ({@code connectors/sql-oracle}, {@code connectors/sql-sqlserver}); the connector they touch is this one.
+   */
+  @Test
+  void theTouchesOfTheDialectsThatAreTheirOwnUnitsAnswerAsTheirDescriptorsSay() throws Exception {
+    for (String unit : List.of("sql-oracle", "sql-sqlserver")) {
+      Path file = Path.of("..", unit, "src", "main", "resources", "META-INF", "mcp-gateway", "smoke", unit + ".json");
+      JsonNode smoke = Fixtures.JSON.readTree(Files.readAllBytes(file));
+      assertThat(smoke.path("area").asString()).isEqualTo(unit);
+      assertThat(check(smoke)).as(unit).isEqualTo(1);
+    }
+  }
+
+  /** Runs every touch of {@code smoke} that needs no server. @return how many it ran */
+  private static int check(JsonNode smoke) throws Exception {
     int checked = 0;
     for (JsonNode touch : smoke.path("touches")) {
       if (touch.has("fixture")) {
@@ -62,6 +83,6 @@ class SmokeDescriptorTest {
       connector.close();
       checked++;
     }
-    assertThat(checked).isEqualTo(7);
+    return checked;
   }
 }
