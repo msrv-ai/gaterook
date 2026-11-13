@@ -186,6 +186,35 @@ describe('connectors view: Installed', () => {
     expect(installedCountText(views, 1, 'rabbit')).toBe('1 of 4 installed connectors');
   });
 
+  it('shows a type of the person’s own module as a module, unsigned, between the built-ins and the plugins', () => {
+    const module = { id: 'shop', version: '1.2.0', state: 'ready', step: null, sizeBytes: 2_700_000, installed: true, message: null, signed: false, listedVersion: null };
+    const orders = type({ id: 'orders', name: 'Orders', version: '1.0.0', signed: false, tools: 2, module, process: { state: 'running', pid: 77, rssMb: 61, detail: null } });
+    const shipments = type({ id: 'shipments', name: 'Shipments', signed: false, tools: 1, module });
+    // GateRook's own module is one of the built-in connectors: nothing sets it apart here.
+    const cassandra = type({ id: 'cassandra', name: 'Cassandra', module: { ...module, id: 'cassandra', signed: true } });
+    const views = installedViews([rabbit, orders, postgres, shipments, cassandra], conns, null, []);
+    expect(views.map((v) => v.key)).toEqual(['type:postgres', 'type:cassandra', 'module:orders', 'module:shipments', 'plugin:rabbitmq']);
+    const own = views[2];
+    expect(own.kind).toBe('module');
+    expect(own.module?.id).toBe('shop');
+    expect(own.card).toMatchObject({ kind: 'module', signed: false, version: '1.2.0', action: null, tools: 2 });
+    expect(own.card.status).toEqual({ tone: 'success', text: 'Running · 61 MB' });
+    expect(views[1].module ?? null).toBeNull();
+    expect(views[1].card).toMatchObject({ kind: 'built-in', signed: null, action: 'add' });
+    expect(installedCountText(views, views.length, '')).toBe('2 built-in, 2 from your own module, 1 plugin');
+    expect(matches(own.search, 'unsigned module')).toBe(true);
+
+    // GateRook's list has the module too: its build is there to return to, after what needs the person first.
+    const listed = { ...orders, module: { ...module, listedVersion: '1.3.0' } };
+    expect(installedViews([listed], [], null, [])[0].card.status).toEqual({ tone: 'info', text: 'GateRook’s build available · ', mono: 'v1.3.0' });
+    expect(installedViews([{ ...listed, module: { ...listed.module, state: 'installing' } }], [], null, [])[0].card.status).toEqual({ tone: 'info', text: 'Installing GateRook’s build' });
+    expect(installedViews([{ ...listed, enabled: false }], [], null, [])[0].card.status?.text).toBe('Switched off');
+    expect(installedViews([{ ...listed, verified: false }], [], null, [])[0].state).toBe('changed-outside');
+    // A core that says nothing of whose build a module is knows only GateRook's own.
+    const { signed: _, ...unsaid } = module;
+    expect(installedViews([{ ...orders, module: unsaid }], [], null, [])[0].kind).toBe('built-in');
+  });
+
   it('offers the catalog’s newer version of a plugin, after what needs the person first', () => {
     const index = catalog([entry({ id: 'rabbitmq', kind: 'plugin', name: 'RabbitMQ', version: '0.4.0', installed: '0.3.0' })]);
     expect(pluginUpdate(rabbit, index)?.to).toBe('0.4.0');

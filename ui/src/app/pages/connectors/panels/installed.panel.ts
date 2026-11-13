@@ -12,7 +12,7 @@ import { failureDetails, failureText } from '../dialogs/failure';
 
 /** What a card of Installed asks the page to do (the dialogs live outside the tabs). */
 export interface InstalledAction {
-  readonly type: 'update' | 'disable' | 'enable' | 'restart' | 'uninstall' | 'turn-on' | 'keep';
+  readonly type: 'update' | 'disable' | 'enable' | 'restart' | 'uninstall' | 'turn-on' | 'keep' | 'uninstall-module' | 'replace-module';
   readonly view: InstalledView;
   readonly opener: HTMLElement | null;
 }
@@ -25,6 +25,9 @@ export interface InstalledAction {
  *
  * Plugin cards: Update (when the catalog has a newer version), Disable / Enable, Restart (failed host) and Uninstall in
  * the card's menu; the footer says what the plugin's process does ("Running · 54 MB", "Sleeping").
+ *
+ * A connector type of a module the person installed from a file is a card of its own kind (Module, Unsigned): its
+ * menu removes the module or, when GateRook's list has the module too, returns to GateRook's build.
  */
 @Component({
   selector: 'div[gwInstalledPanel]',
@@ -71,6 +74,6 @@ export class GwInstalledPanel {
   }
 
   protected menuId(v: InstalledView): string {
-    return `menu-plugin-${v.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    return `menu-${v.kind === 'module' ? 'module' : 'plugin'}-${v.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   }
 }

@@ -62,12 +62,24 @@ class ConnectorRegistryDeliveredTypesTest {
   private static final class Source implements ConnectorSource {
     final Map<String, Connector> connectors = new LinkedHashMap<>();
     final Map<String, String> modules = new LinkedHashMap<>();
+    final Set<String> unsigned = new java.util.LinkedHashSet<>();
     Set<String> listed = Set.of();
 
     Source module(String moduleId, Connector connector) {
       connectors.put(connector.manifest().id(), connector);
       modules.put(connector.manifest().id(), moduleId);
       return this;
+    }
+
+    /** A module GateRook didn't sign: a person's own, installed from a file. */
+    Source own(String moduleId, Connector connector) {
+      unsigned.add(connector.manifest().id());
+      return module(moduleId, connector);
+    }
+
+    @Override
+    public boolean unverified(String typeId) {
+      return unsigned.contains(typeId);
     }
 
     Source plugin(Connector connector) {
@@ -313,6 +325,76 @@ class ConnectorRegistryDeliveredTypesTest {
         .inputSchema(family.inputSchema()).nature(ToolDefinition.Nature.MUTATION)
         .defaultMode(ToolDefinition.Mode.APPROVAL, ToolDefinition.Mode.APPROVAL).build();
     assertThat(ConnectorRegistry.sameContract(family, change)).as("and so is another nature").isFalse();
+  }
+
+  @Test
+  void aModuleGateRookDidNotSignAddsItsTypesButPassesForNothingOfGateRooks() {
+    Connector postgres = connector("postgres", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."));
+    Connector cassandra = connector("cassandra", ConnectorManifest.Kind.BUILT_IN, tool("cql_query", "Runs CQL."));
+    Connector orders = connector("orders", ConnectorManifest.Kind.BUILT_IN, tool("orders_list", "Lists orders."));
+    // A tool equal to the compiled-in one would join its family in a module of GateRook's own.
+    Connector oracle = connector("oracle", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."));
+    Connector family = connector("warehouse", ConnectorManifest.Kind.BUILT_IN, tool("sql_export", "Exports."));
+    Connector twin = connector("cassandra-eu", ConnectorManifest.Kind.BUILT_IN, tool("cql_query", "Runs CQL."));
+    Connector near = connector("cql-more", ConnectorManifest.Kind.BUILT_IN, tool("cql_export", "Exports."));
+    Connector second = connector("orders-eu", ConnectorManifest.Kind.BUILT_IN, tool("orders_list", "Lists orders."));
+    // The person's modules come first in the source: GateRook's own module still registers before them.
+    Source source = new Source().own("my-oracle", oracle).own("warehouse", family).own("twin", twin)
+        .own("near", near).own("orders", orders).own("orders-eu", second).module("cassandra", cassandra);
+    ConnectorRegistry registry = registry(List.of(postgres), source);
+
+    assertThat(registry.type("orders")).hasValueSatisfying(t -> {
+      assertThat(t.kind()).isEqualTo(ConnectorManifest.Kind.BUILT_IN);
+      assertThat(t.usable()).isTrue();
+    });
+    assertThat(registry.connectorFor(of("orders"))).containsSame(orders);
+    assertThat(registry.type("cassandra")).isPresent();
+    assertThat(registry.type("oracle")).as("it shares no tool with a compiled-in type, equal or not").isEmpty();
+    assertThat(registry.type("warehouse")).as("nor a family of names with one").isEmpty();
+    assertThat(registry.type("cassandra-eu")).as("nor a tool with a module of GateRook's").isEmpty();
+    assertThat(registry.type("cql-more")).as("nor that module's family of names").isEmpty();
+    assertThat(registry.type("orders-eu")).as("nor with another person's module").isEmpty();
+  }
+
+  @Test
+  void whatStandsInTheWayOfAPersonsOwnModuleIsKnownBeforeItIsInstalled() {
+    Connector postgres = connector("postgres", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."));
+    Connector cassandra = connector("cassandra", ConnectorManifest.Kind.BUILT_IN, tool("cql_query", "Runs CQL."));
+    Connector jira = connector("jira", ConnectorManifest.Kind.PLUGIN, tool("jira_search", "Searches."));
+    Connector orders = connector("orders", ConnectorManifest.Kind.BUILT_IN, tool("orders_list", "Lists orders."));
+    ConnectorRegistry registry = registry(List.of(postgres), new Source().module("cassandra", cassandra)
+        .plugin(jira).own("orders", orders));
+    java.util.function.BiFunction<String, Connector, Optional<String>> problem = (module, connector) ->
+        registry.ownModuleProblem(module, List.of(connector.manifest()));
+
+    assertThat(problem.apply("reports", connector("reports", ConnectorManifest.Kind.BUILT_IN,
+        tool("reports_run", "Runs a report.")))).as("names nobody has").isEmpty();
+    assertThat(problem.apply("pg", connector("postgres", ConnectorManifest.Kind.BUILT_IN,
+        tool("pg_stats", "Reads statistics.")))).hasValueSatisfying(why -> assertThat(why)
+            .contains("is part of this GateRook"));
+    assertThat(problem.apply("x", connector("x", ConnectorManifest.Kind.BUILT_IN, tool("sql_query", "Runs SQL."))))
+        .hasValueSatisfying(why -> assertThat(why).contains("sql_query has the name of a built-in tool"));
+    assertThat(problem.apply("x", connector("x", ConnectorManifest.Kind.BUILT_IN, tool("sql_export", "Exports."))))
+        .hasValueSatisfying(why -> assertThat(why).contains("sql_export starts with sql_"));
+    assertThat(problem.apply("x", connector("x", ConnectorManifest.Kind.BUILT_IN, tool("cql_query", "Runs CQL."))))
+        .hasValueSatisfying(why -> assertThat(why).contains("cql_query is already a tool of cassandra"));
+    assertThat(problem.apply("x", connector("x", ConnectorManifest.Kind.BUILT_IN, tool("jira_search", "Searches."))))
+        .hasValueSatisfying(why -> assertThat(why).contains("jira_search is already a tool of jira"));
+    assertThat(problem.apply("x", connector("cassandra", ConnectorManifest.Kind.BUILT_IN, tool("x_y", "Does."))))
+        .hasValueSatisfying(why -> assertThat(why).contains("another connector already uses this id"));
+    assertThat(problem.apply("x", connector("x", ConnectorManifest.Kind.PLUGIN, tool("x_y", "Does."))))
+        .hasValueSatisfying(why -> assertThat(why).contains("built-in types"));
+
+    // Another build of the person's own module keeps its names and may add to them; another module takes none.
+    assertThat(problem.apply("orders", connector("orders", ConnectorManifest.Kind.BUILT_IN,
+        tool("orders_list", "Lists orders."), tool("orders_get", "Reads one order.")))).isEmpty();
+    assertThat(problem.apply("orders-eu", connector("orders-eu", ConnectorManifest.Kind.BUILT_IN,
+        tool("orders_list", "Lists orders.")))).hasValueSatisfying(why -> assertThat(why)
+            .contains("orders_list is already a tool of orders"));
+    assertThat(registry.ownModuleProblem("pair", List.of(
+        connector("pair-a", ConnectorManifest.Kind.BUILT_IN, tool("pair_read", "Reads.")).manifest(),
+        connector("pair-b", ConnectorManifest.Kind.BUILT_IN, tool("pair_read", "Reads.")).manifest())))
+        .as("two types of one module may have one tool").isEmpty();
   }
 
   @Test

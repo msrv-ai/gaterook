@@ -183,8 +183,9 @@ final class TcpGrant {
   Verdict judge(String requestedName, InetAddress requestedIp, String askedName, int port, Resolver resolver) {
     String shown = requestedName != null ? requestedName : requestedIp.getHostAddress();
     if (!open.get()) {
-      return Verdict.refuse(denial(ScopedEgress.Reason.OUTSIDE_CALL, shown, port, "The plugin opened a connection "
-          + "to " + target(shown, port) + " after its call ended: its connections open only during a call.", null));
+      return Verdict.refuse(denial(ScopedEgress.Reason.OUTSIDE_CALL, shown, port, "The " + HostVoice.noun()
+          + " opened a connection to " + target(shown, port) + " after its call ended: its connections open only "
+          + "during a call.", null));
     }
     if (requestedName != null) {
       return byName(normalize(requestedName), port, resolver);
@@ -288,12 +289,12 @@ final class TcpGrant {
 
   private ScopedEgress.Denial notGranted(String shown, int port) {
     if (destinations.isEmpty()) {
-      return denial(ScopedEgress.Reason.NOT_GRANTED, shown, port, "This connection gives the plugin no host and "
-          + "port to connect to, so it may not connect to " + target(shown, port) + ".", null);
+      return denial(ScopedEgress.Reason.NOT_GRANTED, shown, port, "This connection gives the "
+          + HostVoice.noun() + " no host and port to connect to, so it may not connect to " + target(shown, port) + ".", null);
     }
     List<String> allowed = destinations.stream().map(Destination::text).toList();
-    return denial(ScopedEgress.Reason.NOT_GRANTED, shown, port, "This plugin may only connect to "
-        + String.join(", ", allowed) + " for this connection, not " + target(shown, port) + ".", null);
+    return denial(ScopedEgress.Reason.NOT_GRANTED, shown, port, "This " + HostVoice.noun()
+        + " may only connect to " + String.join(", ", allowed) + " for this connection, not " + target(shown, port) + ".", null);
   }
 
   private ScopedEgress.Denial denial(ScopedEgress.Reason reason, String host, int port, String text, String cidr) {

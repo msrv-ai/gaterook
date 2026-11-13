@@ -83,6 +83,13 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>A module's row can be here without its files: a backup restored on another computer brings the database, not
  * the packages. The start notices and downloads them again, and so does a call that comes first ({@link #awaitFiles}):
  * the same version the row names when the channel still lists it, else the best one this build can run.
+ *
+ * <p>A person can install a module's package from a file too ({@link #reviewFile}, {@link #installFile}). One that
+ * the signed list pins is GateRook's own module, wherever its bytes came from: a way to install on a computer that
+ * doesn't reach the list. Any other is the person's own: they review it and say that they trust it, as for an
+ * unsigned plugin; its row is unsigned, the core takes none of its words ({@link ModuleConnector}), it shares no name
+ * with another connector, and the list neither updates nor restores it. {@link #replaceOwn} returns to GateRook's
+ * build of a module the list has.
  */
 @Service
 public class ModuleService implements ConnectorRegistry.MissingTypes, DisposableBean {
@@ -124,11 +131,14 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
    * @param step      the running installation's step, lower case, or {@code null}
    * @param sizeBytes the package's size as the channel lists it, or as installed
    * @param previousVersion the version kept for Roll back, or {@code null}
-   * @param listedVersion   a higher version the list has for an installed module, or {@code null}
+   * @param listedVersion   a higher version the list has for an installed module, or the version the list has of a
+   *                        module whose installed build is the person's own; else {@code null}
+   * @param signed          whether GateRook's signed list pins the package: {@code false} only for an installed
+   *                        module that a person installed from a file and that the list doesn't pin
    */
   public record Status(String id, String name, String version, String state, String step, long sizeBytes,
       String message, List<ModuleChannel.TypeInfo> types, boolean installed, String previousVersion,
-      String listedVersion) {
+      String listedVersion, boolean signed) {
 
     public boolean ready() {
       return "ready".equals(state);
@@ -159,6 +169,15 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
       this.version = entry.version();
       this.sizeBytes = entry.size();
       this.types = entry.types();
+    }
+
+    /** The installation of a package that came as a file. */
+    Run(PluginManifest module, long sizeBytes) {
+      this.id = module.id();
+      this.name = module.name();
+      this.version = module.version();
+      this.sizeBytes = sizeBytes;
+      this.types = typesOf(module);
     }
   }
 
@@ -461,7 +480,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     Path jar = paths.jar(row.getId(), row.getCurrentVersion());
     String id = row.getId();
     List<String> taken = source.registerModule(module, HostLauncher.Spec.of(module, jar, row.getSha256()),
-        row.getState() == PluginState.INSTALLED, deadline -> awaitFiles(id, deadline));
+        row.getState() == PluginState.INSTALLED, deadline -> awaitFiles(id, deadline), row.isSigned());
     if (!taken.isEmpty()) {
       log.error("Connector module {} can't add {}: another package already adds a type of that id", id, taken);
     }
@@ -585,6 +604,12 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     channel.state();
     Optional<ModuleChannel.Entry> same = channel.exact(row.getId(), row.getCurrentVersion())
         .filter(e -> e.sha256().equalsIgnoreCase(row.getSha256()));
+    if (!row.isSigned() && same.isEmpty()) {
+      // A person's own build: only its own file brings it back.
+      throw ProblemException.conflict("Not on this computer", store.moduleManifest(row).name() + " "
+          + row.getCurrentVersion() + " was installed from a file, and its package isn't on this computer. Install "
+          + "it from the file again.");
+    }
     ModuleChannel.Entry entry = same.or(() -> channel.module(row.getId())).orElseThrow(() ->
         ProblemException.conflict("Not available", channel.installProblem().orElse("GateRook's list of connector "
             + "modules no longer has " + row.getId() + ".")));
@@ -615,6 +640,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
   }
 
   private void install(Run run, ModuleChannel.Entry entry, PluginEntity existing) {
+    boolean stopped = false;
     try {
       step(run, Step.RUNTIME);
       requireRuntime();
@@ -629,6 +655,7 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
         throw e;
       }
       step(run, Step.INSTALLING);
+      stopped = stopForSameVersion(existing, staged);
       PluginInstaller.Staged placed = installer.install(staged.stagingId(), true);
       record(placed, existing, "GateRook installed its own connector module");
       registry.synchronize();
@@ -643,10 +670,264 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
           : "It couldn't be installed (" + e.getClass().getSimpleName() + ").";
       log.warn("Connector module {} {} wasn't installed: {}", entry.id(), entry.version(), run.message,
           e instanceof ProblemException ? null : e);
+      if (stopped && existing.getState() == PluginState.INSTALLED) {
+        PluginSupervisor supervisor = source.supervisor(entry.id());
+        if (supervisor != null) {
+          supervisor.enable();
+        }
+      }
       run.finishedAt = clock.instant();
       step(run, Step.FAILED);
       run.done.completeExceptionally(e);
     }
+  }
+
+  /**
+   * Another build of the very version that is installed goes into the same folder: the running host is stopped
+   * first, so the package it loaded isn't replaced under it. Only GateRook's build of a version that a person had
+   * their own build of comes this way ({@link #replaceOwn}): a file never replaces a build of its own version.
+   *
+   * @return whether a host was stopped
+   */
+  private boolean stopForSameVersion(PluginEntity existing, PluginInstaller.Staged staged) {
+    if (existing == null || !existing.getCurrentVersion().equals(staged.manifest().version())
+        || existing.getSha256().equalsIgnoreCase(staged.sha256())) {
+      return false;
+    }
+    PluginSupervisor supervisor = source.supervisor(existing.getId());
+    if (supervisor == null) {
+      return false;
+    }
+    supervisor.disable();
+    return true;
+  }
+
+  // ── A module from a file ────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * What is known of a module's package that a person chose on this computer, before anything of it is installed
+   * (the installer staged and checked the package itself). One that GateRook's signed list pins, by version and
+   * SHA-256, is GateRook's own module, wherever its bytes came from: it is marked signed and installs as one from
+   * the channel does. Any other is the person's own module: it may add only what is nobody else's, and installs once
+   * the person says that they trust it.
+   *
+   * @throws ProblemException when the package can't be installed here; it is dropped then
+   */
+  public PluginInstaller.Staged reviewFile(PluginInstaller.Staged staged) {
+    try {
+      PluginManifest module = staged.manifest();
+      if (lock.locked()) {
+        throw ProblemException.conflict("Locked", "GateRook is locked: connectors install once it is unlocked.");
+      }
+      if (channel.configured()) {
+        channel.state();
+      }
+      refuseRevoked(module, staged.sha256());
+      versionProblem(installedRow(module.id()), staged).ifPresent(problem -> {
+        throw problem;
+      });
+      Optional<ModuleChannel.Entry> pinned = pinnedBy(module.id(), module.version(), staged.sha256());
+      if (pinned.isPresent()) {
+        checkAgainst(pinned.get(), module);
+        return installer.pinned(staged.stagingId(), pinned.get().ref());
+      }
+      checkOwn(module);
+      return staged;
+    } catch (RuntimeException e) {
+      installer.discard(staged.stagingId());
+      throw e;
+    }
+  }
+
+  /**
+   * Installs a module's package that {@link #reviewFile} reviewed, now: the caller waits for it. An unsigned one
+   * installs only with the person's acknowledgement. The same module from the channel can't install meanwhile.
+   *
+   * @throws ProblemException what stood in the way; nothing of the package stays then
+   */
+  public Status installFile(String stagingId, boolean acknowledgeUnsigned, String reason) {
+    PluginInstaller.Staged staged = installer.staged(stagingId).orElseThrow(() -> ProblemException.notFound(
+        "Not staged", "Check the package again before installing it."));
+    PluginManifest module = staged.manifest();
+    String id = module.id();
+    if (!module.module()) {
+      throw ProblemException.unprocessable("Not a connector module", "The package isn't a connector module.",
+          "/stagingId");
+    }
+    if (!staged.signed() && !acknowledgeUnsigned) {
+      // The package stays staged: the person may still say that they trust it.
+      throw ProblemException.unprocessable("Unsigned connector module", module.name() + " isn't a connector "
+          + "module GateRook signed. Confirm that you trust it before installing it.", "/acknowledgeUnsigned");
+    }
+    Run run;
+    PluginEntity existing;
+    try {
+      if (lock.locked()) {
+        throw ProblemException.conflict("Locked", "GateRook is locked: connectors install once it is unlocked.");
+      }
+      // What was true at the review may have changed since.
+      refuseRevoked(module, staged.sha256());
+      existing = installedRow(id);
+      versionProblem(existing, staged).ifPresent(problem -> {
+        throw problem;
+      });
+      if (staged.signed()) {
+        checkAgainst(pinnedBy(id, module.version(), staged.sha256()).orElseThrow(() -> ProblemException.conflict(
+            "No longer listed", "GateRook's list no longer has this package of " + module.name() + ". Check it "
+                + "again.")), module);
+      } else {
+        checkOwn(module);
+      }
+      Run[] started = new Run[1];
+      run = runs.compute(id, (key, current) -> {
+        if (current != null && !current.done.isDone()) {
+          return current;
+        }
+        started[0] = new Run(module, staged.sizeBytes());
+        return started[0];
+      });
+      if (started[0] != run) {
+        throw ProblemException.conflict("Being installed", module.name() + " is being installed already. Try "
+            + "again in a moment.");
+      }
+    } catch (RuntimeException e) {
+      installer.discard(stagingId);
+      throw e;
+    }
+    publish(run);
+    try {
+      step(run, Step.RUNTIME);
+      requireRuntime();
+      step(run, Step.INSTALLING);
+      PluginInstaller.Staged placed = installer.install(stagingId, acknowledgeUnsigned);
+      record(placed, existing, reason == null || reason.isBlank() ? (placed.signed()
+          ? "Installed GateRook's connector module from a file" : "Installed a connector module from a file")
+          : reason);
+      registry.synchronize();
+      store.find(id).ifPresent(this::pruneVersions);
+      aot.trainInBackground();
+      run.finishedAt = clock.instant();
+      step(run, Step.READY);
+      run.done.complete(null);
+      log.info("Connector module {} {} is installed from a file ({})", id, module.version(), placed.signed()
+          ? "pinned by GateRook's list" : "unsigned");
+      return statusOf(id).orElseThrow();
+    } catch (RuntimeException e) {
+      installer.discard(stagingId);
+      run.message = e instanceof ProblemException p && p.getMessage() != null ? p.getMessage()
+          : "It couldn't be installed (" + e.getClass().getSimpleName() + ").";
+      log.warn("Connector module {} {} wasn't installed from a file: {}", id, module.version(), run.message,
+          e instanceof ProblemException ? null : e);
+      run.finishedAt = clock.instant();
+      step(run, Step.FAILED);
+      run.done.completeExceptionally(e);
+      // The failure went to the person who asked: no card is left saying that an installation failed, and nothing
+      // of a module that never got its row stays on the disk.
+      runs.remove(id, run);
+      if (existing == null && repository.findById(id).isEmpty()) {
+        deleteDir(paths.pluginDir(id));
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Replaces a person's own build of a module with the one GateRook's list has, as an update does: the way back to
+   * GateRook's connector while connections use the module's types.
+   */
+  public Status replaceOwn(String moduleId) {
+    PluginEntity row = store.find(moduleId).filter(PluginEntity::isModule).orElseThrow(() ->
+        ProblemException.notFound("No such connector", "There is no connector module " + moduleId + "."));
+    if (row.isSigned()) {
+      return status(row);
+    }
+    if (channel.configured()) {
+      channel.state();
+    }
+    ModuleChannel.Entry entry = channel.module(moduleId).orElseThrow(() -> ProblemException.conflict(
+        "Not available", channel.installProblem().orElse("GateRook's list has no connector module " + moduleId
+            + ".")));
+    return status(start(entry, row));
+  }
+
+  /** The entry of GateRook's signed list that pins this very package, when the list can be installed from. */
+  private Optional<ModuleChannel.Entry> pinnedBy(String id, String version, String sha256) {
+    if (!channel.configured() || channel.installProblem().isPresent()) {
+      return Optional.empty();
+    }
+    return channel.exact(id, version).filter(e -> e.sha256().equalsIgnoreCase(sha256));
+  }
+
+  private void refuseRevoked(PluginManifest module, String sha256) {
+    if (channel.revoked(sha256)) {
+      throw ProblemException.conflict("Revoked", "This build of " + module.name() + " was revoked: "
+          + channel.revocationReason(sha256).orElse("no reason given") + ".");
+    }
+  }
+
+  /** The installed module of that id, {@code null} when there is none; a plugin of that id is in the way. */
+  private PluginEntity installedRow(String id) {
+    PluginEntity row = repository.findById(id).orElse(null);
+    if (row == null) {
+      return null;
+    }
+    if (!row.isModule()) {
+      throw ProblemException.conflict("Name taken", "A plugin named " + id + " is installed. Uninstall it to "
+          + "install this connector module.");
+    }
+    return store.find(id).orElseThrow(() -> ProblemException.conflict("Changed outside GateRook", "The installed "
+        + id + " was changed outside GateRook. Review it in Connectors first."));
+  }
+
+  /**
+   * A file never replaces another build of the version that is installed: the two would share a folder and a name
+   * in every record. The same build again is taken only when its package is missing here (it brings it back).
+   */
+  private Optional<ProblemException> versionProblem(PluginEntity existing, PluginInstaller.Staged staged) {
+    PluginManifest module = staged.manifest();
+    if (existing == null || !existing.getCurrentVersion().equals(module.version())) {
+      return Optional.empty();
+    }
+    if (!existing.getSha256().equalsIgnoreCase(staged.sha256())) {
+      return Optional.of(ProblemException.conflict("Version taken", module.name() + " " + module.version()
+          + " is installed with other contents. Give your build another version, or remove the installed one "
+          + "first."));
+    }
+    return Files.isRegularFile(paths.jar(module.id(), module.version())) ? Optional.of(ProblemException.conflict(
+        "Already installed", module.name() + " " + module.version() + " is already installed.")) : Optional.empty();
+  }
+
+  /**
+   * A module that GateRook's list doesn't pin adds only what is nobody else's: no connector type or tool of this
+   * build, of an installed package or of another module the list has. A build of a module the list has may keep
+   * that module's own names.
+   */
+  private void checkOwn(PluginManifest module) {
+    java.util.Set<String> ownListed = new java.util.TreeSet<>();
+    channel.versions(module.id()).forEach(e -> e.types().forEach(type -> ownListed.addAll(type.tools())));
+    java.util.Set<String> listed = channel.toolNames();
+    for (PluginManifest.Type type : module.types()) {
+      Optional<String> owner = source.packageOf(type.id());
+      if (owner.isPresent() && !owner.get().equals(module.id())) {
+        throw ProblemException.conflict("Name taken", owner.get() + " already adds a connector type " + type.id()
+            + ".");
+      }
+      Optional<ModuleChannel.Entry> other = channel.ofType(type.id()).filter(e -> !e.id().equals(module.id()));
+      if (other.isPresent()) {
+        throw ProblemException.conflict("Name taken", type.id() + " is the connector type of GateRook's own "
+            + other.get().name() + ".");
+      }
+      for (ai.msrv.gaterook.connector.api.ToolDefinition tool : type.tools()) {
+        if (listed.contains(tool.name()) && !ownListed.contains(tool.name())) {
+          throw ProblemException.conflict("Name taken", tool.name() + " is a tool of one of GateRook's own "
+              + "connectors.");
+        }
+      }
+    }
+    registry.ownModuleProblem(module.id(), module.connectorManifests()).ifPresent(problem -> {
+      throw ProblemException.unprocessable("Can't be installed here", module.name() + " can't be installed: "
+          + problem + ".", "/file");
+    });
   }
 
   /** The package must be what the index said: this module at this version, adding these connector types. */
@@ -702,15 +983,20 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
         PluginEntity entity = repository.findById(id).orElse(null);
         String from = entity == null ? null : entity.getCurrentVersion();
         if (entity == null) {
-          entity = PluginEntity.module(id, module.version(), PluginSource.CATALOG, placed.sha256(),
+          entity = PluginEntity.module(id, module.version(), placed.signed(), placed.source(), placed.sha256(),
               placed.sizeBytes(), store.map(module), clock.instant());
         } else {
           // What waits for approval on the module's connections was reviewed against the old code.
           java.util.Set<String> types = new java.util.TreeSet<>();
           store.moduleManifest(entity).types().forEach(t -> types.add(t.id()));
           module.types().forEach(t -> types.add(t.id()));
-          entity.upgrade(module.version(), true, PluginSource.CATALOG, placed.sha256(), placed.sizeBytes(),
-              store.map(module), clock.instant().plus(PluginService.ROLLBACK_WINDOW), clock.instant());
+          if (entity.getCurrentVersion().equals(module.version())) {
+            entity.replaceBuild(placed.signed(), placed.source(), placed.sha256(), placed.sizeBytes(),
+                store.map(module), clock.instant());
+          } else {
+            entity.upgrade(module.version(), placed.signed(), placed.source(), placed.sha256(), placed.sizeBytes(),
+                store.map(module), clock.instant().plus(PluginService.ROLLBACK_WINDOW), clock.instant());
+          }
           if (entity.getState() == PluginState.REVOKED) {
             entity.setState(PluginState.INSTALLED, clock.instant());
             unrevoked.set(true);
@@ -731,9 +1017,15 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
       }
       throw e;
     }
-    source.registerModule(module, spec, true, deadline -> awaitFiles(id, deadline));
+    source.registerModule(module, spec, true, deadline -> awaitFiles(id, deadline), placed.signed());
     if (next != null) {
       supervisor.switchTo(next, spec);
+    }
+    if (existing != null && !(existing.isSigned() && placed.signed())) {
+      // Whose word the core takes changed with the build, or a person's confirmations were of the build before: the
+      // endpoints of the module's connections are built again from the connector that serves them now.
+      writeTx.executeWithoutResult(s -> module.types().forEach(type -> publisher.publishEvent(
+          new ai.msrv.gaterook.core.connectors.ConnectorTypeChanged(type.id()))));
     }
     if (unrevoked.get()) {
       registry.synchronize();
@@ -769,7 +1061,8 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     List<String> started = new ArrayList<>();
     Instant now = clock.instant();
     for (PluginEntity row : modules()) {
-      if (row.getState() == PluginState.DISABLED) {
+      if (row.getState() == PluginState.DISABLED || !row.isSigned()) {
+        // Switched off, or a person's own build: the list replaces neither.
         continue;
       }
       boolean revoked = row.getState() == PluginState.REVOKED;
@@ -839,8 +1132,11 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     } catch (IOException e) {
       size = 0;
     }
-    PluginInstaller.Staged staged = new PluginInstaller.Staged(Ids.next("stg_"), jar, sha, size, manifest, true,
-        PluginSource.CATALOG, moduleId + "@" + previous, moduleId + "-" + previous + ".jar", null);
+    // The kept build is judged on its own: GateRook's when the list pins this very package, else a person's own.
+    boolean pinned = pinnedBy(moduleId, previous, sha).isPresent();
+    PluginInstaller.Staged staged = new PluginInstaller.Staged(Ids.next("stg_"), jar, sha, size, manifest, pinned,
+        pinned ? PluginSource.CATALOG : PluginSource.FILE, pinned ? moduleId + "@" + previous : null,
+        moduleId + "-" + previous + ".jar", null);
     record(staged, row, reason == null || reason.isBlank() ? "Rolled back" : reason);
     hold(moduleId, from);
     registry.synchronize();
@@ -1023,19 +1319,18 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
 
   private Status status(Run run) {
     return statusOf(run.id).orElseGet(() -> new Status(run.id, run.name, run.version, state(run, "available"),
-        step(run), run.sizeBytes, run.message, run.types, false, null, null));
+        step(run), run.sizeBytes, run.message, run.types, false, null, null, true));
   }
 
   private Status status(ModuleChannel.Entry entry) {
     Run run = runs.get(entry.id());
     return new Status(entry.id(), entry.name(), entry.version(), state(run, "available"), step(run), entry.size(),
-        run == null ? null : run.message, entry.types(), false, null, null);
+        run == null ? null : run.message, entry.types(), false, null, null, true);
   }
 
   private Status status(PluginEntity row) {
     PluginManifest module = store.moduleManifest(row);
-    List<ModuleChannel.TypeInfo> types = module.types().stream().map(t -> new ModuleChannel.TypeInfo(t.id(),
-        t.name(), t.icon(), t.group(), t.description(), t.tools().stream().map(d -> d.name()).toList())).toList();
+    List<ModuleChannel.TypeInfo> types = typesOf(module);
     Run run = runs.get(row.getId());
     boolean here = Files.isRegularFile(paths.jar(row.getId(), row.getCurrentVersion()));
     String settled = row.getState() == PluginState.REVOKED ? "revoked"
@@ -1043,11 +1338,18 @@ public class ModuleService implements ConnectorRegistry.MissingTypes, Disposable
     boolean keepsPrevious = row.getPreviousVersion() != null && (row.getPreviousKeptUntil() == null
         || clock.instant().isBefore(row.getPreviousKeptUntil()))
         && Files.isRegularFile(paths.jar(row.getId(), row.getPreviousVersion()));
+    // For a person's own build: the version GateRook's list has of the module, whatever it is.
     String listed = channel.module(row.getId()).map(ModuleChannel.Entry::version)
-        .filter(v -> ModuleChannel.newer(v, row.getCurrentVersion())).orElse(null);
+        .filter(v -> !row.isSigned() || ModuleChannel.newer(v, row.getCurrentVersion())).orElse(null);
     return new Status(row.getId(), module.name(), row.getCurrentVersion(), state(run, settled), step(run),
         row.getSizeBytes(), run == null ? null : run.message, types, true,
-        keepsPrevious ? row.getPreviousVersion() : null, listed);
+        keepsPrevious ? row.getPreviousVersion() : null, listed, row.isSigned());
+  }
+
+  /** A module's connector types as a card shows them. */
+  private static List<ModuleChannel.TypeInfo> typesOf(PluginManifest module) {
+    return module.types().stream().map(t -> new ModuleChannel.TypeInfo(t.id(), t.name(), t.icon(), t.group(),
+        t.description(), t.tools().stream().map(d -> d.name()).toList())).toList();
   }
 
   /** A run under way is {@code installing}, a failed one {@code failed} unless what it was for is here anyway. */

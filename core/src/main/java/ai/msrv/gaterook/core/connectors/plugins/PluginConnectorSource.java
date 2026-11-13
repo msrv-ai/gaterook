@@ -89,6 +89,12 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
   }
 
   @Override
+  public boolean unverified(String typeId) {
+    Live live = byId.get(typeId);
+    return live != null && live.connector() instanceof ModuleConnector module && !module.signed();
+  }
+
+  @Override
   public Optional<String> packageOf(String typeId) {
     Live live = byId.get(typeId);
     return live == null ? Optional.empty() : Optional.of(live.module() != null ? live.module() : typeId);
@@ -146,11 +152,12 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
    * Installs or replaces the live entries of a connector module: one {@link ModuleConnector} per connector type, all
    * on one host, which starts on the first call. A type another package already adds isn't taken from it.
    *
-   * @param gate asked before a call starts the host: the module's files may be missing (a restored backup)
+   * @param gate   asked before a call starts the host: the module's files may be missing (a restored backup)
+   * @param signed whether GateRook's signed list pins the package; a person's own module from a file isn't
    * @return the types that couldn't be registered, because another package has them
    */
   List<String> registerModule(ai.msrv.gaterook.plugin.protocol.PluginManifest module, HostLauncher.Spec spec,
-      boolean enabled, ModuleConnector.Gate gate) {
+      boolean enabled, ModuleConnector.Gate gate, boolean signed) {
     String id = module.id();
     Module existing = modules.get(id);
     PluginSupervisor supervisor = existing != null ? existing.supervisor()
@@ -172,7 +179,7 @@ public class PluginConnectorSource implements ConnectorSource, ConnectorProcessS
         continue;
       }
       byId.put(manifest.id(), new Live(manifest, supervisor, new ModuleConnector(module, manifest, supervisor,
-          secrets, policies.getObject(), egress, gate), id));
+          secrets, policies.getObject(), egress, gate, signed), id));
       types.add(manifest.id());
     }
     if (existing != null) {

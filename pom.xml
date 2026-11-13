@@ -65,11 +65,11 @@
     <module>plugin-host</module>
     <module>plugins/jira-service-desk</module>
     <module>plugins/test-fixtures</module>
-    <module>plugins/clickhouse</module>
+    <module>modules/clickhouse</module>
     <module>plugins/rabbitmq</module>
-    <module>plugins/duckdb</module>
-    <module>plugins/h2</module>
-    <module>plugins/access</module>
+    <module>modules/duckdb</module>
+    <module>modules/h2</module>
+    <module>modules/msaccess</module>
     <module>modules/cassandra</module>
     <module>modules/neo4j</module>
     <module>modules/sql-oracle</module>

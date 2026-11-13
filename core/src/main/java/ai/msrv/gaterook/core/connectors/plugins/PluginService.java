@@ -131,8 +131,10 @@ public class PluginService {
   @EventListener(ApplicationReadyEvent.class)
   public void onReady() {
     cleanOrphans();
-    // What was checked and never installed (up to 50 MB a JAR) doesn't outlive the run that staged it.
-    deleteDir(paths.staging());
+    // What was checked and never installed (up to 150 MB a package) doesn't outlive the run that staged it. Only
+    // what an earlier run left goes: the admin API answers before this runs, and a package that was checked
+    // meanwhile belongs to this run and is about to be installed.
+    deleteStagedBefore(paths.staging(), startedAt);
     if (lock.locked()) {
       log.info("Plugins are loaded once the master key is available");
     } else {
@@ -168,9 +170,17 @@ public class PluginService {
 
   // ── Install ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Stages and checks a JAR uploaded from this computer. */
+  /**
+   * Stages and checks a JAR uploaded from this computer: a plugin, or a connector module, which the module service
+   * reviews and installs.
+   */
   public PluginInstaller.Staged checkFile(byte[] bytes, String fileName) {
     return installer.check(bytes, PluginSource.FILE, null, fileName == null ? "plugin.jar" : fileName);
+  }
+
+  /** Whether what was staged under {@code stagingId} is a connector module's package. */
+  public boolean stagedModule(String stagingId) {
+    return stagingId != null && installer.staged(stagingId).filter(s -> s.manifest().module()).isPresent();
   }
 
   /** Stages a catalog entry {@code id@version} by downloading its signed artifact. */
@@ -604,6 +614,32 @@ public class PluginService {
           // Best effort.
         }
       });
+    } catch (IOException ignored) {
+      // Best effort.
+    }
+  }
+
+  /**
+   * When this service was made, as the core started, by the computer's clock: files are dated by it too, whatever
+   * clock the core was given.
+   */
+  private final java.time.Instant startedAt = java.time.Instant.now();
+
+  /** Deletes the staged packages that were written before {@code before}. */
+  static void deleteStagedBefore(Path staging, java.time.Instant before) {
+    if (staging == null || !Files.isDirectory(staging)) {
+      return;
+    }
+    try (var files = Files.list(staging)) {
+      for (Path file : files.toList()) {
+        try {
+          if (Files.getLastModifiedTime(file).toInstant().isBefore(before)) {
+            deleteDir(file);
+          }
+        } catch (IOException ignored) {
+          // Best effort: it goes with the next start.
+        }
+      }
     } catch (IOException ignored) {
       // Best effort.
     }

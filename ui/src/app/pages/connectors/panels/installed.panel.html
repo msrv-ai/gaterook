@@ -68,6 +68,9 @@
                 @case ('built-in') {
                   @if (v.connections) {<a class="gw-link" routerLink="/connections" [queryParams]="{ type: v.id }">{{ plural(v.connections, 'connection') }}<span class="gw-sr-only"> {{ v.connections === 1 ? 'uses' : 'use' }} {{ v.name }}</span></a>@if (v.activityQuery) { · <a class="gw-link" routerLink="/activity" [queryParams]="{ q: v.activityQuery }">View activity<span class="gw-sr-only"> for {{ v.name }}</span></a>}} @else {No connections yet}
                 }
+                @case ('module') {
+                  {{ v.card.tools === null ? 'Tools from the module' : plural(v.card.tools, 'tool') }}, each starts as Approval · @if (v.connections) {<a class="gw-link" routerLink="/connections" [queryParams]="{ type: v.id }">{{ plural(v.connections, 'connection') }}<span class="gw-sr-only"> {{ v.connections === 1 ? 'uses' : 'use' }} {{ v.name }}</span></a>@if (v.activityQuery) { · <a class="gw-link" routerLink="/activity" [queryParams]="{ q: v.activityQuery }">View activity<span class="gw-sr-only"> for {{ v.name }}</span></a>}} @else {no connections yet@if (v.state === 'enabled') { · <a class="gw-link" routerLink="/connections/new" [queryParams]="{ type: v.id }">Add connection<span class="gw-sr-only"> for {{ v.name }}</span></a>}}
+                }
                 @case ('plugin') {
                   {{ v.card.tools === null ? 'Tools from the plugin' : plural(v.card.tools, 'tool') }} · @if (v.connections) {<a class="gw-link" routerLink="/connections" [queryParams]="{ type: v.id }">{{ plural(v.connections, 'connection') }}<span class="gw-sr-only"> {{ v.connections === 1 ? 'uses' : 'use' }} {{ v.name }}</span></a>@if (v.activityQuery) { · <a class="gw-link" routerLink="/activity" [queryParams]="{ q: v.activityQuery }">View activity<span class="gw-sr-only"> for {{ v.name }}</span></a>}} @else {no connections yet@if (v.state === 'enabled') { · <a class="gw-link" routerLink="/connections/new" [queryParams]="{ type: v.id }">Add connection<span class="gw-sr-only"> for {{ v.name }}</span></a>}}
                 }
@@ -84,6 +87,23 @@
                   } @else if (v.state === 'disabled') {
                     <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="busyKey() === v.key ? 'true' : null" [attr.aria-disabled]="busyKey() === v.key ? 'true' : null" (click)="act('turn-on', v, $event)">@if (busyKey() === v.key) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Turn on<span class="gw-sr-only"> {{ v.name }}</span></button>
                   }
+                }
+                @case ('module') {
+                  @if (v.state === 'changed-outside') {
+                    <button class="gw-btn gw-btn--sm" type="button" (click)="act('keep', v, $event)">Review<span class="gw-sr-only"> the change to {{ v.name }}</span></button>
+                  } @else if (v.state === 'disabled') {
+                    <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="busyKey() === v.key ? 'true' : null" [attr.aria-disabled]="busyKey() === v.key ? 'true' : null" (click)="act('turn-on', v, $event)">@if (busyKey() === v.key) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Turn on<span class="gw-sr-only"> {{ v.name }}</span></button>
+                  }
+                  <div class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for ' + v.name" aria-haspopup="menu" [gwMenuTrigger]="moduleMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
+                    <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #moduleMenu="gwMenu" [id]="menuId(v)" role="menu" [attr.aria-label]="'More actions for ' + v.name" hidden>
+                      @if (v.module?.listedVersion; as listed) {
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('replace-module', v, $event)"><svg lucideIcon="replace" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Use GateRook's build<span class="gw-menu__hint">Replace your module with GateRook's {{ ver(listed) }}, which its signed list has.</span></span></button>
+                        <div class="gw-menu__divider" role="separator"></div>
+                      }
+                      <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" (click)="act('uninstall-module', v, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Uninstall module</span></button>
+                    </div>
+                  </div>
                 }
                 @case ('plugin') {
                   @if (v.update; as u) {

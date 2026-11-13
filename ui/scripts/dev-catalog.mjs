@@ -1,23 +1,28 @@
-// A local plugin catalog for the development loop (ui/scripts/dev.mjs): the plugins of this checkout, offered in Add
-// connection and Connectors › Catalog and installed from it, as a release's catalog would be.
+// A local plugin catalog and a local list of connector modules for the development loop (ui/scripts/dev.mjs): the
+// plugins of this checkout, offered in Add connection and Connectors › Catalog and installed from the catalog as a
+// release's would be, and the connectors that exist only as modules (connectors/delivery.json, moduleOnly: ClickHouse,
+// DuckDB, H2, Microsoft Access), which the development core doesn't compile in and installs from the list when one of
+// them is chosen, as a release installs them from GateRook's list.
 //
-// 1. The JARs catalog/index.json names, and plugin-host.jar, are built when one is missing or older than its module's
-//    sources (mvn -pl plugin-host,plugins/... -am package, as catalog/publish.sh builds them), under the shared
-//    heavy-build lock.
-// 2. catalog/index.json is signed with a throwaway key made for this run (catalog/sign-index.mjs), with a sequence
-//    from the clock, so a kept home (--keep) accepts it as newer.
-// 3. The signed index, its signature and the JARs are served over HTTPS on 127.0.0.1 with a certificate the JDK's
-//    keytool makes for this run.
-// 4. The core gets the plugin host JAR, the catalog's address and key, and the certificate as its test CA
-//    (gateway.test.catalog.ca: a non-release build may then fetch the catalog from loopback).
+// 1. The JARs catalog/index.json names, the packages of the module-only connectors, and plugin-host.jar, are built
+//    when one is missing or older than its module's sources (mvn -pl plugin-host,plugins/...,modules/... -am package),
+//    under the shared heavy-build lock.
+// 2. catalog/index.json, and a list of the built module packages, are signed with a throwaway key made for this run
+//    (catalog/sign-index.mjs), with a sequence from the clock, so a kept home (--keep) accepts them as newer.
+// 3. Each signed index, its signature and the files it pins are served over HTTPS on 127.0.0.1, the catalog and the
+//    list of modules on a port each, with one certificate the JDK's keytool makes for this run.
+// 4. The core gets the plugin host JAR, the addresses and the key of both, and the certificate as its test CA
+//    (gateway.test.catalog.ca: a non-release build may then fetch them from loopback).
 //
 // Nothing here is a release: the key and the certificate live in the development home and die with it.
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:https';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { moduleOnlyEntries, readDelivery } from '../../scripts/delivery.mjs';
+import { listEntry, modules as checkoutModules, readPackage } from '../../scripts/modules.mjs';
 
 /** The JAR a catalog entry pins, as the build leaves it in plugins/<dir>/target, or null when it isn't built. */
 function builtJar(root, entry) {
@@ -57,8 +62,39 @@ function stale(jar) {
   return !jar || !existsSync(jar) || statSync(jar).mtimeMs < newestSource(dirname(dirname(jar)));
 }
 
+/** The connectors that exist only as modules, as modules/<id> of this checkout: each with its package when built. */
+function moduleOnly(root) {
+  const ids = moduleOnlyEntries(readDelivery(root)).map(([name]) => name);
+  return checkoutModules(root).filter((m) => ids.includes(m.dir));
+}
+
+/** Whether a module's package is missing or older than its sources. */
+function staleModule(root, module) {
+  return !module.jar || statSync(module.jar).mtimeMs < newestSource(join(root, 'modules', module.dir));
+}
+
+/** Serves `files` (name → path) by name over HTTPS on a free port of 127.0.0.1. */
+async function serve(files, tls) {
+  const server = createServer({ pfx: readFileSync(tls.store), passphrase: tls.password }, (req, res) => {
+    const name = decodeURIComponent((req.url ?? '/').split('?')[0]).replace(/^\/+/, '');
+    const file = req.method === 'GET' ? files.get(basename(name) === name ? name : '') : undefined;
+    if (!file) {
+      res.writeHead(404).end();
+      return;
+    }
+    const body = readFileSync(file);
+    res.writeHead(200, { 'Content-Type': name.endsWith('.json') ? 'application/json' : 'application/octet-stream',
+      'Content-Length': body.length }).end(body);
+  });
+  const port = await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
+  });
+  return { port, stop: () => server.close() };
+}
+
 function build(root, modules) {
-  console.log(`[dev] building the catalog's plugins once (mvn -pl ${modules.join(',')} -am -DskipTests package)`);
+  console.log(`[dev] building the catalog's plugins and the connector modules once (mvn -pl ${modules.join(',')} -am -DskipTests package)`);
   const mvn = ['mvn', '-B', '-ntp', '-pl', modules.join(','), '-am', '-DskipTests', 'package'];
   const lock = join(homedir(), '.cache', 'mcp-gateway', 'heavy.lock');
   const hasFlock = spawnSync('flock', ['--version'], { stdio: 'ignore' }).status === 0;
@@ -75,20 +111,22 @@ function run(cmd, args, what) {
 }
 
 /**
- * Starts the local catalog. Returns the core's system properties and a stop function, or null (with a line saying why)
- * when the plugins can't be built: the development loop then runs without a catalog, as before.
+ * Starts the local catalog and the local list of connector modules. Returns the core's system properties and a stop
+ * function, or null (with a line saying why) when the plugins can't be built: the development loop then runs without
+ * them, as before.
  */
 export async function startDevCatalog({ root, home, java }) {
   const index = JSON.parse(readFileSync(join(root, 'catalog', 'index.json'), 'utf8'));
   const plugins = index.entries.filter((e) => e.kind === 'plugin');
   const hostJar = join(root, 'plugin-host', 'target', 'plugin-host.jar');
   const outdated = () => [...plugins.filter((e) => stale(builtJar(root, e))).map((e) => e.id),
+    ...moduleOnly(root).filter((m) => staleModule(root, m)).map((m) => m.dir),
     ...(stale(hostJar) ? ['plugin-host'] : [])];
   if (outdated().length) {
     console.log(`[dev] missing or older than their sources: ${outdated().join(', ')}`);
     const modules = ['plugin-host', ...readdirSync(join(root, 'plugins'), { withFileTypes: true })
       .filter((d) => d.isDirectory() && d.name !== 'test-fixtures')
-      .map((d) => `plugins/${d.name}`)];
+      .map((d) => `plugins/${d.name}`), ...moduleOnly(root).map((m) => `modules/${m.dir}`)];
     if (!build(root, modules)) {
       console.error('[dev] the plugins did not build: running without the local catalog');
       return null;
@@ -100,6 +138,8 @@ export async function startDevCatalog({ root, home, java }) {
       return null;
     }
   }
+  // A module whose package isn't there is left out of the list: its card is missing, the rest of the loop works.
+  const packages = moduleOnly(root).filter((m) => m.jar);
 
   const dir = join(home, 'dev-catalog');
   rmSync(dir, { recursive: true, force: true });
@@ -120,6 +160,29 @@ export async function startDevCatalog({ root, home, java }) {
     '--out', out, '--key-id', keyId, '--key-file', keyFile, '--days', '30',
     '--sequence', String(Math.floor(Date.now() / 1000))], 'catalog signing');
 
+  // The list of connector modules: an entry per built package, as its own manifest describes it, signed with the same
+  // key under the same clock.
+  const moduleAssets = join(dir, 'modules', 'assets');
+  const moduleOut = join(dir, 'modules', 'out');
+  mkdirSync(moduleAssets, { recursive: true });
+  mkdirSync(moduleOut, { recursive: true });
+  const moduleFiles = new Map();
+  if (packages.length) {
+    const entries = packages.map((m) => {
+      const built = readPackage(m.jar);
+      copyFileSync(m.jar, join(moduleAssets, basename(m.jar)));
+      moduleFiles.set(basename(m.jar), join(moduleAssets, basename(m.jar)));
+      return listEntry(built.manifest, { url: basename(m.jar), sha256: built.sha256, size: built.size });
+    });
+    const source = join(dir, 'modules', 'index.json');
+    writeFileSync(source, `${JSON.stringify({ schema: 1, entries, revoked: [] }, null, 2)}\n`);
+    run(process.execPath, [sign, 'sign', '--index', source, '--artifacts', moduleAssets, '--out', moduleOut,
+      '--key-id', keyId, '--key-file', keyFile, '--days', '30', '--sequence', String(Math.floor(Date.now() / 1000))],
+    'signing the list of connector modules');
+    moduleFiles.set('index.json', join(moduleOut, 'index.json'));
+    moduleFiles.set('index.json.sig', join(moduleOut, 'index.json.sig'));
+  }
+
   // TLS for 127.0.0.1 from the JDK's keytool: the core trusts this certificate as the catalog's only CA.
   const tool = process.platform === 'win32' ? 'keytool.exe' : 'keytool';
   const keytool = java.includes('/') || java.includes('\\') ? join(dirname(java), tool) : tool;
@@ -135,30 +198,31 @@ export async function startDevCatalog({ root, home, java }) {
   // Only the files of the catalog, by name: index.json, its signature and each pinned JAR.
   const files = new Map([['index.json', join(out, 'index.json')], ['index.json.sig', join(out, 'index.json.sig')],
     ...plugins.map((e) => [e.artifact.url, join(assets, e.artifact.url)])]);
-  const server = createServer({ pfx: readFileSync(store), passphrase: password }, (req, res) => {
-    const name = decodeURIComponent((req.url ?? '/').split('?')[0]).replace(/^\/+/, '');
-    const file = req.method === 'GET' ? files.get(basename(name) === name ? name : '') : undefined;
-    if (!file) {
-      res.writeHead(404).end();
-      return;
-    }
-    const body = readFileSync(file);
-    res.writeHead(200, { 'Content-Type': name.endsWith('.json') ? 'application/json' : 'application/octet-stream',
-      'Content-Length': body.length }).end(body);
-  });
-  const port = await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
-  });
+  const tls = { store, password };
+  const catalog = await serve(files, tls);
   const offered = plugins.map((e) => `${e.id} ${e.version}`).join(', ');
-  console.log(`[dev] local plugin catalog: https://127.0.0.1:${port}/ (${offered})`);
+  console.log(`[dev] local plugin catalog: https://127.0.0.1:${catalog.port}/ (${offered})`);
+  const properties = [
+    `-Dgateway.pluginHostJar=${hostJar}`,
+    `-Dgateway.plugins.catalog-url=https://127.0.0.1:${catalog.port}/`,
+    `-Dgateway.plugins.catalog-keys=${trust}`,
+    `-Dgateway.test.catalog.ca=${ca}`,
+  ];
+  // The list of modules on a port of its own: it has an index.json too.
+  const modules = packages.length ? await serve(moduleFiles, tls) : null;
+  if (modules) {
+    const listed = packages.map((m) => `${m.descriptor.id} ${m.descriptor.version}`).join(', ');
+    console.log(`[dev] local list of connector modules: https://127.0.0.1:${modules.port}/ (${listed})`);
+    properties.push(`-Dgateway.modules.channel-url=https://127.0.0.1:${modules.port}/`,
+      `-Dgateway.modules.channel-keys=${trust}`);
+  } else {
+    console.error('[dev] no connector module is built: running without the local list of modules');
+  }
   return {
-    properties: [
-      `-Dgateway.pluginHostJar=${hostJar}`,
-      `-Dgateway.plugins.catalog-url=https://127.0.0.1:${port}/`,
-      `-Dgateway.plugins.catalog-keys=${trust}`,
-      `-Dgateway.test.catalog.ca=${ca}`,
-    ],
-    stop: () => server.close(),
+    properties,
+    stop: () => {
+      catalog.stop();
+      modules?.stop();
+    },
   };
 }

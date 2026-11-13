@@ -1,5 +1,5 @@
 import { ApiError } from '../../../core/api/api-error';
-import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
+import { clickhouseCheck, moduleCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
 import { mcpRequest } from '../../connection-new/mcp/mcp-configure';
 import { registryResult } from '../mcp-registry-results';
@@ -23,7 +23,31 @@ describe('plugin review facts', () => {
       connectionForm: 'Host, port, user and password, from its config schema',
       access: 'The host of each connection, port 8443',
       unsandboxed: true,
+      module: false,
+      types: [],
+      replaces: null,
     });
+  });
+
+  it('reviews a connector module from a file: its types, whose build it is and what it replaces', () => {
+    const own = pluginFacts(moduleCheck(), null);
+    expect(own).toMatchObject({ module: true, signed: false, id: 'shop', name: 'Shop', version: '1.2.0', file: 'shop-1.2.0.jar', replaces: null, unsandboxed: false });
+    expect(own.types).toEqual([
+      { id: 'orders', name: 'Orders', toolNames: ['orders_list', 'orders_cancel'] },
+      { id: 'shipments', name: 'Shipments', toolNames: ['shipments_list'] },
+    ]);
+    expect(own.toolNames).toEqual(['orders_list', 'orders_cancel', 'shipments_list']);
+    expect(own.access).toBe('The host of each connection, port 443');
+
+    // GateRook's signed list has the package: it is GateRook's own, and here it replaces the person's build.
+    const gaterooks = pluginFacts(moduleCheck(true, { installedVersion: 'v1.1.0', installedSigned: false }), null);
+    expect(gaterooks).toMatchObject({ module: true, signed: true, replaces: { version: 'v1.1.0', own: true } });
+    expect(pluginFacts(moduleCheck(false, { installedVersion: '1.1.0', installedSigned: true }), null).replaces).toEqual({ version: 'v1.1.0', own: false });
+    // A type the package names without a display name goes by its id.
+    const check = moduleCheck();
+    expect(pluginFacts({ ...check, report: { ...check.report, types: [{ id: 'orders', name: '', tools: [], configPreview: [] }] } }, null).types).toEqual([
+      { id: 'orders', name: 'orders', toolNames: [] },
+    ]);
   });
 
   it('says a plugin runs without a sandbox only when the core reports none (report.sandbox null)', () => {

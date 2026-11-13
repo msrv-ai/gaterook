@@ -29,10 +29,14 @@ public class Modules {
    * @param sizeBytes the size of its package
    * @param message   why the last installation failed, or {@code null}
    * @param previousVersion the version kept for Roll back, or {@code null}
-   * @param listedVersion   a higher version the list has for an installed module (it is on its way), or {@code null}
+   * @param listedVersion   a higher version the list has for an installed module (it is on its way), or the version
+   *                        the list has of a module whose installed build is a person's own; else {@code null}
+   * @param signed          whether GateRook's signed list pins the package: {@code false} only for a module a person
+   *                        installed from a file that the list doesn't pin, which the list never replaces by itself
    */
   public record Module(String id, String name, String version, String state, String step, long sizeBytes,
-      String message, List<Type> types, boolean installed, String previousVersion, String listedVersion) {
+      String message, List<Type> types, boolean installed, String previousVersion, String listedVersion,
+      boolean signed) {
 
     public boolean ready() {
       return "ready".equals(state);
@@ -91,6 +95,14 @@ public class Modules {
     service.uninstall(moduleId, reason);
   }
 
+  /**
+   * Replaces a person's own build of a module, installed from a file, with the one GateRook's list has. Answers at
+   * once with where the installation stands; a module whose build is GateRook's stays as it is.
+   */
+  public Module replaceOwn(String moduleId) {
+    return module(service.replaceOwn(moduleId));
+  }
+
   public Channel channel() {
     return channel(service.channel().configured() ? service.channel().state() : service.channel().cached());
   }
@@ -115,7 +127,7 @@ public class Modules {
   private static Module module(ModuleService.Status s) {
     List<Type> types = s.types().stream().map(Modules::type).toList();
     return new Module(s.id(), s.name(), s.version(), s.state(), s.step(), s.sizeBytes(), s.message(), types,
-        s.installed(), s.previousVersion(), s.listedVersion());
+        s.installed(), s.previousVersion(), s.listedVersion(), s.signed());
   }
 
   private static Type type(ModuleChannel.TypeInfo t) {

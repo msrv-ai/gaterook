@@ -1,0 +1,114 @@
+package ai.msrv.gaterook.connectors.clickhouse;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The connector's own read-only check (step K6): reads pass with their trailing semicolon dropped; a write, a second
+ * statement, a table function that reaches outside the server or INTO OUTFILE is refused — also when it hides behind
+ * comments, quoted names or a string that only looks like the end of a literal.
+ */
+class ReadOnlySqlTest {
+
+  @Test
+  void selectedDatabasesLimitTableSourcesIncludingJoinsAndSubqueries() {
+    List<String> selected = List.of("analytics", "archive", "numbers");
+    for (String sql : List.of("SELECT * FROM analytics.events", "SELECT * FROM `archive`.`events`",
+        "SELECT e.id FROM events e JOIN archive.events a ON e.id=a.id", "SELECT * FROM numbers(10)",
+        "WITH t AS (SELECT * FROM archive.events) SELECT * FROM t", "SELECT 'FROM private.users' FROM events",
+        "SELECT * FROM events WHERE id IN (analytics.users)", "SELECT * FROM events WHERE id IN (1, 2, 3)",
+        "SELECT * FROM events WHERE id IN (col)", "SELECT * FROM analytics.events AS t, archive.events b",
+        "SELECT * FROM analytics.events t WINDOW w AS (ORDER BY id)",
+        "SELECT a, b FROM analytics.events GROUP BY a, b")) {
+      assertThat(ReadOnlySql.databaseProblem(sql, selected)).as(sql).isEmpty();
+    }
+    for (String sql : List.of("SELECT * FROM private.users", "SELECT * FROM events, private.users",
+        "SELECT * FROM analytics.events AS \"WHERE\", private.users b",
+        "SELECT * FROM analytics.events AS `GROUP`, private.users b",
+        "SELECT * FROM analytics.events AS `)`, private.users b",
+        "SELECT * FROM analytics.events AS WHERE, private.users b",
+        "SELECT * FROM analytics.events WINDOW, private.users b",
+        "SELECT * FROM analytics.events FORMAT, private.users b",
+        "SELECT * FROM analytics.events ORDER, private.users b",
+        "SELECT * FROM analytics.events /* outer /* inner */ WHERE */ , private.users b",
+        "SELECT * FROM analytics.events //WHERE\n, private.users b",
+        "SELECT * FROM events JOIN private.users USING id", "SELECT * FROM (SELECT * FROM private.users)",
+        "SELECT * FROM events WHERE id IN private.users", "SELECT * FROM events WHERE id IN (private.users)",
+        "SELECT * FROM merge('private', '.*')",
+        "SELECT * FROM numbers.merge('private', '.*')", "SELECT dictGet('private.dict', 'value', 1)",
+        "SELECT * FROM analytics.schema.events", "SHOW DATABASES")) {
+      assertThat(ReadOnlySql.databaseProblem(sql, selected)).as(sql).isPresent();
+    }
+    assertThat(ReadOnlySql.databaseProblem("SHOW DATABASES", List.of())).isEmpty();
+  }
+
+  @Test
+  void readsPass() {
+    for (String sql : List.of("SELECT 1", "select count() from events;", "WITH t AS (SELECT 1 AS x) SELECT x FROM t",
+        "SHOW TABLES FROM analytics", "DESCRIBE TABLE events", "desc events", "EXPLAIN PLAN SELECT 1",
+        "EXISTS TABLE events", "-- a comment\nSELECT 1 /* inline */", "SELECT 'a;b' AS semicolon_in_a_string",
+        "SELECT 'it''s', 'a\\'b' FROM numbers(10)", "SELECT `url` FROM visits", "SELECT format('{}', 1)")) {
+      ReadOnlySql.Result r = ReadOnlySql.check(sql);
+      assertThat(r.ok()).as(sql + " → " + r.refusal()).isTrue();
+    }
+    assertThat(ReadOnlySql.check("SELECT 1;  ").checked().sql()).isEqualTo("SELECT 1");
+    assertThat(ReadOnlySql.check("  select 1").checked().firstWord()).isEqualTo("SELECT");
+  }
+
+  @Test
+  void writesAndSecondStatementsAreRefused() {
+    for (String sql : List.of("INSERT INTO events VALUES (1)", "ALTER TABLE events DELETE WHERE 1",
+        "DROP TABLE events", "TRUNCATE TABLE events", "OPTIMIZE TABLE events FINAL", "SYSTEM FLUSH LOGS",
+        "KILL QUERY WHERE 1", "SET max_execution_time = 0", "CREATE TABLE t (x UInt8) ENGINE = Memory",
+        "GRANT ALL ON *.* TO me", "/* SELECT */ DELETE FROM events WHERE 1", "(SELECT 1)")) {
+      assertThat(ReadOnlySql.check(sql).ok()).as(sql).isFalse();
+    }
+    assertThat(ReadOnlySql.check("SELECT 1; DROP TABLE events").refusal()).contains("One statement");
+    assertThat(ReadOnlySql.check("SELECT 'x\\'; DROP TABLE t; --'; DROP TABLE t").refusal())
+        .contains("One statement");
+    assertThat(ReadOnlySql.check("").refusal()).contains("empty");
+    assertThat(ReadOnlySql.check("SELECT 'unclosed").refusal()).contains("isn't closed");
+    assertThat(ReadOnlySql.check("SELECT 1 /* unclosed").refusal()).contains("isn't closed");
+  }
+
+  @Test
+  void tableFunctionsThatReachOutsideAndOutfileAreRefused() {
+    for (String sql : List.of("SELECT * FROM url('http://169.254.169.254/', CSV)",
+        "SELECT * FROM s3 ('https://bucket/x.csv')", "SELECT * FROM remote('other:9000', db.t)",
+        "SELECT * FROM `file`('/etc/passwd', LineAsString)", "DESCRIBE TABLE url('https://example.com/a.csv')",
+        "SELECT * FROM mysql('db:3306', 'x', 't', 'u', 'p')", "SELECT * FROM postgresql('db', 'x', 't', 'u', 'p')",
+        "SELECT * FROM executable('id', TSV, 'x String')", "SELECT * FROM executablePool('id', TSV, 'x String')",
+        "SELECT * FROM mysqlCluster('c', 'db', 't', 'u', 'p')", "SELECT * FROM s3Queue('https://bucket/x.csv')",
+        "SELECT * FROM t INTO OUTFILE '/tmp/x'")) {
+      assertThat(ReadOnlySql.check(sql).ok()).as(sql).isFalse();
+    }
+    assertThat(ReadOnlySql.check("SELECT * FROM URL('http://x')").refusal()).contains("URL()");
+  }
+
+  /**
+   * A heredoc string ({@code $tag$ … $tag$}) is read as ClickHouse reads it (review 2026-10-27): a quote inside it
+   * starts no literal, so the code after it is checked — before, {@code $$'$$} opened a "string" that hid {@code url()}
+   * up to the quote in a trailing comment.
+   */
+  @Test
+  void aHeredocHidesNothing() {
+    for (String sql : List.of("SELECT $$'$$ FROM url('http://169.254.169.254/latest', CSV, 'a String') -- '",
+        "SELECT $q$'$q$ FROM s3('https://bucket/x.csv') #'", "SELECT $$--$$ FROM remote('other:9000', db.t)",
+        "SELECT $$/*$$ FROM file('/etc/passwd', LineAsString) /* */")) {
+      assertThat(ReadOnlySql.check(sql).ok()).as(sql).isFalse();
+    }
+    assertThat(ReadOnlySql.check("SELECT $$it's url('x')$$, $tag$; DROP$tag$ AS text").ok()).isTrue();
+    assertThat(ReadOnlySql.check("SELECT $$unclosed").refusal()).contains("isn't closed");
+    assertThat(ReadOnlySql.check("SELECT $1 FROM t").refusal()).contains("$ outside a string");
+  }
+
+  @Test
+  void explainTakesQueriesOnly() {
+    assertThat(ReadOnlySql.checkQuery("SELECT 1").ok()).isTrue();
+    assertThat(ReadOnlySql.checkQuery("WITH 1 AS x SELECT x").ok()).isTrue();
+    assertThat(ReadOnlySql.checkQuery("SHOW TABLES").ok()).isFalse();
+    assertThat(ReadOnlySql.checkQuery("INSERT INTO t SELECT 1").refusal()).contains("SELECT or WITH");
+  }
+}

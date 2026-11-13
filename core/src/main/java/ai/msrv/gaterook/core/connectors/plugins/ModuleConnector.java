@@ -47,13 +47,19 @@ import tools.jackson.databind.node.ObjectNode;
  * classification, its exact action and its prepared state are the connector's own, where {@link RemoteConnector}
  * takes a plugin's word for none of them.
  *
+ * <p>That holds for a package GateRook's signed list pins. A module a person installed from a file that the list
+ * doesn't pin ({@link #signed} is false) is code nobody reviewed, with a module's richer interface: the exact action
+ * a person approves is the core's own, the call's arguments, with the module's words beside them as unverified; its
+ * tools are the declared ones, whose definitions the installed row pins; and it adds no template kinds. Its tools
+ * start in Approval, and Read only is a person's confirmation per tool ({@code ToolPairs}).
+ *
  * <p>The manifest comes from the installed row, so the registry and {@code tools/list} start no host. A call starts
  * the host when it sleeps, and first asks the {@link Gate} for the module's files: a module whose files are missing
  * (a restored backup on a fresh installation) is downloaded again by the call that needs it. A call that can't reach
  * its connector fails closed: a classification that didn't arrive is a DENY, a change whose answer didn't arrive is
  * {@code OUTCOME_UNKNOWN} and is never sent twice.
  */
-final class ModuleConnector implements Connector {
+final class ModuleConnector implements Connector, ai.msrv.gaterook.core.connectors.PluginBuild {
 
   /**
    * What stands between a call and its module's host: the module's files.
@@ -86,11 +92,16 @@ final class ModuleConnector implements Connector {
   private final EnvironmentPolicies policies;
   private final EgressClients egress;
   private final Gate gate;
+  private final boolean signed;
   private final List<TemplateKind> templateKinds;
   private final Map<String, Boolean> supports = new ConcurrentHashMap<>();
 
+  /**
+   * @param signed whether GateRook's signed list pins the package: {@code false} for a person's own module from a
+   *               file, whose word the core doesn't take
+   */
   ModuleConnector(PluginManifest module, ConnectorManifest manifest, PluginSupervisor supervisor,
-      SecretCallbackRegistry secrets, EnvironmentPolicies policies, EgressClients egress, Gate gate) {
+      SecretCallbackRegistry secrets, EnvironmentPolicies policies, EgressClients egress, Gate gate, boolean signed) {
     this.module = module;
     this.manifest = manifest;
     this.type = module.type(manifest.id()).orElseThrow(() -> new IllegalArgumentException(manifest.id()
@@ -100,9 +111,34 @@ final class ModuleConnector implements Connector {
     this.policies = policies;
     this.egress = egress;
     this.gate = gate;
+    this.signed = signed;
     List<TemplateKind> kinds = new ArrayList<>();
-    type.templateKinds().forEach(k -> kinds.add(new RemoteKind(k)));
+    if (signed) {
+      type.templateKinds().forEach(k -> kinds.add(new RemoteKind(k)));
+    }
     this.templateKinds = List.copyOf(kinds);
+  }
+
+  /** Whether GateRook's signed list pins the package this connector runs. */
+  @Override
+  public boolean signed() {
+    return signed;
+  }
+
+  /** A build GateRook didn't sign is known by its version and its package: another build starts unconfirmed. */
+  @Override
+  public String provenance() {
+    if (signed) {
+      return null;
+    }
+    HostLauncher.Spec spec = supervisor.spec();
+    String sha = spec == null ? null : spec.sha256();
+    return module.version() + (sha == null || sha.length() < 12 ? "" : "+" + sha.substring(0, 12));
+  }
+
+  /** Who said what the core doesn't vouch for: "orders 1.2.0 (unsigned)". */
+  private String unsignedBuild() {
+    return module.id() + " " + module.version() + " (unsigned)";
   }
 
   /** The module this type belongs to. */
@@ -152,7 +188,7 @@ final class ModuleConnector implements Connector {
    */
   @Override
   public List<ToolDefinition> tools(EndpointView endpoint) {
-    if (!can("tools.endpoint")) {
+    if (!signed || !can("tools.endpoint")) {
       return manifest.tools();
     }
     try (PluginSupervisor.Permit permit = permit(deadline(START_BUDGET))) {
@@ -212,7 +248,9 @@ final class ModuleConnector implements Connector {
       Messages.Classify params = new Messages.Classify(generation(), call, cfg, policy);
       JsonNode result = RemoteConnector.answer(permit, permit.host().request(Gpp.CONNECTOR_CLASSIFY,
           params.write()), CLASSIFY_TIMEOUT);
-      return WireCodec.classification(result);
+      Classification said = WireCodec.classification(result);
+      // The rule and the words of code nobody reviewed are held to the type's own rules and made plain text.
+      return signed ? said : RemoteConnector.fromPlugin(said, policy);
     } catch (TimeoutException e) {
       return Classification.deny(policy.rule("connector-unavailable"), manifest.name() + " didn't classify "
           + call.tool() + " in time. Try again.", null);
@@ -242,7 +280,8 @@ final class ModuleConnector implements Connector {
       Messages.Describe params = new Messages.Describe(generation(), call, cfg);
       JsonNode result = RemoteConnector.answer(permit, permit.host().request(Gpp.CONNECTOR_DESCRIBE_ACTION,
           params.write()), DESCRIBE_TIMEOUT);
-      return WireCodec.action(result);
+      ActionPreview described = WireCodec.action(result);
+      return signed ? described : RemoteConnector.exactAction(call, cfg, described, unsignedBuild());
     } catch (TimeoutException | RpcException | ConnectorException | RuntimeException e) {
       log.debug("describeAction of {} by {} failed: {}", call.tool(), manifest.id(), e.toString());
       return callAsAction(call, cfg, e instanceof ConnectorException ? e.getMessage()
@@ -278,7 +317,11 @@ final class ModuleConnector implements Connector {
         try {
           JsonNode answer = RemoteConnector.answer(permit, pending, remaining(ctx));
           requireMaskable(token);
-          return WireCodec.prepared(answer);
+          PreparedAction prepared = WireCodec.prepared(answer);
+          // What a person approves of code nobody reviewed is the call itself; the state stays the connector's.
+          return signed || prepared.preview() == null ? prepared : new PreparedAction(prepared.outcome(),
+              RemoteConnector.exactAction(call, cfg, prepared.preview(), unsignedBuild()), prepared.preparedState(),
+              prepared.message());
         } catch (TimeoutException e) {
           host.cancel(pending, "deadline");
           throw ConnectorException.timeout(manifest.name() + " didn't prepare " + call.tool() + " in time.");

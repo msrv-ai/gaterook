@@ -75,7 +75,7 @@ final class EgressHttpClient implements ExecContext.Egress {
     host = host.startsWith("[") && host.endsWith("]") ? host.substring(1, host.length() - 1) : host;
     int port = uri.getPort() >= 0 ? uri.getPort() : scheme.equals("https") ? 443 : 80;
     if (!granted(grant.hosts(), host, port)) {
-      throw ConnectorException.denied("This plugin may only reach " + String.join(", ", grant.hosts())
+      throw ConnectorException.denied("This " + HostVoice.noun() + " may only reach " + String.join(", ", grant.hosts())
           + " for this connection, not " + host + ":" + port);
     }
     boolean corePort = grant.corePorts().contains(port);
@@ -92,8 +92,8 @@ final class EgressHttpClient implements ExecContext.Egress {
           throw ConnectorException.denied("GateRook's own port " + port + " is never reachable from a plugin");
         }
         if (!AddressRules.allowed(a, allowedPrivate)) {
-          throw ConnectorException.denied(host + " resolves to " + a.getHostAddress() + ", which this plugin may not "
-              + "reach. A private address needs http.allowedPrivateRanges in the environment's policy.");
+          throw ConnectorException.denied(host + " resolves to " + a.getHostAddress() + ", which this "
+              + HostVoice.noun() + " may not reach. A private address needs http.allowedPrivateRanges in the environment's policy.");
         }
         allPrivate &= AddressRules.privateAddress(a);
       }

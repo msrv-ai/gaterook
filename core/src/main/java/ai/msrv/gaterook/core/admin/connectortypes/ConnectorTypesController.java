@@ -107,14 +107,30 @@ class ConnectorTypesController {
    * @param step      the step of a running installation, or {@code null}
    * @param sizeBytes the size of the download
    * @param message   why the last installation failed, or {@code null}
+   * @param signed    whether GateRook's signed list pins the package: {@code false} only for an installed module that
+   *                  a person installed from a file and that the list doesn't pin (their own module)
+   * @param listedVersion a higher version the list has for an installed module, or the version it has of a module
+   *                  whose installed build is the person's own; else {@code null}
    */
   record ModuleRef(String id, String version, String state, String step, long sizeBytes, boolean installed,
-      String message) {}
+      String message, boolean signed, String listedVersion) {
 
-  /** {@code state}: {@code enabled}, {@code disabled} or {@code changed-outside} (fail closed until reviewed). */
+    static ModuleRef of(Modules.Module module) {
+      return new ModuleRef(module.id(), module.version(), module.state(), module.step(), module.sizeBytes(),
+          module.installed(), module.message(), module.signed(), module.listedVersion());
+    }
+  }
+
+  /**
+   * {@code state}: {@code enabled}, {@code disabled} or {@code changed-outside} (fail closed until reviewed).
+   *
+   * @param signed a plugin's type: whether the catalog key signed its build. A type of an installed connector module:
+   *               {@code false} when the module is a person's own, from a file. Else {@code null}
+   * @param module the installed connector module that adds the type, or {@code null}
+   */
   record Installed(String id, String kind, String name, String icon, String group, String description,
       String version, Boolean signed, Integer tools, int connections, boolean enabled, boolean verified,
-      String state, Process process, List<Variant> variants) {}
+      String state, Process process, List<Variant> variants, ModuleRef module) {}
 
   /** {@code state}: {@code running}, {@code stopped} ("Sleeping"), {@code failed}, … */
   record Process(String state, Long pid, Integer rssMb, String detail) {}
@@ -182,6 +198,9 @@ class ConnectorTypesController {
     List<Installed> installed = new ArrayList<>();
     Map<String, Plugins.Installed> pluginRows = new LinkedHashMap<>();
     plugins.installed().forEach(p -> pluginRows.put(p.id(), p));
+    List<Modules.Module> allModules = modules.list();
+    Map<String, ModuleRef> moduleOf = new LinkedHashMap<>();
+    allModules.forEach(module -> module.types().forEach(type -> moduleOf.put(type.id(), ModuleRef.of(module))));
     for (ConnectorType t : types) {
       ConnectorManifest m = t.manifest();
       boolean legacy = m.configSchema() != null && m.configSchema().path("x-legacy").asBoolean(false);
@@ -189,7 +208,9 @@ class ConnectorTypesController {
         byGroup.computeIfAbsent(m.group(), k -> new ArrayList<>()).addAll(cards(t, stored, pluginRows));
       }
       if (t.kind() != ConnectorManifest.Kind.MCP_SERVER) {
-        if (!legacy || count(stored, m.id(), null) > 0) installed.add(installed(t, stored, pluginRows));
+        if (!legacy || count(stored, m.id(), null) > 0) {
+          installed.add(installed(t, stored, pluginRows, servedBy(m, moduleOf.get(m.id()))));
+        }
       } else {
         // Each external MCP server is installed on its own (C10): its connection, version, tools and process.
         stored.stream().filter(s -> s.config().type().equals(m.id())).forEach(s -> installed.add(server(t, s)));
@@ -210,12 +231,9 @@ class ConnectorTypesController {
     // installed, in its group among the built-in ones, and the module on the cards of those that are.
     java.util.Set<String> registered = new java.util.HashSet<>();
     types.forEach(t -> registered.add(t.id()));
-    Map<String, ModuleRef> moduleOf = new LinkedHashMap<>();
-    for (Modules.Module module : modules.list()) {
-      ModuleRef ref = new ModuleRef(module.id(), module.version(), module.state(), module.step(), module.sizeBytes(),
-          module.installed(), module.message());
+    for (Modules.Module module : allModules) {
+      ModuleRef ref = ModuleRef.of(module);
       for (Modules.Type type : module.types()) {
-        moduleOf.put(type.id(), ref);
         if (!registered.contains(type.id())) {
           String g = GROUPS.contains(type.group()) ? type.group() : "HTTP and MCP";
           byGroup.computeIfAbsent(g, k -> new ArrayList<>()).add(new Card(type.id(), null, type.name(),
@@ -324,7 +342,7 @@ class ConnectorTypesController {
     String reason = !t.verified() ? m.name() + " was changed outside GateRook. Review it in Connectors first."
         : !t.enabled() ? m.name() + " is switched off in Connectors." : null;
     // Whether a plugin is signed is its plugin row's (K4, shown since K6); a built-in needs no signature.
-    Boolean signed = signed(m, pluginRows);
+    Boolean signed = signed(m, pluginRows, null);
     List<Variant> variants = variants(m);
     if (variants.isEmpty()) {
       return List.of(new Card(m.id(), null, m.name(), m.icon(), cardDescription(m), kind, m.version(), signed, tools,
@@ -372,20 +390,31 @@ class ConnectorTypesController {
     if (t.kind() == ConnectorManifest.Kind.PLUGIN) {
       plugins.view(t.id()).ifPresent(p -> pluginRows.put(p.id(), p));
     }
-    return installed(t, stored, pluginRows);
+    ModuleRef module = t.kind() != ConnectorManifest.Kind.BUILT_IN ? null
+        : servedBy(t.manifest(), modules.find(t.id()).map(ModuleRef::of).orElse(null));
+    return installed(t, stored, pluginRows, module);
   }
 
-  /** Signed or not, for a plugin's type; {@code null} for a built-in or an MCP server type. */
-  private static Boolean signed(ConnectorManifest m, Map<String, Plugins.Installed> pluginRows) {
+  /** The installed module that serves a type: none for a type this build compiles in, whatever is installed for it. */
+  private ModuleRef servedBy(ConnectorManifest m, ModuleRef module) {
+    return module != null && module.installed() && m.kind() == ConnectorManifest.Kind.BUILT_IN
+        && !registry.compiledIn(m.id()) ? module : null;
+  }
+
+  /**
+   * Signed or not: a plugin's type by its row, a type of a person's own connector module {@code false}; {@code null}
+   * for GateRook's own types and an MCP server type.
+   */
+  private static Boolean signed(ConnectorManifest m, Map<String, Plugins.Installed> pluginRows, ModuleRef module) {
     if (m.kind() != ConnectorManifest.Kind.PLUGIN) {
-      return null;
+      return module != null && !module.signed() ? Boolean.FALSE : null;
     }
     Plugins.Installed row = pluginRows.get(m.id());
     return row == null ? null : row.signed();
   }
 
   private Installed installed(ConnectorType t, List<ConnectionConfigs.Stored> stored,
-      Map<String, Plugins.Installed> pluginRows) {
+      Map<String, Plugins.Installed> pluginRows, ModuleRef module) {
     ConnectorManifest m = t.manifest();
     Process process = null;
     for (ConnectorProcessStatus status : processes) {
@@ -398,8 +427,9 @@ class ConnectorTypesController {
     }
     String state = !t.verified() ? "changed-outside" : t.enabled() ? "enabled" : "disabled";
     return new Installed(m.id(), kind(m.kind()), m.name(), m.icon(), m.group(), m.description(), m.version(),
-        signed(m, pluginRows), m.dynamicTools() ? null
-            : m.tools().size(), count(stored, m.id(), null), t.enabled(), t.verified(), state, process, variants(m));
+        signed(m, pluginRows, module), m.dynamicTools() ? null
+            : m.tools().size(), count(stored, m.id(), null), t.enabled(), t.verified(), state, process, variants(m),
+        module);
   }
 
   /**
@@ -424,7 +454,7 @@ class ConnectorTypesController {
     String name = meta.path("serverName").isString() ? meta.path("serverName").asString() : s.name();
     return new Installed(s.name(), kind(m.kind()), name, m.icon(), m.group(), m.description(),
         meta.path("serverVersion").asString(null), null, meta.path("tools").isNumber() ? meta.path("tools").asInt()
-            : null, 1, t.enabled(), verified, state, process, List.of());
+            : null, 1, t.enabled(), verified, state, process, List.of(), null);
   }
 
   /** Connections of a type; with a variant, those whose config holds every value of its preset. */

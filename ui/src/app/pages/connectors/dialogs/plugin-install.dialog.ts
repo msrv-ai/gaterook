@@ -7,8 +7,11 @@ import { formatBytes } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { failureText } from './failure';
 
-/** A plugin JAR is at most 50 MB (§8.2 file drop). */
-export const PLUGIN_MAX_BYTES = 50 * 1024 * 1024;
+/**
+ * A plugin JAR is at most 50 MB (§8.2 file drop) and a connector module's package 150 MB: the drop takes the larger,
+ * and the core holds each kind to its own limit once the package says which it is.
+ */
+export const PLUGIN_MAX_BYTES = 150 * 1024 * 1024;
 
 /** The check passed on to the review: the report and where the JAR came from (its file name or URL). */
 export interface PluginChecked {
@@ -20,10 +23,11 @@ export interface PluginChecked {
 let nextId = 0;
 
 /**
- * `<dialog gwPluginInstallDialog>` (kit `dlg-install-plugin`): step 1 of installing a plugin — a JAR from this
- * computer (drop or choose, ≤ 50 MB) or an HTTPS URL. "Check plugin" sends it to the core, which stages it and checks
- * the signature and the manifest before anything loads (`POST /api/plugins/check`); the result opens the review
- * (`checked`), signed or unsigned. Focus starts on the file drop; errors stay at their field.
+ * `<dialog gwPluginInstallDialog>` (kit `dlg-install-plugin`): step 1 of installing a plugin or a connector module
+ * from a file — a JAR from this computer (drop or choose) or an HTTPS URL. "Check package" sends it to the core, which
+ * stages it and checks the signature and the manifest before anything loads (`POST /api/plugins/check`); the result
+ * opens the review (`checked`), signed or unsigned, of a plugin or of a module. Focus starts on the file drop; errors
+ * stay at their field.
  */
 @Component({
   selector: 'dialog[gwPluginInstallDialog]',
@@ -39,9 +43,9 @@ let nextId = 0;
     <form method="dialog" novalidate (submit)="submit($event)">
       <header class="gw-dialog__header">
         <span class="gw-icon-tile"><svg lucideIcon="puzzle" class="gw-icon"></svg></span>
-        <h2 class="gw-dialog__title" [id]="uid + '-t'">Install plugin</h2>
+        <h2 class="gw-dialog__title" [id]="uid + '-t'">Install plugin or module</h2>
         <!-- Decision 2 (ARCHITECTURE §8.6.8): a plugin runs in its own plugin process, not in a classloader of the core. -->
-        <p class="gw-dialog__description" [id]="uid + '-d'">A Java plugin adds a resource type with its own tools. It loads without a restart, in its own plugin process.</p>
+        <p class="gw-dialog__description" [id]="uid + '-d'">A Java plugin or a connector module adds resource types with their own tools. It loads without a restart, in its own process.</p>
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
       </header>
       <div class="gw-dialog__body">
@@ -49,7 +53,7 @@ let nextId = 0;
           <label class="gw-file-drop" data-state="idle" [gwFileDropMaxBytes]="maxBytes" (fileChange)="onFile($event)" (tooLarge)="onTooLarge($event)">
             <input class="gw-file-drop__input" type="file" accept=".jar" autofocus #fileInput [attr.aria-describedby]="uid + '-file-hint'">
             <span class="gw-file-drop__icon"><svg [lucideIcon]="fileIcon()" class="gw-icon gw-icon--lg"></svg></span>
-            <span class="gw-file-drop__title">@if (file(); as f) {<span class="gw-mono">{{ f.name }}</span>} @else {Drop a plugin JAR here or <span class="gw-fg-link">choose a file</span>}</span>
+            <span class="gw-file-drop__title">@if (file(); as f) {<span class="gw-mono">{{ f.name }}</span>} @else {Drop a plugin or module JAR here or <span class="gw-fg-link">choose a file</span>}</span>
             <span class="gw-file-drop__hint" [id]="uid + '-file-hint'">{{ fileHint() }}</span>
           </label>
           <div class="gw-field">
@@ -73,19 +77,19 @@ let nextId = 0;
           </div>
           <div class="gw-alert gw-alert--info gw-alert--compact">
             <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
-            <div class="gw-alert__content"><p class="gw-alert__body">Nothing loads before the check of the signature and the manifest (tools, hosts and commands it needs). Signed by the catalog: review and install. Unsigned: you confirm the risk first.</p></div>
+            <div class="gw-alert__content"><p class="gw-alert__body">Nothing loads before the check of the signature and the manifest (tools, hosts and commands it needs). Signed by GateRook: review and install. Unsigned, such as a module you built yourself: you confirm the risk first, and its tools start as Approval.</p></div>
           </div>
           @if (error()) {
             <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
               <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
-              <div class="gw-alert__content"><p class="gw-alert__title">The plugin wasn't checked</p><p class="gw-alert__body">{{ error() }}</p></div>
+              <div class="gw-alert__content"><p class="gw-alert__title">The package wasn't checked</p><p class="gw-alert__body">{{ error() }}</p></div>
             </div>
           }
         </div>
       </div>
       <footer class="gw-dialog__footer">
         <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
-        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="shield-check" class="gw-icon"></svg>} Check plugin</button>
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="shield-check" class="gw-icon"></svg>} Check package</button>
       </footer>
     </form>
   `,
@@ -111,9 +115,9 @@ export class GwPluginInstallDialog {
   protected readonly fileIcon = computed(() => (this.tooLarge() ? 'file-x' : this.file() ? 'file-check' : 'upload'));
   protected readonly fileHint = computed(() => {
     const big = this.tooLarge();
-    if (big) return `${big.name} is ${formatBytes(big.size)}. Choose a plugin JAR of up to 50 MB.`;
+    if (big) return `${big.name} is ${formatBytes(big.size)}. Choose a plugin JAR of up to 50 MB or a connector module of up to 150 MB.`;
     const f = this.file();
-    return f ? `${formatBytes(f.size)}. The core checks its signature and manifest next.` : 'One PF4J plugin JAR, up to 50 MB';
+    return f ? `${formatBytes(f.size)}. The core checks its signature and manifest next.` : 'One plugin JAR, up to 50 MB, or one connector module, up to 150 MB';
   });
 
   /** Opens empty: no file, no URL, nothing checked yet. */
@@ -153,7 +157,7 @@ export class GwPluginInstallDialog {
       return;
     }
     if (file && url) return this.invalidUrl('Use the file or the URL, not both. Clear the URL to check the file.');
-    if (!file && !url) return this.invalidUrl('Choose a plugin JAR above, or enter the URL to download it from.');
+    if (!file && !url) return this.invalidUrl('Choose a plugin or module JAR above, or enter the URL to download it from.');
     if (!file && !/^https:\/\/[^\s/]+/i.test(url)) return this.invalidUrl('Use an HTTPS URL, starting with https://.');
     this.busy.set(true);
     try {

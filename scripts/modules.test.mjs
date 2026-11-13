@@ -100,6 +100,21 @@ test('the layout is checked: versions, the reactor and the delivery map', (t) =>
     ["modules/alpha packages a connector that connectors/delivery.json doesn't deliver as a module"]);
 });
 
+test('a connector that exists only as a module needs its module and nothing under connectors/', (t) => {
+  const root = fixture(t);
+  writeFileSync(join(root, 'connectors', 'delivery.json'), JSON.stringify({
+    schema: 1,
+    budget: { bundledImageMegabytes: 3, exempt: {} },
+    connectors: {},
+    moduleOnly: {
+      $comment: 'Connectors that exist only as modules.',
+      alpha: { types: ['alpha'], why: 'It relies on the module host.' },
+      beta: { types: ['beta'], why: 'It relies on the module host.' },
+    },
+  }));
+  assert.deepEqual(checkModules(root), ['beta is module only but modules/beta/module.json is missing']);
+});
+
 test('a package is new, released, or changed without a new version', (t) => {
   const root = fixture(t);
   assert.deepEqual(status(fixture(t, { built: false })).map((s) => s.state), ['unbuilt']);

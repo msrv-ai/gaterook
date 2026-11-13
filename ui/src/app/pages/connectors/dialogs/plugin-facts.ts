@@ -2,9 +2,18 @@ import { PluginCheck } from '../../../core/api/plugins.api';
 import { JsonObject, JsonValue } from '../../../core/api/types';
 import { formatBytes, joinAnd } from '../connectors-view';
 
+/** One connector type a connector module adds, as its review lists it. */
+export interface ModuleTypeFacts {
+  readonly id: string;
+  readonly name: string;
+  readonly toolNames: string[];
+}
+
 /**
  * The review of a staged plugin in the kit's words (`dlg-review-clickhouse`, `dlg-review-rabbitmq`): what the
  * package is, what its manifest declares (tools, the connection form, the hosts it needs) and the trust it carries.
+ * A connector module's package from a file is reviewed the same way (`module`): its connector types, whether
+ * GateRook's signed list has this very package, and what it would replace.
  */
 export interface PluginFacts {
   readonly id: string;
@@ -23,6 +32,12 @@ export interface PluginFacts {
   readonly access: string;
   /** The core said this system has no sandbox for the plugin process (`report.sandbox` null): the review says so. */
   readonly unsandboxed: boolean;
+  /** The package is a connector module; `signed` then says whether GateRook's signed list has this very package. */
+  readonly module: boolean;
+  /** A module's connector types with their tools; empty for a plugin. */
+  readonly types: ModuleTypeFacts[];
+  /** A module: the installed build this package would replace ("v1.0.0", GateRook's or the person's own); else null. */
+  readonly replaces: { readonly version: string; readonly own: boolean } | null;
 }
 
 function isObject(v: JsonValue | undefined): v is JsonObject {
@@ -123,5 +138,8 @@ export function pluginFacts(check: PluginCheck, source: string | null): PluginFa
     access: accessText(r.access),
     // null: no sandbox here; a name: the sandbox it runs in; absent: a core that doesn't say (nothing is claimed).
     unsandboxed: r.sandbox === null,
+    module: r.module === true,
+    types: r.module === true ? (r.types ?? []).map((type) => ({ id: type.id, name: type.name || type.id, toolNames: type.tools.map((tool) => tool.name) })) : [],
+    replaces: r.module === true && r.installedVersion ? { version: r.installedVersion.startsWith('v') ? r.installedVersion : `v${r.installedVersion}`, own: r.installedSigned === false } : null,
   };
 }

@@ -101,6 +101,25 @@ final class BuiltModule implements AutoCloseable {
     return flags;
   }
 
+  /**
+   * Runs a small Java program with a module's package on its class path, in a JVM of its own: what a test uses of a
+   * module's libraries, such as making the database file its connector then reads, without having them itself.
+   *
+   * @param source the program, a class named {@code Seed} with a {@code main}
+   */
+  static void runWith(Path jar, Path work, String source, String... args) throws Exception {
+    Path program = Files.writeString(work.resolve("Seed.java"), source);
+    List<String> command = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+        "-cp", jar.toAbsolutePath().toString(), program.toString()));
+    command.addAll(List.of(args));
+    Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+    String said = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    if (!process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS) || process.exitValue() != 0) {
+      process.destroyForcibly();
+      throw new AssertionError("The program didn't run with " + jar.getFileName() + ": " + said);
+    }
+  }
+
   @Override
   public void close() {
     core.close();

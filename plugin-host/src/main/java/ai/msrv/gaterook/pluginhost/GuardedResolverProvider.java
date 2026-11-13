@@ -107,7 +107,7 @@ public final class GuardedResolverProvider extends InetAddressResolverProvider {
         }
         List<InetAddress> found = builtin.lookupByName(host, policy).filter(a -> passes(host, a)).toList();
         if (found.isEmpty()) {
-          throw new UnknownHostException(host + ": no address this plugin may reach");
+          throw new UnknownHostException(host + ": no address this " + HostVoice.noun() + " may reach");
         }
         return found.stream();
       }

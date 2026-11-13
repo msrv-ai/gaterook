@@ -247,27 +247,36 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     Map<String, ConnectorManifest> fromSources = new LinkedHashMap<>();
     Map<String, String> packages = new HashMap<>();
     Map<String, Connector> ownConnectors = new LinkedHashMap<>();
-    // GateRook's own types first: foreign code then can't take a name one of them has.
-    for (ConnectorSource source : sources) {
-      Map<String, Connector> connectors = new HashMap<>();
-      source.firstPartyConnectors().forEach(c -> connectors.put(c.manifest().id(), c));
-      for (ConnectorManifest m : source.types()) {
-        if (!source.firstParty(m.id())) {
-          continue;
-        }
-        if (builtIn.containsKey(m.id())) {
-          // Compiled into this build as well: the compiled-in connector serves the type.
-          continue;
-        }
-        Optional<String> problem = firstPartyProblem(m, fromSources);
-        if (problem.isPresent()) {
-          log.error("Connector type {} is not registered: {}", m.id(), problem.get());
-          continue;
-        }
-        fromSources.put(m.id(), inFamily(m));
-        source.packageOf(m.id()).ifPresent(p -> packages.put(m.id(), p));
-        if (connectors.containsKey(m.id())) {
-          ownConnectors.put(m.id(), connectors.get(m.id()));
+    // GateRook's own types first: foreign code then can't take a name one of them has. The types of a module that
+    // GateRook didn't sign (a person's own, from a file) come after the signed ones, and pass for none of them.
+    for (boolean unverified : new boolean[] {false, true}) {
+      for (ConnectorSource source : sources) {
+        Map<String, Connector> connectors = new HashMap<>();
+        source.firstPartyConnectors().forEach(c -> connectors.put(c.manifest().id(), c));
+        for (ConnectorManifest m : source.types()) {
+          if (!source.firstParty(m.id()) || source.unverified(m.id()) != unverified) {
+            continue;
+          }
+          if (builtIn.containsKey(m.id())) {
+            // Compiled into this build as well: the compiled-in connector serves the type.
+            continue;
+          }
+          String ownPackage = source.packageOf(m.id()).orElse(null);
+          Optional<String> problem = firstPartyProblem(m, fromSources);
+          if (problem.isEmpty() && unverified) {
+            problem = unverifiedProblem(m, fromSources, packages, ownPackage);
+          }
+          if (problem.isPresent()) {
+            log.error("Connector type {} is not registered: {}", m.id(), problem.get());
+            continue;
+          }
+          fromSources.put(m.id(), unverified ? m : inFamily(m));
+          if (ownPackage != null) {
+            packages.put(m.id(), ownPackage);
+          }
+          if (connectors.containsKey(m.id())) {
+            ownConnectors.put(m.id(), connectors.get(m.id()));
+          }
         }
       }
     }
@@ -842,6 +851,72 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
               + ": same-named tools must be equal to share an endpoint");
         }
       }
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Why a type of a module that GateRook didn't sign ({@link ConnectorSource#unverified}) can't be registered beside
+   * the others, or empty. Such a type passes for nothing of GateRook's: none of its tools has the name of a built-in
+   * tool or of a built-in family, and it shares no tool, nor a family of names, with another package's type.
+   *
+   * @param ownPackage the package that adds {@code m}: its other types may have the same tools
+   */
+  private Optional<String> unverifiedProblem(ConnectorManifest m, Map<String, ConnectorManifest> others,
+      Map<String, String> packages, String ownPackage) {
+    Map<String, String> taken = new HashMap<>();
+    for (ConnectorManifest other : others.values()) {
+      if (ownPackage == null || !ownPackage.equals(packages.get(other.id()))) {
+        other.tools().forEach(tool -> taken.putIfAbsent(tool.name(), other.id()));
+      }
+    }
+    Set<String> families = prefixes(taken.keySet());
+    for (ToolDefinition t : m.tools()) {
+      String name = t.name();
+      if (reserved.contains(name)) {
+        return Optional.of("tool " + name + " has the name of a built-in tool");
+      }
+      if (taken.containsKey(name)) {
+        return Optional.of("tool " + name + " is already a tool of " + taken.get(name));
+      }
+      for (Set<String> prefixes : List.of(reservedPrefixes, families)) {
+        for (String prefix : prefixes) {
+          if (name.startsWith(prefix)) {
+            return Optional.of("tool " + name + " starts with " + prefix + ", which the tools of another connector "
+                + "start with");
+          }
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Whether the connector types of a module that GateRook didn't sign could be registered now, before the module is
+   * installed: what {@link #synchronize} would decide of them, as a reason a person can act on, or empty.
+   *
+   * @param moduleId the module's id: the types an installed package of that id adds now are the ones it replaces
+   */
+  public synchronized Optional<String> ownModuleProblem(String moduleId, List<ConnectorManifest> types) {
+    Map<String, String> packages = new HashMap<>(sourcePackages);
+    Map<String, ConnectorManifest> others = new LinkedHashMap<>();
+    sourceTypes.values().stream().filter(known -> !moduleId.equals(packages.get(known.id())))
+        .forEach(known -> others.put(known.id(), known));
+    awaited.values().forEach(standIn -> others.putIfAbsent(standIn.manifest().id(), standIn.manifest()));
+    for (ConnectorManifest m : types) {
+      if (builtIn.containsKey(m.id())) {
+        return Optional.of(m.name() + " is part of this GateRook: the connector type " + m.id() + " can't come from "
+            + "a file");
+      }
+      Optional<String> problem = firstPartyProblem(m, others);
+      if (problem.isEmpty()) {
+        problem = unverifiedProblem(m, others, packages, moduleId);
+      }
+      if (problem.isPresent()) {
+        return Optional.of("its connector type " + m.id() + " can't be added: " + problem.get());
+      }
+      others.put(m.id(), m);
+      packages.put(m.id(), moduleId);
     }
     return Optional.empty();
   }

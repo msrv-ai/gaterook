@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DuckDB as a connector module (docs/connector-delivery.md, docs/duckdb.md): one DuckDB database file on this
+  computer, read through a read-only DuckDB instance whose external access and configuration are locked, and changed
+  only by an approved statement on a separate read-write instance. DuckDB exists only as a module: its code lives
+  here, runs in a module host and is never compiled into the core. The connector API and Jackson are provided by the
+  host (parent-first).
+
+  The package is one JAR, so the DuckDB JDBC driver is shaded into it with two of its native libraries: macOS on
+  Apple Silicon and Windows x64, the platforms GateRook ships. On Linux and Intel Macs the connector says it has no
+  library.
+
+  The package is duckdb-<version>.jar. Its manifest is written by ModuleManifests from module.json and from what the
+  connector says of itself (src/main/resources/connectors/duckdb/connector.json). The module's version is module.json's
+  and changes only when the package does (scripts/modules.mjs); the reactor's fixed outputTimestamp makes the build
+  reproducible, so the SHA-256 the signed list pins can be compared with a rebuild. DuckDbModuleHostIT loads
+  that JAR in a real module host after `package`.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>${revision}</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>modules-duckdb</artifactId>
+  <name>GateRook · Modules · DuckDB</name>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <!-- The version of module.json; scripts/modules.mjs keeps the two equal. -->
+    <module.version>1.1.0</module.version>
+  </properties>
+
+  <dependencies>
+    <!-- The host serves both parent-first: a plugin never ships its own copy (the installer refuses one). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Shaded into the plugin JAR with the native libraries the shade filter keeps. -->
+    <dependency>
+      <groupId>org.duckdb</groupId>
+      <artifactId>duckdb_jdbc</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Build time and tests only, never part of the package: ModuleManifests writes the manifest from the module's
+      connector, and the tests read it as the core and the host do.
+    -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-protocol</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!--
+      Build order only: the host must be packaged before DuckDbModuleHostIT copies its jar. A pom-type dependency with
+      every transitive excluded adds the reactor edge without putting PF4J on any classpath of this module.
+    -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-host</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>duckdb-${module.version}</finalName>
+    <resources>
+      <!-- The connector's version and the versions in the package's license notes are the build's own. -->
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+    <plugins>
+      <!-- The manifest, written from the connector the module class gives: it can't disagree with the code. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>module-manifest</id>
+            <phase>process-classes</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <java classname="ai.msrv.gaterook.plugin.protocol.ModuleManifests" fork="true" failonerror="true"
+                      classpathref="maven.compile.classpath">
+                  <arg value="${project.basedir}/module.json"/>
+                  <arg value="${project.build.outputDirectory}/mcp-gateway-plugin.json"/>
+                </java>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration combine.self="override">
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>org.duckdb:duckdb_jdbc</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <!--
+                  Nothing of the build itself goes into the package: no manifest and no Maven descriptor, which would
+                  carry the application's version and the tools' versions. The package's bytes then change only when
+                  the module does.
+                -->
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                    <exclude>META-INF/versions/*/module-info.class</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+                <filter>
+                  <artifact>org.duckdb:duckdb_jdbc</artifact>
+                  <includes>
+                    <include>org/duckdb/**</include>
+                    <include>libduckdb_java.so_macos_arm64</include>
+                    <include>libduckdb_java.so_windows_amd64</include>
+                  </includes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- The module host DuckDbModuleHostIT starts, copied next to the tests (never on a classpath here). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-plugin-host</id>
+            <phase>pre-integration-test</phase>
+            <goals><goal>copy</goal></goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>ai.msrv.gaterook</groupId>
+                  <artifactId>plugin-host</artifactId>
+                  <version>${project.version}</version>
+                  <destFileName>plugin-host.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/plugin-host</outputDirectory>
+              <excludeTransitive>true</excludeTransitive>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- After package: the release JAR in a real plugin host (DuckDbModuleHostIT). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <gateway.pluginHostJar>${project.build.directory}/plugin-host/plugin-host.jar</gateway.pluginHostJar>
+            <gateway.duckdbJar>${project.build.directory}/${project.build.finalName}.jar</gateway.duckdbJar>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
