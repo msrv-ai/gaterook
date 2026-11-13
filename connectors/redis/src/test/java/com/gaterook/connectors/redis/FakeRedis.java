@@ -114,6 +114,19 @@ final class FakeRedis implements AutoCloseable {
       if (mode == Mode.DENIED) {
         out.write("-DENIED Redis is running in protected mode\r\n".getBytes(StandardCharsets.US_ASCII));
         out.flush();
+        // Close in order: closing with the client's bytes still unread resets the connection, and on Windows a
+        // reset discards the refusal before the client reads it.
+        socket.shutdownOutput();
+        socket.setSoTimeout(2000);
+        InputStream drain = socket.getInputStream();
+        byte[] buffer = new byte[4096];
+        try {
+          while (drain.read(buffer) >= 0) {
+            // Discard what the client sent.
+          }
+        } catch (IOException ignored) {
+          // The client went away or stayed silent: either way the refusal was delivered.
+        }
         return;
       }
       InputStream in = new BufferedInputStream(socket.getInputStream());
