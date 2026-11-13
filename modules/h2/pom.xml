@@ -143,6 +143,23 @@
                 </includes>
               </artifactSet>
               <filters>
+                <!--
+                  Nothing of the build itself goes into the package: no manifest and no Maven descriptor, which would
+                  carry the application's version and the tools' versions. The package's bytes then change only when
+                  the module does.
+                -->
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                    <exclude>META-INF/versions/*/module-info.class</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
                 <filter>
                   <artifact>com.h2database:h2</artifact>
                   <includes>

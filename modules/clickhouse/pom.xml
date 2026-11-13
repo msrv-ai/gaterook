@@ -105,6 +105,39 @@
           </execution>
         </executions>
       </plugin>
+      <!--
+        The package is the connector's own classes: it brings no library. It is still put together by the shade
+        plugin, as every module's is, so that nothing of the build itself goes into it: no manifest and no Maven
+        descriptor, which would carry the application's version and the tools' versions. The package's bytes then
+        change only when the module does.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration combine.self="override">
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>ai.msrv.gaterook:modules-clickhouse</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/maven/**</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
