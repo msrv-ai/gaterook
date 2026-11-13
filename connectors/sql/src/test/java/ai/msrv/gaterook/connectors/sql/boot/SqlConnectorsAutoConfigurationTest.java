@@ -25,7 +25,8 @@ class SqlConnectorsAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(SqlConnectorsAutoConfiguration.class))
         .run(ctx -> assertThat(ctx.getBeansOfType(Connector.class).values())
             .extracting(c -> c.manifest().id())
-            .containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite"));
+            .as("Oracle Database and SQL Server are registered by their own modules")
+            .containsExactlyInAnyOrder("postgres", "mysql", "sqlite"));
   }
 
   @Test

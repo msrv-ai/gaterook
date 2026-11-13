@@ -76,12 +76,12 @@ export function checkModules(root = ROOT) {
     if (!new RegExp(`<module>\\s*modules/${m.dir}\\s*</module>`).test(rootPom)) {
       problems.push(`modules/${m.dir} is not a module of the root pom`);
     }
-    if (delivery.connectors[m.dir]?.delivery !== 'module') {
+    if (!['module', 'bridge'].includes(delivery.connectors[m.dir]?.delivery)) {
       problems.push(`modules/${m.dir} packages a connector that connectors/delivery.json doesn't deliver as a module`);
     }
   }
   for (const [name, entry] of Object.entries(delivery.connectors)) {
-    if (entry.delivery === 'module' && !found.some((m) => m.dir === name)) {
+    if (entry.delivery !== 'bundled' && !found.some((m) => m.dir === name)) {
       problems.push(`${name} is delivered as a module but modules/${name}/module.json is missing`);
     }
   }

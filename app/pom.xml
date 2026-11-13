@@ -366,6 +366,30 @@
   </build>
 
   <profiles>
+    <profile>
+      <id>bridge</id>
+      <!--
+        The connectors of connectors/delivery.json whose delivery is `bridge`: published as modules already and still
+        compiled into this release's core, so a person's connections work the same while the module arrives in the
+        background (docs/connector-delivery.md). On unless -Dgateway.withoutBridge is given, which builds the core
+        as the release after has it and is what the tests of those modules run against.
+      -->
+      <activation>
+        <property>
+          <name>!gateway.withoutBridge</name>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>ai.msrv.gaterook</groupId>
+          <artifactId>connectors-sql-oracle</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>ai.msrv.gaterook</groupId>
+          <artifactId>connectors-sql-sqlserver</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
     <!--
       Every connector in this one process, for JVM runs: the connectors that connectors/delivery.json delivers as
       modules join the classpath. Never together with `native`: the Cassandra driver's own GraalVM substitutions need

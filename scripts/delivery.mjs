@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// connectors/delivery.json says how each connector module reaches the application: `bundled` (compiled into the core)
-// or `module` (not part of the installer). This helper reads it and checks that the Maven build agrees: a bundled
-// connector is a dependency of the `app` assembly, a module one is only in its `all-bundled` profile, and every
-// connector directory has an entry.
+// connectors/delivery.json says how each connector module reaches the application: `bundled` (compiled into the core),
+// `module` (not part of the installer) or `bridge` (a module that this release still compiles in). This helper reads
+// it and checks that the Maven build agrees: a bundled connector is a dependency of the `app` assembly, a module one
+// is only in its `all-bundled` profile, a bridge one only in its `bridge` profile, and every connector directory has
+// an entry.
 //
 //   node scripts/delivery.mjs            print the map
 //   node scripts/delivery.mjs --check    exit 1 with every disagreement
@@ -14,7 +15,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Shared libraries under connectors/ that are not connectors themselves. */
 export const SHARED = Object.freeze(['support', 'cloud-auth']);
-const DELIVERIES = Object.freeze(['bundled', 'module']);
+const DELIVERIES = Object.freeze(['bundled', 'module', 'bridge']);
 const TYPE_ID = /^[a-z][a-z0-9-]{0,47}$/;
 
 /** The delivery map as written, after checking its own shape. */
@@ -35,7 +36,7 @@ export function readDelivery(root = ROOT) {
       if (seen.has(type)) problems.push(`${type} is listed by both ${seen.get(type)} and ${name}`);
       seen.set(type, name);
     }
-    if (entry?.delivery === 'module' && !entry.why) problems.push(`${name}: a module says why it is not compiled in`);
+    if (entry?.delivery !== 'bundled' && !entry?.why) problems.push(`${name}: a module says why it is not compiled in`);
   }
   for (const name of Object.keys(map.budget?.exempt ?? {})) {
     if (!map.connectors?.[name]) problems.push(`budget.exempt names ${name}, which is not a connector`);
@@ -57,17 +58,22 @@ function connectorDependencies(xml) {
   return out;
 }
 
-/** What `app/pom.xml` puts on the core's classpath: always, and only with the `all-bundled` profile. */
+/**
+ * What `app/pom.xml` puts on the core's classpath: always, with the `bridge` profile (on by default), and only with
+ * the `all-bundled` profile.
+ */
 export function appAssembly(root = ROOT) {
   const pom = withoutComments(readFileSync(join(root, 'app', 'pom.xml'), 'utf8'));
   const profilesAt = pom.indexOf('<profiles>');
   const main = profilesAt < 0 ? pom : pom.slice(0, profilesAt);
   const always = connectorDependencies(main);
   let allBundled = [];
+  let bridge = [];
   for (const profile of (profilesAt < 0 ? '' : pom.slice(profilesAt)).matchAll(/<profile>([\s\S]*?)<\/profile>/g)) {
     if (/<id>\s*all-bundled\s*<\/id>/.test(profile[1])) allBundled = connectorDependencies(profile[1]);
+    if (/<id>\s*bridge\s*<\/id>/.test(profile[1])) bridge = connectorDependencies(profile[1]);
   }
-  return { always, allBundled };
+  return { always, allBundled, bridge };
 }
 
 /** Connector directories of the checkout and the modules the root pom builds. */
@@ -83,7 +89,7 @@ function sources(root) {
 /** Every disagreement between the delivery map and the build; empty when they agree. */
 export function checkDelivery(root = ROOT) {
   const map = readDelivery(root);
-  const { always, allBundled } = appAssembly(root);
+  const { always, allBundled, bridge } = appAssembly(root);
   const { directories, modules } = sources(root);
   const problems = [];
   for (const name of directories) {
@@ -97,15 +103,23 @@ export function checkDelivery(root = ROOT) {
     }
     const inAlways = always.includes(name);
     const inProfile = allBundled.includes(name);
+    const inBridge = bridge.includes(name);
+    if (entry.delivery !== 'bridge' && inBridge) {
+      problems.push(`${name} is not a bridge connector, so it does not belong in the bridge profile`);
+    }
     if (entry.delivery === 'bundled') {
       if (!inAlways) problems.push(`${name} is bundled but app/pom.xml does not depend on connectors-${name}`);
       if (inProfile) problems.push(`${name} is bundled, so it does not belong in the all-bundled profile`);
+    } else if (entry.delivery === 'bridge') {
+      if (inAlways) problems.push(`${name} is a bridge connector but app/pom.xml always depends on connectors-${name}`);
+      if (!inBridge) problems.push(`${name} is a bridge connector but the bridge profile of app/pom.xml lacks connectors-${name}`);
+      if (inProfile) problems.push(`${name} is a bridge connector, so it does not belong in the all-bundled profile`);
     } else {
       if (inAlways) problems.push(`${name} is a module but app/pom.xml always depends on connectors-${name}`);
       if (!inProfile) problems.push(`${name} is a module but the all-bundled profile of app/pom.xml lacks connectors-${name}`);
     }
   }
-  for (const name of [...always, ...allBundled]) {
+  for (const name of [...always, ...allBundled, ...bridge]) {
     if (!map.connectors[name] && !SHARED.includes(name)) {
       problems.push(`app/pom.xml depends on connectors-${name}, which connectors/delivery.json does not list`);
     }
@@ -116,7 +130,7 @@ export function checkDelivery(root = ROOT) {
 /** The connector types by delivery, for callers that only need the ids. */
 export function typesByDelivery(root = ROOT) {
   const map = readDelivery(root);
-  const out = { bundled: [], module: [] };
+  const out = { bundled: [], module: [], bridge: [] };
   for (const entry of Object.values(map.connectors)) out[entry.delivery].push(...entry.types);
   return out;
 }
