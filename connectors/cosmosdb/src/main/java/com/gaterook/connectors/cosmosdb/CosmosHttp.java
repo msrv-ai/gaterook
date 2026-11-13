@@ -1,5 +1,6 @@
 package com.gaterook.connectors.cosmosdb;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ConnectionConfig;
 import com.gaterook.connector.api.ConnectorException;
 import com.gaterook.connector.api.ExecContext;
@@ -46,7 +47,7 @@ final class CosmosHttp implements AutoCloseable {
   static final String USER_AGENT = "GateRook/" + BuiltIn.VERSION;
   static final JsonMapper JSON = JsonMapper.builder().build();
   /** A change's body in the approval and on the wire: the same writer, the same bytes. */
-  static final ObjectWriter PRETTY = JSON.writerWithDefaultPrettyPrinter();
+  static final ObjectWriter PRETTY = PrettyJson.writer(JSON);
 
   /** Made on the first request: a client starts its selector thread, which a connector nobody uses doesn't need. */
   private volatile HttpClient client;

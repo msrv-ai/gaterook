@@ -1,5 +1,6 @@
 package com.gaterook.connectors.gcp;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ConnectorException;
 import com.gaterook.connector.api.ToolResult;
 import com.gaterook.connectors.support.OutputSanitizer;
@@ -349,7 +350,7 @@ final class AssetDescribe {
   }
 
   static String pretty(JsonNode node) {
-    return JSON.writerWithDefaultPrettyPrinter().writeValueAsString(node);
+    return PrettyJson.writer(JSON).writeValueAsString(node);
   }
 
   static ArrayNode array(List<ObjectNode> items) {

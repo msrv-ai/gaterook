@@ -1,5 +1,6 @@
 package com.gaterook.connectors.gcp;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ActionPreview;
 import com.gaterook.connector.api.ConnectionConfig;
 import com.gaterook.connector.api.ConnectorException;
@@ -564,7 +565,7 @@ final class ApiCall {
     text.append("Authorization: Bearer ‹masked› (").append(s.credentials().identity()).append(")\n");
     if (body != null) {
       text.append("Content-Type: application/json\n\n");
-      text.append(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(body));
+      text.append(PrettyJson.writer(JSON).writeValueAsString(body));
     }
     String resource = b.resourcePath();
     String summary = DescribeRequest.abbreviate(m.api() + " " + ApiRules.last(m.key()) + " " + resource);

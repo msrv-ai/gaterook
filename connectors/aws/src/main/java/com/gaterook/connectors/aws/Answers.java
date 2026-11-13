@@ -1,5 +1,6 @@
 package com.gaterook.connectors.aws;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ToolResult;
 import com.gaterook.connectors.support.OutputSanitizer;
 import java.util.ArrayList;
@@ -194,7 +195,7 @@ final class Answers {
     }
     JsonNode shown = resource.get("properties");
     if (shown != null && !shown.isEmpty()) {
-      String pretty = JSON.writerWithDefaultPrettyPrinter().writeValueAsString(shown);
+      String pretty = PrettyJson.writer(JSON).writeValueAsString(shown);
       if (Call.utf8(pretty) + Call.utf8(s.toString()) <= budget) {
         t.append("\nproperties:\n").append(pretty);
       } else {

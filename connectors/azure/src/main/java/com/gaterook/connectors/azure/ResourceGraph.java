@@ -1,5 +1,6 @@
 package com.gaterook.connectors.azure;
 
+import com.gaterook.connectors.support.PrettyJson;
 import com.gaterook.connector.api.ConnectorException;
 import com.gaterook.connector.api.ToolResult;
 import com.gaterook.connectors.support.OutputSanitizer;
@@ -203,7 +204,7 @@ final class ResourceGraph {
   }
 
   static String pretty(JsonNode n) {
-    return tools.jackson.databind.json.JsonMapper.builder().build().writerWithDefaultPrettyPrinter()
+    return PrettyJson.writer(tools.jackson.databind.json.JsonMapper.builder().build())
         .writeValueAsString(n);
   }
 
