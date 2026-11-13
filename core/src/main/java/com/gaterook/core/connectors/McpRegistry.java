@@ -21,7 +21,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Search of an MCP registry for Add MCP server (ARCHITECTURE.md §7.5): a server with the read API of the Official MCP
  * Registry ({@code GET /v0.1/servers}), by default that registry itself ({@code gateway.mcp-registry.url}; empty turns
- * the search off). A registry may add GateRook's facts about an entry under {@code _meta["dev.msrv.gaterook/catalog"]}:
+ * the search off). A registry may add GateRook's facts about an entry under {@code _meta["com.gaterook/catalog"]}:
  * how its publisher was verified, whether it is featured, its category. The official registry adds none.
  *
  * <p>Requests go through the catalog's egress guard ({@link CatalogDownloads}: {@code https://} only, bounded, never
@@ -36,7 +36,7 @@ public class McpRegistry {
   /** The Official MCP Registry. */
   public static final String OFFICIAL = "https://registry.modelcontextprotocol.io";
   /** Where a registry puts GateRook's facts about an entry, in the result's or the server's {@code _meta}. */
-  static final String LISTING_META = "dev.msrv.gaterook/catalog";
+  static final String LISTING_META = "com.gaterook/catalog";
   static final String OFFICIAL_META = "io.modelcontextprotocol.registry/official";
   static final int PAGE_SIZE = 20;
   static final long MAX_PAGE_BYTES = 4L * 1024 * 1024;
