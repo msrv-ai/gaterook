@@ -44,6 +44,12 @@
           <label class="gw-switch__label" for="st-updates">Check for updates automatically</label>
           <p class="gw-switch__hint" id="st-updates-hint">Every hour on macOS and once a day on Windows. Updates download and restart the app only when you choose.</p>
         </div>
+        <div class="gw-switch">
+          <input class="gw-switch__input" type="checkbox" role="switch" id="st-beta" [checked]="betaUpdates()" [attr.aria-busy]="busy() === 'betaUpdates' ? 'true' : null" aria-describedby="st-beta-hint" (change)="setGeneral('betaUpdates', $event, 'Get beta versions')">
+          <span class="gw-switch__control" aria-hidden="true"></span>
+          <label class="gw-switch__label" for="st-beta">Get beta versions</label>
+          <p class="gw-switch__hint" id="st-beta-hint">Offers pre-release versions for testing before they become stable releases. If you turn this off, the app keeps its version until a newer stable release is out.</p>
+        </div>
         @let u = update();
         <div class="gw-settings-layout__inline">
           @if (u.tone === 'checking') {

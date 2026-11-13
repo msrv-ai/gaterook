@@ -6,7 +6,7 @@ import type { UpdateState } from '../shared/contract.ts';
 
 export type UpdaterEvent =
   | { readonly type: 'checking-for-update' }
-  | { readonly type: 'update-available'; readonly version?: string }
+  | { readonly type: 'update-available'; readonly version?: string; readonly beta?: boolean }
   | { readonly type: 'update-not-available'; readonly version?: string }
   | { readonly type: 'update-downloaded'; readonly version?: string }
   | { readonly type: 'error'; readonly message?: string };
@@ -18,7 +18,7 @@ export function updateStateFor(e: UpdaterEvent, lastCheckedAt: string | null): U
     case 'checking-for-update':
       return { state: 'checking', ...at };
     case 'update-available':
-      return { state: 'available', ...(e.version ? { version: e.version } : {}), ...at };
+      return { state: 'available', ...(e.version ? { version: e.version } : {}), ...(e.beta ? { beta: true } : {}), ...at };
     case 'update-not-available':
       return { state: 'up-to-date', ...(e.version ? { version: e.version } : {}), ...at };
     case 'update-downloaded':
@@ -93,4 +93,50 @@ export function due(last: number | null, now: number, every: number): boolean {
  */
 export function autoUpdateWanted(fromCore: boolean | undefined, lastKnown: boolean | undefined): boolean {
   return fromCore ?? lastKnown ?? true;
+}
+
+/**
+ * Whether beta versions are wanted (Settings › General "Get beta versions"): what the core says now; while it can't,
+ * what it said last, so a locked core neither starts nor stops offering them; before the core ever answered, its
+ * default (off).
+ */
+export function betaUpdatesWanted(fromCore: boolean | undefined, lastKnown: boolean | undefined): boolean {
+  return fromCore ?? lastKnown ?? false;
+}
+
+const NUMBER = '(?:0|[1-9]\\d*)';
+const IDENTIFIER = `(?:${NUMBER}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const VERSION = new RegExp(`^(${NUMBER})\\.(${NUMBER})\\.(${NUMBER})(?:-(${IDENTIFIER}(?:\\.${IDENTIFIER})*))?`
+  + '(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$');
+
+/** Two numbers without leading zeros, as text: versions aren't bounded by what a double holds. */
+function compareNumbers(a: string, b: string): number {
+  return a.length !== b.length ? Math.sign(a.length - b.length) : a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Which of two versions comes later, by Semantic Versioning 2.0.0 precedence: negative when `a` is the older one,
+ * positive when it is the newer one, 0 when neither is. A version with a pre-release part comes before the same
+ * version without one; build metadata doesn't count. Null when either isn't a version.
+ */
+export function compareVersions(a: string, b: string): number | null {
+  const x = VERSION.exec(a);
+  const y = VERSION.exec(b);
+  if (!x || !y) return null;
+  for (const part of [1, 2, 3]) {
+    const order = compareNumbers(x[part]!, y[part]!);
+    if (order !== 0) return order;
+  }
+  const before = x[4]?.split('.');
+  const after = y[4]?.split('.');
+  if (!before || !after) return before ? -1 : after ? 1 : 0;
+  for (let i = 0; i < Math.min(before.length, after.length); i++) {
+    const p = before[i]!;
+    const q = after[i]!;
+    const numeric = [/^\d+$/.test(p), /^\d+$/.test(q)];
+    // Numeric identifiers come before alphanumeric ones, which compare in ASCII order.
+    const order = numeric[0] && numeric[1] ? compareNumbers(p, q) : numeric[0] ? -1 : numeric[1] ? 1 : p < q ? -1 : p > q ? 1 : 0;
+    if (order !== 0) return order;
+  }
+  return Math.sign(before.length - after.length);
 }

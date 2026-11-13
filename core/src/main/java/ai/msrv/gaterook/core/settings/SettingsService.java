@@ -256,6 +256,7 @@ public class SettingsService {
           "openAtLogin":{"type":"boolean","default":true,"title":"Start GateRook when you sign in"},
           "startHidden":{"type":"boolean","default":true,"title":"Start minimized"},
           "autoUpdate":{"type":"boolean","default":true,"title":"Check for updates automatically"},
+          "betaUpdates":{"type":"boolean","default":false,"title":"Get beta versions"},
           "singleKeyShortcuts":{"type":"boolean","default":true,"title":"Single-key shortcuts"},
           "toastDurationSeconds":{"type":"integer","enum":[5,10,15,30,60,120],"default":10,
             "title":"In-app notification duration","x-unit":"seconds"}}}"""));
