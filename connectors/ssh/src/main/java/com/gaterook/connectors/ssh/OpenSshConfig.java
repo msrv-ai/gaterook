@@ -445,15 +445,33 @@ final class OpenSshConfig {
 
     /** The files an {@code Include} names: {@code ~/…}, absolute, or relative to {@code ~/.ssh}; globs sorted. */
     private List<Path> include(String pattern) {
-      Path path = home.expand(pattern);
-      if (path == null && !pattern.startsWith("~")) {
-        path = safeResolve(home.ssh(), pattern);
+      // Only the parts before the first glob become a Path: Windows refuses a Path with '*' or '?' in it.
+      String[] parts = pattern.split("[/\\\\]", -1);
+      int glob = 0;
+      while (glob < parts.length && parts[glob].chars().noneMatch(c -> c == '*' || c == '?' || c == '[')) {
+        glob++;
       }
-      if (path == null || path.getRoot() == null) {
+      String prefix = String.join("/", java.util.Arrays.asList(parts).subList(0, glob));
+      Path base;
+      if (prefix.isEmpty()) {
+        base = glob == 0 ? home.ssh() : null;
+      } else {
+        base = home.expand(prefix);
+        if (base == null && !prefix.startsWith("~")) {
+          base = safeResolve(home.ssh(), prefix);
+        }
+      }
+      if (base == null || base.getRoot() == null) {
         return List.of();
       }
+      List<String> rest = new ArrayList<>();
+      for (int i = glob; i < parts.length; i++) {
+        if (!parts[i].isEmpty() && !parts[i].equals(".")) {
+          rest.add(parts[i]);
+        }
+      }
       List<Path> out = new ArrayList<>();
-      expand(path.getRoot(), path, 0, out);
+      expand(base.normalize(), rest, 0, out);
       return out;
     }
 
@@ -465,20 +483,20 @@ final class OpenSshConfig {
       }
     }
 
-    /** Matches the parts of {@code path} from {@code index} on below {@code at}: a part with a glob lists its folder. */
-    private void expand(Path at, Path path, int index, List<Path> out) {
+    /** Matches {@code parts} from {@code index} on below {@code at}: a part with a glob lists its folder. */
+    private void expand(Path at, List<String> parts, int index, List<Path> out) {
       if (out.size() >= MAX_FILES) {
         return;
       }
-      if (index == path.getNameCount()) {
+      if (index == parts.size()) {
         if (Files.isRegularFile(at)) {
           out.add(at);
         }
         return;
       }
-      String part = path.getName(index).toString();
+      String part = parts.get(index);
       if (part.chars().noneMatch(c -> c == '*' || c == '?' || c == '[')) {
-        expand(at.resolve(part), path, index + 1, out);
+        expand(at.resolve(part).normalize(), parts, index + 1, out);
         return;
       }
       if (!Files.isDirectory(at)) {
@@ -500,7 +518,7 @@ final class OpenSshConfig {
       }
       matches.sort(null);
       for (Path p : matches) {
-        expand(p, path, index + 1, out);
+        expand(p, parts, index + 1, out);
       }
     }
   }
