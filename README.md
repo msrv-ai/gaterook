@@ -147,7 +147,7 @@ Inspect calls, approval decisions, execution outcomes, and configuration changes
 - **Share reviewed setups:** export a passphrase-encrypted endpoint file, with secrets excluded by default. Recipients review what to import; client grants and tokens do not transfer. [Endpoint sharing](docs/development.md#endpoint-sharing).
 - **Back up and restore:** create a passphrase-encrypted full backup from **Settings → Backup**. [Recovery guide](docs/development.md#full-backup-and-restore).
 - **Test and reuse tools:** try calls in **Playground**; turn named SQL queries, SSH runbooks, and OpenAPI operations into reusable tools with typed parameters.
-- **Extend the connector catalog:** install Java plugins, or a [connector module of your own](docs/connector-delivery.md#a-module-from-a-file), in a separate JVM host, with reviewed capabilities and tool permissions. [Plugin architecture](docs/ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers).
+- **Extend the connector catalog:** install Java plugins, or a [connector module of your own](docs/connector-delivery.md#a-module-from-a-file), in a separate JVM host, with reviewed capabilities and tool permissions. [Plugin architecture](docs/ARCHITECTURE.md#75-plugins-catalog-and-external-mcp-servers); [how a connector module is built](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md).
 - **Use remote access when appropriate:** publish non-production endpoints through the built-in tunnel with OAuth. Production endpoints remain local. [Security boundaries](docs/security.md#apply-stricter-controls-to-production).
 - **Work in your preferred theme:** light, dark, and high-contrast variants, with keyboard navigation throughout the desktop UI.
 
@@ -207,6 +207,7 @@ See the [development guide](docs/development.md), [IntelliJ IDEA setup](docs/dev
 | [Architecture](docs/ARCHITECTURE.md) | Processes, modules, execution flow, persistence, UI, and extension contracts. |
 | [Development](docs/development.md) | Local builds, tests, backups, endpoint sharing, and troubleshooting. |
 | [External MCP servers](docs/mcp-servers.md) | Registry discovery, verified cloud profiles, local and remote servers, OAuth, and cloud credentials. |
+| [Writing a connector module](https://github.com/gaterook/gaterook-plugins/blob/main/docs/module-architecture.md) | The parts, the package, the connector API in use and an example module, in the [modules repository](https://github.com/gaterook/gaterook-plugins). |
 | [Connector guides](#connect-your-stack) | Credentials, permissions, limits, and reviewed changes for the connectors linked in the connector table. |
 | [AI connection import](docs/ai-connection-import.md) / [OpenAPI import](docs/http-api-import.md) | Reviewable setup flows for repositories and HTTP APIs. |
 | [Product decisions](docs/DECISIONS.md) / [Research](docs/research/README.md) | Accepted engineering decisions and curated technical investigations. |
