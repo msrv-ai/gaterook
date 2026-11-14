@@ -6,10 +6,10 @@ Let AI investigate incidents, query databases, search logs, and work with your s
 
 **Works with Claude Desktop · Codex · Cursor · Antigravity · VS Code**
 
-[![Download for macOS (Apple Silicon)](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-6C56EE?style=for-the-badge)](https://github.com/gaterook/gaterook/releases/download/v0.9.2/GateRook-0.9.2-mac-arm64.dmg)
+[![Download for macOS (Apple Silicon)](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-6C56EE?style=for-the-badge)](https://github.com/gaterook/gaterook/releases/download/v2.0.0/GateRook-2.0.0-mac-arm64.dmg)
 [![Get GateRook for Windows from Microsoft Store](https://img.shields.io/badge/Windows-Microsoft_Store-6C56EE?style=for-the-badge)](https://apps.microsoft.com/detail/9ncv7wxz9wsv)
 
-macOS: direct download of the **0.9.2 Apple Silicon `.dmg`**. Windows: install and update through Microsoft Store. [Release notes](https://github.com/gaterook/gaterook/releases/latest).
+macOS: direct download of the **2.0.0 Apple Silicon `.dmg`**. Windows: install and update through Microsoft Store. [Release notes](https://github.com/gaterook/gaterook/releases/latest).
 
 [Website](https://gaterook.com) · [Get started](#get-started) · [Connectors](#connect-your-stack) · [Security](#security-you-can-configure-and-inspect) · [Build from source](#build-and-run-locally) · [Support](mailto:support@gaterook.com)
 
