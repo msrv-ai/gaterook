@@ -443,6 +443,8 @@ class EntityRoundTripTest {
     }
     assertThat(jdbc.queryForObject("select count(*) from approval where endpoint_id is null and endpoint_slug = 'dev'",
         Integer.class)).isEqualTo(2);
-    assertThat(jdbc.queryForObject("select count(*) from tool_call", Integer.class)).as("the audit stays").isEqualTo(1);
+    // Counted by id: the application context can record its own calls meanwhile on a slower machine.
+    assertThat(jdbc.queryForObject("select count(*) from tool_call where id = ?", Integer.class, received.getId()))
+        .as("the audit stays").isEqualTo(1);
   }
 }
